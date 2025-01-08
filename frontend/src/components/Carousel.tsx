@@ -41,7 +41,7 @@ export default function Carousel() {
     <Box
       position={"relative"}
       height={"500px"}
-      width={"full"}
+      width={"100%"}
       overflow={"hidden"}
     >
       {/* Left Icon */}

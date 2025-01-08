@@ -6,7 +6,7 @@ export default function NotFound() {
     <VStack justifyContent={"center"} minHeight="100vh">
       <Heading>Page Not Found</Heading>
       <Link to="/">
-        <Button>Go Home</Button>
+        <Button>Go to Home</Button>
       </Link>
     </VStack>
   );
