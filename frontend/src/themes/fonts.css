@@ -1,0 +1,17 @@
+/*
+Refer to the BI document at the following URL:
+https://www.sookmyung.ac.kr/kr/intro/typeface.do
+*/
+@font-face {
+  font-family: "SMUFont";
+  src: url("../assets/fonts/SMUSnowflake-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "SMUFont";
+  src: url("../assets/fonts/SMUSnowflake-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
