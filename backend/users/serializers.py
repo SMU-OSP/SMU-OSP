@@ -10,7 +10,7 @@ class PublicUserSerializer(ModelSerializer):
             "name",
             "github_id",
             "github_email",
-            "major"
+            "major",
         )
 
 

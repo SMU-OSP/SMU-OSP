@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+
 class User(AbstractUser):
-    
+
     name = models.CharField(
         max_length=100,
         default="",
@@ -12,12 +13,14 @@ class User(AbstractUser):
 
     github_id = models.CharField(
         max_length=100,
-        default=""
+        default="",
     )
 
-    github_email = models.EmailField(blank=True)
+    github_email = models.EmailField(
+        blank=True,
+    )
 
     major = models.CharField(
         max_length=100,
-        default=""
+        default="",
     )
