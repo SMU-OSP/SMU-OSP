@@ -37,7 +37,7 @@ ALLOWED_HOSTS = []
 
 THIRD_PARTY_APPS = [
     "rest_framework",
-    # "rest_framework.authtoken",
+    "rest_framework_simplejwt",
     # "corsheaders",
 ]
 
@@ -145,3 +145,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Auth
 
 AUTH_USER_MODEL = "users.User"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ]
+}
+
+# if DEBUG:
+#     CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5174"]
+#     CORS_ALLOW_CREDENTIALS = True
+#     CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1:5174"]
