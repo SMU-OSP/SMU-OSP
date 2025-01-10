@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Box, IconButton, useBreakpointValue } from "@chakra-ui/react";
 import { BiLeftArrowAlt, BiRightArrowAlt } from "react-icons/bi";
 import Slider from "react-slick";
@@ -6,6 +6,8 @@ import Slider from "react-slick";
 // CSS files for react-slick
 import "../ui/slick.min.css";
 import "../ui/slick-theme.min.css";
+import BoardDialog from "./BoardDialog";
+import { IPost } from "../types";
 
 // Settings for the slider
 const settings = {
@@ -19,8 +21,7 @@ const settings = {
   slidesToShow: 1,
   slidesToScroll: 1,
 };
-
-export default function Carousel({ cards }: { cards: string[] }) {
+export default function Carousel({ posts }: { posts: IPost[] }) {
   // As we have used custom buttons, we need a reference variable to
   // change the state
   const [slider, setSlider] = React.useState<Slider | null>(null);
@@ -29,6 +30,17 @@ export default function Carousel({ cards }: { cards: string[] }) {
   // buttons as the screen size changes
   const top = useBreakpointValue({ base: "90%", md: "50%" });
   const side = useBreakpointValue({ base: "30%", md: "10px" });
+
+  const BASE_URL = "http://127.0.0.1:8000";
+
+  const [boardOpen, setBoardOpen] = useState(false);
+
+  const toggleBoardDialog = (post: IPost) => {
+    setBoardOpen(!boardOpen);
+    setSelectedPost(post);
+  };
+
+  const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
 
   return (
     <Box
@@ -67,18 +79,25 @@ export default function Carousel({ cards }: { cards: string[] }) {
       </IconButton>
       {/* Slider */}
       <Slider {...settings} ref={(slider) => setSlider(slider)}>
-        {cards.map((url, index) => (
+        {posts.map((post) => (
           <Box
-            key={index}
+            key={post.id}
             height={"500px"}
             position="relative"
             backgroundPosition="center"
             backgroundRepeat="no-repeat"
             backgroundSize="cover"
-            backgroundImage={`url(${url})`}
+            backgroundImage={`url(${BASE_URL}${post.image})`}
+            cursor="pointer"
+            onClick={() => toggleBoardDialog(post)}
           />
         ))}
       </Slider>
+      <BoardDialog
+        open={boardOpen}
+        setOpen={setBoardOpen}
+        post={selectedPost}
+      />
     </Box>
   );
 }

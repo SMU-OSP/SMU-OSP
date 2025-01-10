@@ -11,6 +11,7 @@ import { getCarouselPosts, getRecentPosts, getUser } from "../api";
 import { IPost } from "../types";
 import PostList from "../components/PostList";
 import UserList from "../components/UserList";
+import { useState } from "react";
 
 export default function Home() {
   const userRank = [
@@ -55,11 +56,6 @@ export default function Home() {
     queryKey: ["carouselPosts"],
     queryFn: getCarouselPosts,
   });
-
-  const BASE_URL = "http://127.0.0.1:8000";
-
-  const cards = carouselPosts.map((post) => `${BASE_URL}${post.image}`);
-
   // console.log(caro);
   const listStackDirection = useBreakpointValue({ base: "column", md: "row" });
 
@@ -69,7 +65,7 @@ export default function Home() {
 
   return (
     <VStack spaceY={"5"}>
-      <Carousel cards={cards} />
+      <Carousel posts={carouselPosts} />
       <Box>
         {listStackDirection === "row" ? (
           <HStack spaceX={"5"}>
