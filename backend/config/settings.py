@@ -38,13 +38,14 @@ ALLOWED_HOSTS = []
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
-    # "corsheaders",
+    # "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
 ]
 
 CUSTOM_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
+    "board.apps.BoardConfig",
 ]
 
 SYSTEM_APPS = [
@@ -62,6 +63,7 @@ INSTALLED_APPS = SYSTEM_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -125,6 +127,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
+# LANGUAGE_CODE = "ko"
 
 TIME_ZONE = "UTC"
 
@@ -147,19 +150,22 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "users.User"
 
+MEDIA_ROOT = "images"
+MEDIA_URL = "images/"
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ]
 }
 
-SIMPLE_JWT = {
-    "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": True,
-}
+# SIMPLE_JWT = {
+#     "ROTATE_REFRESH_TOKENS": True,
+#     "BLACKLIST_AFTER_ROTATION": True,
+# }
 
-# if DEBUG:
-#     CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5174"]
-#     CORS_ALLOW_CREDENTIALS = True
-#     CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1:5174"]
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5173"]
+    CORS_ALLOW_CREDENTIALS = True
+    CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1:5173"]

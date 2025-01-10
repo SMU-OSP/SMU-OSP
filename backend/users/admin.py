@@ -47,7 +47,7 @@ class CustomUserAdmin(UserAdmin):
         "username",
         "name",
         "student_id",
+        "major",
         "github_id",
         "github_email",
-        "major",
     )

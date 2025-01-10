@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 
 import { useState } from "react";
-import { Box, HStack, Image, Text } from "@chakra-ui/react";
+import { Box, HStack, Image, MenuTrigger, Text } from "@chakra-ui/react";
 import { Button } from "./ui/button";
 import LoginDialog from "./LoginDialog";
 import SignupDialog from "./SignupDialog";
+import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
+import { LogIn } from "../api";
+import Cookie from "js-cookie";
 
 export default function Header() {
   const [loginOpen, setLoginOpen] = useState(false);
@@ -15,6 +18,26 @@ export default function Header() {
   };
   const toggleSignupDialog = () => {
     setSignupOpen(!signupOpen);
+  };
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const userLoading = false;
+
+  const onLogIn = async () => {
+    const data = await LogIn("tester1", "1234");
+    console.log(data);
+    Cookie.set("access_token", data.access, {
+      expires: 7,
+      secure: true,
+      sameSite: "Strict",
+    });
+    setIsLoggedIn(true);
+  };
+
+  const onLogOut = async () => {
+    Cookie.remove("access_token");
+    setIsLoggedIn(false);
   };
 
   return (
@@ -38,20 +61,42 @@ export default function Header() {
             </Text>
           </HStack>
 
-          <HStack spaceX={2}>
-            <Button
-              borderColor={"smu.blue"}
-              bgColor={"white"}
-              onClick={toggleLoginDialog}
-            >
-              <Text color={"smu.blue"} fontWeight={"bold"}>
-                로그인
-              </Text>
-            </Button>
-            <Button bgColor={"smu.blue"} onClick={toggleSignupDialog}>
-              <Text fontWeight={"bold"}>회원가입</Text>
-            </Button>
-          </HStack>
+          {!userLoading ? (
+            !isLoggedIn ? (
+              <HStack spaceX={2}>
+                <Button
+                  borderColor={"smu.blue"}
+                  bgColor={"white"}
+                  // onClick={toggleLoginDialog}
+                  onClick={onLogIn}
+                >
+                  <Text color={"smu.blue"} fontWeight={"bold"}>
+                    로그인
+                  </Text>
+                </Button>
+                <Button bgColor={"smu.blue"} onClick={toggleSignupDialog}>
+                  <Text fontWeight={"bold"}>회원가입</Text>
+                </Button>
+              </HStack>
+            ) : (
+              <MenuRoot>
+                <MenuTrigger asChild>
+                  <Text fontWeight={"bold"}>Logged In</Text>
+                </MenuTrigger>
+                <MenuContent>
+                  <MenuItem value="profile">
+                    <Text fontWeight={"bold"}>프로필</Text>
+                  </MenuItem>
+                  <MenuItem value="setting">
+                    <Text fontWeight={"bold"}>계정 관리</Text>
+                  </MenuItem>
+                  <MenuItem value="logOut" onClick={onLogOut}>
+                    <Text fontWeight={"bold"}>로그아웃</Text>
+                  </MenuItem>
+                </MenuContent>
+              </MenuRoot>
+            )
+          ) : null}
         </HStack>
       </Box>
 

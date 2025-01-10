@@ -9,7 +9,9 @@ class User(AbstractUser):
         default="",
     )
 
-    student_id = models.IntegerField()
+    student_id = models.PositiveIntegerField(
+        null=True,
+    )
 
     github_id = models.CharField(
         max_length=100,

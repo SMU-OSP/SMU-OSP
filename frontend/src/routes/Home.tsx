@@ -1,33 +1,50 @@
-import { Box, Flex, useBreakpointValue, VStack } from "@chakra-ui/react";
+import {
+  Box,
+  Flex,
+  useBreakpointValue,
+  VStack,
+  HStack,
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import Carousel from "../components/Carousel";
-import { CustomList } from "../components/CustomList";
+import { getRecentPosts, getUser } from "../api";
+import { IPost } from "../types";
+import PostList from "../components/PostList";
+import UserList from "../components/UserList";
+
 export default function Home() {
-  const recentPosts = [
-    {
-      title: "title 1: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-01"),
-    },
-    {
-      title: "title 2: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-02"),
-    },
-    {
-      title: "title 3: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-03"),
-    },
-    {
-      title: "title 4: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-04"),
-    },
-    {
-      title: "title 5: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-05"),
-    },
-    {
-      title: "title 6: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-      date: new Date("2024-12-06"),
-    },
-  ];
+  // const recentPosts = [
+  //   {
+  //     id: 1,
+  //     title: "title 1: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-01"),
+  //   },
+  //   {
+  //     id: 2,
+  //     title: "title 2: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-02"),
+  //   },
+  //   {
+  //     id: 3,
+  //     title: "title 3: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-03"),
+  //   },
+  //   {
+  //     id: 4,
+  //     title: "title 4: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-04"),
+  //   },
+  //   {
+  //     id: 5,
+  //     title: "title 5: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-05"),
+  //   },
+  //   {
+  //     id: 6,
+  //     title: "title 6: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
+  //     created_at: new Date("2024-12-06"),
+  //   },
+  // ];
 
   const userRank = [
     {
@@ -60,10 +77,35 @@ export default function Home() {
     },
   ];
 
+  // const { isLoading, data } = useQuery(["users"], getUser);
+
+  const { isLoading, data: recentPosts = [] } = useQuery<IPost[]>({
+    queryKey: ["posts"],
+    queryFn: getRecentPosts,
+  });
+
+  const listStackDirection = useBreakpointValue({ base: "column", md: "row" });
+
+  // if (isLoading) {
+  //   return <Box>Loading...</Box>;
+  // }
+
   return (
     <VStack spaceY={"5"}>
       <Carousel />
-      <CustomList posts={recentPosts} users={userRank} />
+      <Box>
+        {listStackDirection === "row" ? (
+          <HStack spaceX={"5"}>
+            <PostList posts={recentPosts} />
+            <UserList users={userRank} />
+          </HStack>
+        ) : (
+          <VStack spaceY={"0"}>
+            <PostList posts={recentPosts} />
+            <UserList users={userRank} />
+          </VStack>
+        )}
+      </Box>
     </VStack>
   );
 }
