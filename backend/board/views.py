@@ -16,10 +16,17 @@ class Board(APIView):
     #     return super().get_permissions()
 
     def get(self, request):
-        limit = request.query_params.get("limit", 5)
-        if limit:
-            limit = int(limit)
-        all_posts = Post.objects.all().order_by("-created_at")[:limit]
+        all_posts = Post.objects.all().order_by("-created_at")
+
+        if "carousel" in request.query_params:
+            all_posts = all_posts.filter(on_carousel=True)
+        else:
+            limit = request.query_params.get("limit", 5)
+            if type(limit) == str:
+                limit = int(limit)
+
+            all_posts = all_posts[:limit]
+
         serializer = PostSerializer(
             all_posts,
             many=True,

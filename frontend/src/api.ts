@@ -18,3 +18,6 @@ export const getRecentPosts = () =>
   instance
     .get("board", { params: { limit: 5 } })
     .then((response) => response.data);
+
+export const getCarouselPosts = () =>
+  instance.get("board?carousel").then((response) => response.data);

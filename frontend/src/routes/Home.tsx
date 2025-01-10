@@ -7,45 +7,12 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import Carousel from "../components/Carousel";
-import { getRecentPosts, getUser } from "../api";
+import { getCarouselPosts, getRecentPosts, getUser } from "../api";
 import { IPost } from "../types";
 import PostList from "../components/PostList";
 import UserList from "../components/UserList";
 
 export default function Home() {
-  // const recentPosts = [
-  //   {
-  //     id: 1,
-  //     title: "title 1: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-01"),
-  //   },
-  //   {
-  //     id: 2,
-  //     title: "title 2: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-02"),
-  //   },
-  //   {
-  //     id: 3,
-  //     title: "title 3: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-03"),
-  //   },
-  //   {
-  //     id: 4,
-  //     title: "title 4: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-04"),
-  //   },
-  //   {
-  //     id: 5,
-  //     title: "title 5: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-05"),
-  //   },
-  //   {
-  //     id: 6,
-  //     title: "title 6: ehdgoanfrhk qortneksdl akfmrh ekfrehfhr",
-  //     created_at: new Date("2024-12-06"),
-  //   },
-  // ];
-
   const userRank = [
     {
       username: "1st runner",
@@ -80,10 +47,20 @@ export default function Home() {
   // const { isLoading, data } = useQuery(["users"], getUser);
 
   const { isLoading, data: recentPosts = [] } = useQuery<IPost[]>({
-    queryKey: ["posts"],
+    queryKey: ["recentPosts"],
     queryFn: getRecentPosts,
   });
 
+  const { isLoadingg, data: carouselPosts = [] } = useQuery<IPost[]>({
+    queryKey: ["carouselPosts"],
+    queryFn: getCarouselPosts,
+  });
+
+  const BASE_URL = "http://127.0.0.1:8000";
+
+  const cards = carouselPosts.map((post) => `${BASE_URL}${post.image}`);
+
+  // console.log(caro);
   const listStackDirection = useBreakpointValue({ base: "column", md: "row" });
 
   // if (isLoading) {
@@ -92,7 +69,7 @@ export default function Home() {
 
   return (
     <VStack spaceY={"5"}>
-      <Carousel />
+      <Carousel cards={cards} />
       <Box>
         {listStackDirection === "row" ? (
           <HStack spaceX={"5"}>
