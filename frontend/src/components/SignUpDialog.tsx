@@ -11,12 +11,17 @@ import { Button } from "./ui/button";
 import React from "react";
 // import GithubLogin from "./GithubLogin";
 
-interface ISugnupDialog {
+interface ISugnUpDialog {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export default function SignupDialog({ open, setOpen }: ISugnupDialog) {
+interface ISignUpForm {
+  username: string;
+  password: string;
+}
+
+export default function SignUpDialog({ open, setOpen }: ISugnUpDialog) {
   return (
     <Box>
       <DialogRoot open={open} onOpenChange={(e) => setOpen(e.open)}>
@@ -26,10 +31,10 @@ export default function SignupDialog({ open, setOpen }: ISugnupDialog) {
           </DialogHeader>
           <DialogBody>
             <VStack>
-              <Input placeholder="Github E-mail" />
               <Input placeholder="Username" />
               <Input placeholder="Password" />
               <Input placeholder="Major" />
+              <Input placeholder="Github E-mail" />
             </VStack>
             <Button mt={5} w={"100%"} bgColor={"smu.blue"}>
               <Text fontWeight={"bold"}>회원가입</Text>

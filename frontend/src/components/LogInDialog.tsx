@@ -21,19 +21,19 @@ interface ILoginDialog {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-interface IForm {
+interface ILoginForm {
   username: string;
   password: string;
 }
 
-export default function LoginDialog({ open, setOpen }: ILoginDialog) {
+export default function LogInDialog({ open, setOpen }: ILoginDialog) {
   const { isAuthenticated, setIsAuthenticated } = useAuthContext();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<IForm>();
+  } = useForm<ILoginForm>();
 
   const mutation = useMutation({
     mutationFn: logIn,
@@ -55,7 +55,7 @@ export default function LoginDialog({ open, setOpen }: ILoginDialog) {
     },
   });
 
-  const onSubmit = ({ username, password }: IForm) => {
+  const onSubmit = ({ username, password }: ILoginForm) => {
     mutation.mutate({ username, password });
   };
 

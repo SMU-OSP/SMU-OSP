@@ -10,8 +10,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Button } from "./ui/button";
-import LoginDialog from "./LoginDialog";
-import SignupDialog from "./SignupDialog";
+import LogInDialog from "./LogInDialog";
+import SignUpDialog from "./SignUpDialog";
 import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
 import Cookie from "js-cookie";
 import { AuthChecker, useAuthContext } from "./AuthContext";
@@ -20,14 +20,14 @@ export default function Header() {
   const { isAuthenticated, setIsAuthenticated, isAuthLoading } =
     useAuthContext();
 
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [signupOpen, setSignupOpen] = useState(false);
+  const [logInOpen, setLogInOpen] = useState(false);
+  const [signUpOpen, setSignUpOpen] = useState(false);
 
-  const toggleLoginDialog = () => {
-    setLoginOpen(!loginOpen);
+  const toggleLogInDialog = () => {
+    setLogInOpen(!logInOpen);
   };
-  const toggleSignupDialog = () => {
-    setSignupOpen(!signupOpen);
+  const toggleSignUpDialog = () => {
+    setSignUpOpen(!signUpOpen);
   };
 
   const onLogOut = async () => {
@@ -63,13 +63,13 @@ export default function Header() {
                 <Button
                   borderColor={"smu.blue"}
                   bgColor={"white"}
-                  onClick={toggleLoginDialog}
+                  onClick={toggleLogInDialog}
                 >
                   <Text color={"smu.blue"} fontWeight={"bold"}>
                     로그인
                   </Text>
                 </Button>
-                <Button bgColor={"smu.blue"} onClick={toggleSignupDialog}>
+                <Button bgColor={"smu.blue"} onClick={toggleSignUpDialog}>
                   <Text fontWeight={"bold"}>회원가입</Text>
                 </Button>
               </HStack>
@@ -99,8 +99,8 @@ export default function Header() {
         </HStack>
       </Box>
 
-      <LoginDialog open={loginOpen} setOpen={setLoginOpen} />
-      <SignupDialog open={signupOpen} setOpen={setSignupOpen} />
+      <LogInDialog open={logInOpen} setOpen={setLogInOpen} />
+      <SignUpDialog open={signUpOpen} setOpen={setSignUpOpen} />
     </Box>
   );
 }
