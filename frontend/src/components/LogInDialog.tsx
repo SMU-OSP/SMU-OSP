@@ -15,15 +15,11 @@ import { useMutation } from "@tanstack/react-query";
 // import GithubLogin from "./GithubLogin";
 import Cookie from "js-cookie";
 import { useAuthContext } from "./AuthContext";
+import { ILogin } from "../types";
 
 interface ILoginDialog {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-interface ILoginForm {
-  username: string;
-  password: string;
 }
 
 export default function LogInDialog({ open, setOpen }: ILoginDialog) {
@@ -33,15 +29,12 @@ export default function LogInDialog({ open, setOpen }: ILoginDialog) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<ILoginForm>();
+  } = useForm<ILogin>();
 
   const mutation = useMutation({
     mutationFn: logIn,
-    onMutate: () => {
-      console.log("Log in Mutation Start");
-    },
+    onMutate: () => {},
     onSuccess: (data) => {
-      console.log("Log in Mutation Complete well");
       Cookie.set("access_token", data.access, {
         expires: 7,
         secure: true,
@@ -55,7 +48,7 @@ export default function LogInDialog({ open, setOpen }: ILoginDialog) {
     },
   });
 
-  const onSubmit = ({ username, password }: ILoginForm) => {
+  const onSubmit = ({ username, password }: ILogin) => {
     mutation.mutate({ username, password });
   };
 
@@ -72,13 +65,13 @@ export default function LogInDialog({ open, setOpen }: ILoginDialog) {
                 aria-invalid={Boolean(errors.username?.message)}
                 {...register("username", { required: "Username is required" })}
                 autoComplete="off"
-                placeholder="Username"
+                placeholder="계정 이름"
               />
               <Input
                 aria-invalid={Boolean(errors.password?.message)}
                 {...register("password", { required: "Password is required" })}
                 type="password"
-                placeholder="Password"
+                placeholder="비밀번호"
               />
             </VStack>
             <Button

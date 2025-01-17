@@ -13,16 +13,16 @@ class User(AbstractUser):
         null=True,
     )
 
+    major = models.CharField(
+        max_length=100,
+        default="",
+    )
+
     github_id = models.CharField(
         max_length=100,
         default="",
     )
 
     github_email = models.EmailField(
-        blank=True,
-    )
-
-    major = models.CharField(
-        max_length=100,
-        default="",
+        null=True,
     )
