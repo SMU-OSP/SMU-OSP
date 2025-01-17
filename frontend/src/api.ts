@@ -9,11 +9,6 @@ const instance = axios.create({
 export const getMyInfo = () =>
   instance.get("users/myinfo").then((response) => response.data);
 
-export const LogIn = (username: string, password: string) =>
-  instance
-    .post("token/", { username, password })
-    .then((response) => response.data);
-
 export const getRecentPosts = () =>
   instance
     .get("board", { params: { limit: 5 } })
@@ -21,3 +16,26 @@ export const getRecentPosts = () =>
 
 export const getCarouselPosts = () =>
   instance.get("board?carousel").then((response) => response.data);
+
+export interface ILogIn {
+  username: string;
+  password: string;
+}
+
+export const logIn = ({ username, password }: ILogIn) =>
+  instance
+    .post(
+      "token/",
+      { username, password },
+      { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
+    )
+    .then((response) => response.data);
+
+export const verifyToken = (token: string) =>
+  instance
+    .post(
+      "token/verify/",
+      { token },
+      { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
+    )
+    .then((response) => response.status);

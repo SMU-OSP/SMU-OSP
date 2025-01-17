@@ -9,7 +9,7 @@ import {
 } from "./ui/dialog";
 import { Button } from "./ui/button";
 import React from "react";
-import GithubLogin from "./GithubLogin";
+// import GithubLogin from "./GithubLogin";
 
 interface ISugnupDialog {
   open: boolean;
@@ -34,7 +34,7 @@ export default function SignupDialog({ open, setOpen }: ISugnupDialog) {
             <Button mt={5} w={"100%"} bgColor={"smu.blue"}>
               <Text fontWeight={"bold"}>회원가입</Text>
             </Button>
-            <GithubLogin />
+            {/* <GithubLogin /> */}
           </DialogBody>
           <DialogCloseTrigger />
         </DialogContent>

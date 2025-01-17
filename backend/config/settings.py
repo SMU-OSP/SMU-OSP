@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 import environ
 
@@ -160,10 +161,9 @@ REST_FRAMEWORK = {
     ]
 }
 
-# SIMPLE_JWT = {
-#     "ROTATE_REFRESH_TOKENS": True,
-#     "BLACKLIST_AFTER_ROTATION": True,
-# }
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+}
 
 if DEBUG:
     CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5173"]

@@ -1,15 +1,25 @@
 import { Link } from "react-router-dom";
 
-import { useState } from "react";
-import { Box, HStack, Image, MenuTrigger, Text } from "@chakra-ui/react";
+import { useContext, useEffect, useState } from "react";
+import {
+  Box,
+  HStack,
+  Image,
+  MenuTrigger,
+  Spinner,
+  Text,
+} from "@chakra-ui/react";
 import { Button } from "./ui/button";
 import LoginDialog from "./LoginDialog";
 import SignupDialog from "./SignupDialog";
 import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
-import { LogIn } from "../api";
 import Cookie from "js-cookie";
+import { AuthChecker, useAuthContext } from "./AuthContext";
 
 export default function Header() {
+  const { isAuthenticated, setIsAuthenticated, isAuthLoading } =
+    useAuthContext();
+
   const [loginOpen, setLoginOpen] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
 
@@ -20,24 +30,9 @@ export default function Header() {
     setSignupOpen(!signupOpen);
   };
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const userLoading = false;
-
-  const onLogIn = async () => {
-    const data = await LogIn("tester1", "1234");
-    console.log(data);
-    Cookie.set("access_token", data.access, {
-      expires: 7,
-      secure: true,
-      sameSite: "Strict",
-    });
-    setIsLoggedIn(true);
-  };
-
   const onLogOut = async () => {
     Cookie.remove("access_token");
-    setIsLoggedIn(false);
+    setIsAuthenticated(false);
   };
 
   return (
@@ -50,25 +45,25 @@ export default function Header() {
           borderBottomWidth={1}
           borderBottomColor={"smu.darkGray"}
         >
-          <HStack spaceX={1}>
-            <Image
-              src="../../public/images/symbol.png"
-              objectFit={"contain"}
-              h={"50px"}
-            />
-            <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
-              SMU Open-Source Platform
-            </Text>
-          </HStack>
-
-          {!userLoading ? (
-            !isLoggedIn ? (
+          <Link to={"/"}>
+            <HStack spaceX={1}>
+              <Image
+                src="../../public/images/symbol.png"
+                objectFit={"contain"}
+                h={"50px"}
+              />
+              <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
+                SMU Open-Source Platform
+              </Text>
+            </HStack>
+          </Link>
+          {!isAuthLoading ? (
+            !isAuthenticated ? (
               <HStack spaceX={2}>
                 <Button
                   borderColor={"smu.blue"}
                   bgColor={"white"}
-                  // onClick={toggleLoginDialog}
-                  onClick={onLogIn}
+                  onClick={toggleLoginDialog}
                 >
                   <Text color={"smu.blue"} fontWeight={"bold"}>
                     로그인
@@ -84,12 +79,16 @@ export default function Header() {
                   <Text fontWeight={"bold"}>Logged In</Text>
                 </MenuTrigger>
                 <MenuContent>
-                  <MenuItem value="profile">
-                    <Text fontWeight={"bold"}>프로필</Text>
-                  </MenuItem>
-                  <MenuItem value="setting">
-                    <Text fontWeight={"bold"}>계정 관리</Text>
-                  </MenuItem>
+                  <Link to={`/profile/`} style={{ outline: "none" }}>
+                    <MenuItem value="profile">
+                      <Text fontWeight={"bold"}>프로필</Text>
+                    </MenuItem>
+                  </Link>
+                  <Link to={`/account/`}>
+                    <MenuItem value="setting">
+                      <Text fontWeight={"bold"}>계정 관리</Text>
+                    </MenuItem>
+                  </Link>
                   <MenuItem value="logOut" onClick={onLogOut}>
                     <Text fontWeight={"bold"}>로그아웃</Text>
                   </MenuItem>
