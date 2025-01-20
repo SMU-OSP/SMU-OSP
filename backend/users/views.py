@@ -16,7 +16,10 @@ class MyInfo(APIView):
         user = request.user
         serializer = PrivateUserSerializer(user)
 
-        return Response(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
     def put(self, request):
         user = request.user
@@ -28,7 +31,10 @@ class MyInfo(APIView):
         if serializer.is_valid():
             user = serializer.save()
             serializer = PrivateUserSerializer(user)
-            return Response(serializer.data)
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
         else:
             return Response(serializer.errors)
 
@@ -52,7 +58,10 @@ class Users(APIView):
             user.set_password(password)
             user.save()
             serializer = PrivateUserSerializer(user)
-            return Response(serializer.data)
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
         else:
             return Response(serializer.errors)
 
@@ -65,7 +74,10 @@ class PublicUser(APIView):
         except User.DoesNotExist:
             raise NotFound
         serializer = PublicUserSerializer(user)
-        return Response(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class ChangePassword(APIView):

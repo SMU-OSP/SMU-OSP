@@ -1,11 +1,4 @@
-import {
-  Box,
-  Button,
-  Heading,
-  Input,
-  Separator,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, Button, Heading, Input } from "@chakra-ui/react";
 import { useForm } from "react-hook-form";
 
 interface IAccount {

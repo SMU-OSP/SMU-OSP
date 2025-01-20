@@ -11,18 +11,18 @@ export const getPublicUser = (username: string) =>
   instance.get(`users/@${username}`).then((response) => response.data);
 
 export const getMyInfo = () =>
-  instance.get("users/myinfo").then((response) => response.data);
+  instance.get("users/myinfo/").then((response) => response.data);
 
 export const updateMyInfo = (data: IUser) =>
   instance
-    .put("users/myinfo", data, {
+    .put("users/myinfo/", data, {
       headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
     })
     .then((response) => response.data);
 
 export const deleteMyInfo = () =>
   instance
-    .delete("users/myinfo", {
+    .delete("users/myinfo/", {
       headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
     })
     .then((response) => response.status);
@@ -36,7 +36,7 @@ export const changePassword = ({
 }) =>
   instance
     .put(
-      "users/change-password",
+      "users/change-password/",
       { old_password, new_password },
       { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
     )
@@ -44,7 +44,7 @@ export const changePassword = ({
 
 export const getRecentPosts = () =>
   instance
-    .get("board", { params: { limit: 5 } })
+    .get("board/", { params: { limit: 5 } })
     .then((response) => response.data);
 
 export const getCarouselPosts = () =>
@@ -68,9 +68,9 @@ export const verifyToken = (token: string) =>
     )
     .then((response) => response.status);
 
-export const signUp = (data: ISignUp) =>
+export const signUp = (data: Omit<ISignUp, "confirmPassword">) =>
   instance
-    .post("users", data, {
+    .post("users/", data, {
       headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
     })
-    .then((response) => response.data);
+    .then((response) => response.status);

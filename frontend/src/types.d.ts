@@ -24,6 +24,7 @@ interface ILogin {
 interface ISignUp {
   username: string;
   password: string;
+  confirmPassword: string;
   name: string;
   student_id: number;
   major: string;
