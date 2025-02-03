@@ -1,16 +1,18 @@
 import {
   Box,
   Heading,
+  HStack,
   Separator,
   Spinner,
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import NotFound from "./NotFound";
 import { useQuery } from "@tanstack/react-query";
 import { IPublicUser } from "../types";
 import { getPublicUser } from "../api";
+import { Button } from "../components/ui/button";
 
 export default function UserProfile() {
   const { usernameWithAt } = useParams();
@@ -47,10 +49,14 @@ export default function UserProfile() {
     <Box>
       <Box minW={"200px"} w={"500px"} px={20} py={10}>
         <Heading>User Profile</Heading>
-        <Text>유저 이름: {data?.username}</Text>
-        <Text>이름: {data?.name}</Text>
-        <Text>전공: {data?.major}</Text>
-        <Text>Github ID: {data?.github_id}</Text>
+        <HStack spaceX={"2"}>
+          <Text>Github ID: {data?.github_id}</Text>
+          <Link to={`https://github.com/${data?.github_id}`} target="_blank">
+            <Button bg={"smu.blue"} color={"white"} size="sm">
+              Visit GitHub
+            </Button>
+          </Link>
+        </HStack>
         <Text mt={"10"}>▲ DB 연결 출력</Text>
         <Separator />
         <Text mb={"10"}>▼ DB 연결 안된 임의 출력</Text>
