@@ -80,7 +80,24 @@ export default function Header() {
             ) : (
               <MenuRoot>
                 <MenuTrigger asChild>
-                  <Text fontWeight={"bold"}>Logged In</Text>
+                  <Box
+                    bg={"smu.blue"}
+                    borderStyle={"solid"}
+                    borderWidth={"2px"}
+                    padding={"2"}
+                    borderRadius={"lg"}
+                  >
+                    <Text
+                      fontWeight={"bold"}
+                      color={"white"}
+                      whiteSpace={"nowrap"}
+                      overflow={"hidden"}
+                      textOverflow={"ellipsis"}
+                      maxWidth={"8ch"}
+                    >
+                      {username}
+                    </Text>
+                  </Box>
                 </MenuTrigger>
                 <MenuContent>
                   <Link to={`/@${username}/`} style={{ outline: "none" }}>
