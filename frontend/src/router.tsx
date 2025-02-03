@@ -4,7 +4,7 @@ import Home from "./routes/Home";
 import NotFound from "./routes/NotFound";
 import Account from "./routes/Account";
 import UserProfile from "./routes/UserProfile";
-// import UserProfile from "./routes/UserProfile";
+import PrivateRoute from "./routes/PrivateRoute";
 
 const router = createBrowserRouter([
   {
@@ -18,11 +18,14 @@ const router = createBrowserRouter([
       },
       {
         path: "account",
-        element: <Account />,
+        element: (
+          <PrivateRoute>
+            <Account />
+          </PrivateRoute>
+        ),
       },
       {
-        // path: ":@username",
-        path: "profile",
+        path: ":usernameWithAt",
         element: <UserProfile />,
       },
     ],

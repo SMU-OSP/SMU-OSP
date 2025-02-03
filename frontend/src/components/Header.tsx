@@ -1,21 +1,14 @@
 import { Link } from "react-router-dom";
 
-import { useContext, useEffect, useState } from "react";
-import {
-  Box,
-  createToaster,
-  HStack,
-  Image,
-  MenuTrigger,
-  Spinner,
-  Text,
-} from "@chakra-ui/react";
+import { useEffect, useState } from "react";
+import { Box, HStack, Image, MenuTrigger, Text } from "@chakra-ui/react";
 import { Button } from "./ui/button";
 import LogInDialog from "./LogInDialog";
 import SignUpDialog from "./SignUpDialog";
 import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
 import Cookie from "js-cookie";
-import { AuthChecker, useAuthContext } from "./AuthContext";
+import { useAuthContext } from "./AuthContext";
+import { getMyInfo } from "../api";
 
 export default function Header() {
   const { isAuthenticated, setIsAuthenticated, isAuthLoading } =
@@ -35,6 +28,16 @@ export default function Header() {
     Cookie.remove("access_token");
     setIsAuthenticated(false);
   };
+
+  const [username, setUsername] = useState(null);
+
+  useEffect(() => {
+    if (isAuthenticated && !username) {
+      getMyInfo().then((data) => {
+        setUsername(data.username);
+      });
+    }
+  }, [isAuthenticated, username]);
 
   return (
     <Box>
@@ -80,7 +83,7 @@ export default function Header() {
                   <Text fontWeight={"bold"}>Logged In</Text>
                 </MenuTrigger>
                 <MenuContent>
-                  <Link to={`/profile/`} style={{ outline: "none" }}>
+                  <Link to={`/@${username}/`} style={{ outline: "none" }}>
                     <MenuItem value="profile">
                       <Text fontWeight={"bold"}>프로필</Text>
                     </MenuItem>

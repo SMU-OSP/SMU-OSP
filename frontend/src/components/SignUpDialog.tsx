@@ -11,17 +11,12 @@ import { Button } from "./ui/button";
 import React from "react";
 // import GithubLogin from "./GithubLogin";
 import { useForm } from "react-hook-form";
-import { ISignUp } from "../types";
+import { IDialog, ISignUp } from "../types";
 import { useMutation } from "@tanstack/react-query";
 import { signUp } from "../api";
 import { toaster } from "./ui/toaster";
 
-interface ISugnUpDialog {
-  open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-export default function SignUpDialog({ open, setOpen }: ISugnUpDialog) {
+export default function SignUpDialog({ open, setOpen }: IDialog) {
   const {
     register,
     handleSubmit,

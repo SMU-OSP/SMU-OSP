@@ -1,24 +1,68 @@
-import { Box, Button, Heading, Input } from "@chakra-ui/react";
+import { Box, Heading, Input } from "@chakra-ui/react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-
-interface IAccount {
-  username: string;
-  password: string;
-  name: string;
-  student_id: number;
-  major: string;
-  github_id: string;
-  github_email: string;
-}
+import { getMyInfo, updateMyInfo } from "../api";
+import { IUser } from "../types";
+import { useEffect, useState } from "react";
+import { toaster } from "../components/ui/toaster";
+import { Button } from "../components/ui/button";
+import ChangePasswordDialog from "../components/ChangePasswordDialog";
 
 export default function Account() {
+  const { isLoading, data } = useQuery<IUser>({
+    queryKey: ["getMyInfo"],
+    queryFn: getMyInfo,
+  });
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<IAccount>();
-  const onSubmit = (data: IAccount) => {
-    console.log(data);
+    setValue,
+    watch,
+  } = useForm<IUser>();
+
+  const formValues = watch();
+
+  useEffect(() => {
+    if (!isLoading && data) {
+      setValue("username", data.username);
+      setValue("name", data.name);
+      setValue("student_id", data.student_id);
+      setValue("major", data.major);
+      setValue("github_id", data.github_id);
+      setValue("github_email", data.github_email);
+    }
+  }, [data, isLoading, setValue]);
+
+  const isFormChanged = JSON.stringify(formValues) !== JSON.stringify(data);
+
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+
+  const toggleChangePasswordDialog = () => {
+    setChangePasswordOpen(!changePasswordOpen);
+  };
+
+  const mutation = useMutation({
+    mutationFn: updateMyInfo,
+    onMutate: () => {},
+    onSuccess: (data) => {
+      toaster.create({
+        type: "success",
+        description: "회원정보가 성공적으로 변경되었습니다.",
+        duration: 1000,
+      });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    },
+    onError: (error) => {
+      console.log("MyInfo Update Mutation Failed");
+    },
+  });
+
+  const onSubmit = (data: IUser) => {
+    mutation.mutate(data);
   };
 
   return (
@@ -33,7 +77,7 @@ export default function Account() {
           bg={"smu.gray"}
           {...register("username")}
         />
-        <Button mb={"12"} bg={"smu.blue"}>
+        <Button mb={"12"} bg={"smu.blue"} onClick={toggleChangePasswordDialog}>
           비밀번호 변경
         </Button>
 
@@ -62,8 +106,19 @@ export default function Account() {
           required
           {...register("github_email")}
         />
-        <Button bg={"smu.blue"}>변경</Button>
+        <Button
+          bg={"smu.blue"}
+          disabled={!isFormChanged}
+          loading={mutation.isPending}
+          onClick={handleSubmit(onSubmit)}
+        >
+          변경
+        </Button>
       </Box>
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        setOpen={setChangePasswordOpen}
+      />
     </Box>
   );
 }

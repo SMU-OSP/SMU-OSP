@@ -12,17 +12,11 @@ import { Button } from "./ui/button";
 import React from "react";
 import { logIn } from "../api";
 import { useMutation } from "@tanstack/react-query";
-// import GithubLogin from "./GithubLogin";
 import Cookie from "js-cookie";
 import { useAuthContext } from "./AuthContext";
-import { ILogin } from "../types";
+import { IDialog, ILogin } from "../types";
 
-interface ILoginDialog {
-  open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-export default function LogInDialog({ open, setOpen }: ILoginDialog) {
+export default function LogInDialog({ open, setOpen }: IDialog) {
   const { isAuthenticated, setIsAuthenticated } = useAuthContext();
 
   const {

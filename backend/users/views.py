@@ -5,7 +5,11 @@ from rest_framework.exceptions import ParseError, NotFound
 from rest_framework.permissions import IsAuthenticated
 
 from .models import User
-from .serializers import PrivateUserSerializer, PublicUserSerializer
+from .serializers import (
+    PrivateUserSerializer,
+    PublicUserSerializer,
+    JoinedUserSerializer,
+)
 
 
 class MyInfo(APIView):
@@ -47,6 +51,24 @@ class MyInfo(APIView):
 
 
 class Users(APIView):
+
+    def get(self, request):
+        all_users = User.objects.all().order_by("-date_joined")
+
+        limit = request.query_params.get("limit", 5)
+        if type(limit) == str:
+            limit = int(limit)
+
+        all_users = all_users[:limit]
+        serializer = JoinedUserSerializer(
+            all_users,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
     def post(self, request):
         password = request.data.get("password")

@@ -1,6 +1,6 @@
 import Cookie from "js-cookie";
 import axios from "axios";
-import { ILogin, ISignUp, IUser } from "./types";
+import { IChangePassword, ILogin, ISignUp, IUser } from "./types";
 
 const instance = axios.create({
   baseURL: "http://127.0.0.1:8000/api/v1",
@@ -10,37 +10,51 @@ const instance = axios.create({
 export const getPublicUser = (username: string) =>
   instance.get(`users/@${username}`).then((response) => response.data);
 
+export const getRecentJoinedUsers = () =>
+  instance
+    .get(`users/`, { params: { limit: 5 } })
+    .then((response) => response.data);
+
 export const getMyInfo = () =>
-  instance.get("users/myinfo/").then((response) => response.data);
+  instance
+    .get("users/myinfo", {
+      headers: {
+        Authorization: `Bearer ${Cookie.get("access_token")}`,
+      },
+    })
+    .then((response) => response.data);
 
 export const updateMyInfo = (data: IUser) =>
   instance
-    .put("users/myinfo/", data, {
-      headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+    .put("users/myinfo", data, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+        Authorization: `Bearer ${Cookie.get("access_token")}`,
+      },
     })
     .then((response) => response.data);
 
 export const deleteMyInfo = () =>
   instance
-    .delete("users/myinfo/", {
-      headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+    .delete("users/myinfo", {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+        Authorization: `Bearer ${Cookie.get("access_token")}`,
+      },
     })
     .then((response) => response.status);
 
-export const changePassword = ({
-  old_password,
-  new_password,
-}: {
-  old_password: string;
-  new_password: string;
-}) =>
+export const changePassword = (
+  data: Omit<IChangePassword, "confirmPassword">
+) =>
   instance
-    .put(
-      "users/change-password/",
-      { old_password, new_password },
-      { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
-    )
-    .then((response) => response.data);
+    .put("users/change-password", data, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+        Authorization: `Bearer ${Cookie.get("access_token")}`,
+      },
+    })
+    .then((response) => response.status);
 
 export const getRecentPosts = () =>
   instance

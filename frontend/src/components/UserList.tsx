@@ -1,10 +1,10 @@
 import { Box, HStack, Separator, Text } from "@chakra-ui/react";
 
-interface IUserList {
-  users: { username: string; score: number }[];
+interface IJoinedUserList {
+  users: { username: string; date_joined: string }[];
 }
 
-export default function UserList({ users }: IUserList) {
+export default function UserList({ users }: IJoinedUserList) {
   return (
     <Box p={3} w={"400px"} h={"200px"}>
       <Text fontSize="xl" fontWeight={"bold"} mb={2}>
@@ -18,7 +18,7 @@ export default function UserList({ users }: IUserList) {
               {user.username}
             </Text>
             <Text flex={3} textAlign={"right"}>
-              {user.score}
+              {user.date_joined.substring(0, 10)}
             </Text>
           </HStack>
         ))}
