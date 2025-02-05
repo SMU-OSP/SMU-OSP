@@ -6,7 +6,6 @@ import { IUser } from "../types";
 import { useEffect, useState } from "react";
 import { toaster } from "../components/ui/toaster";
 import { Button } from "../components/ui/button";
-import ChangePasswordDialog from "../components/ChangePasswordDialog";
 
 export default function Account() {
   const { isLoading, data } = useQuery<IUser>({
@@ -27,21 +26,14 @@ export default function Account() {
   useEffect(() => {
     if (!isLoading && data) {
       setValue("username", data.username);
+      setValue("github_email", data.github_email);
       setValue("name", data.name);
       setValue("student_id", data.student_id);
       setValue("major", data.major);
-      setValue("github_id", data.github_id);
-      setValue("github_email", data.github_email);
     }
   }, [data, isLoading, setValue]);
 
   const isFormChanged = JSON.stringify(formValues) !== JSON.stringify(data);
-
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-
-  const toggleChangePasswordDialog = () => {
-    setChangePasswordOpen(!changePasswordOpen);
-  };
 
   const mutation = useMutation({
     mutationFn: updateMyInfo,
@@ -77,9 +69,6 @@ export default function Account() {
           bg={"smu.gray"}
           {...register("username")}
         />
-        <Button mb={"12"} bg={"smu.blue"} onClick={toggleChangePasswordDialog}>
-          비밀번호 변경
-        </Button>
 
         <Heading>이름</Heading>
         <Input mb={"2"} autoComplete="off" required {...register("name")} />
@@ -92,13 +81,6 @@ export default function Account() {
         />
         <Heading>전공</Heading>
         <Input mb={"2"} autoComplete="off" required {...register("major")} />
-        <Heading> Github ID</Heading>
-        <Input
-          mb={"2"}
-          autoComplete="off"
-          required
-          {...register("github_id")}
-        />
         <Heading> Github E-Mail</Heading>
         <Input
           mb={"2"}
@@ -115,10 +97,6 @@ export default function Account() {
           변경
         </Button>
       </Box>
-      <ChangePasswordDialog
-        open={changePasswordOpen}
-        setOpen={setChangePasswordOpen}
-      />
     </Box>
   );
 }

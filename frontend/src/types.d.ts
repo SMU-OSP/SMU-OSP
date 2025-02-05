@@ -1,18 +1,16 @@
 export interface IUser {
   username: string;
+  github_email: string;
   name: string;
   student_id: number;
   major: string;
-  github_id: string;
-  github_email: string;
 }
 
 export interface IPublicUser {
   username: string;
+  github_email: string;
   name: string;
   major: string;
-  github_id: string;
-  github_email: string;
   // stars: number;
   // followers: nubmer;
 }
@@ -38,13 +36,12 @@ interface ILogin {
 }
 interface ISignUp {
   username: string;
+  github_email: string;
   password: string;
   confirmPassword: string;
   name: string;
   student_id: number;
   major: string;
-  github_id: string;
-  github_email: string;
 }
 
 interface IChangePassword {

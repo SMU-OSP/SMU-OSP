@@ -15,11 +15,10 @@ class PublicUserSerializer(ModelSerializer):
     class Meta:
         model = User
         fields = (
+            "github_email",
             "username",
             "name",
             "major",
-            "github_id",
-            "github_email",
         )
 
 
@@ -28,9 +27,8 @@ class PrivateUserSerializer(ModelSerializer):
         model = User
         fields = (
             "username",
+            "github_email",
             "name",
             "student_id",
             "major",
-            "github_id",
-            "github_email",
         )

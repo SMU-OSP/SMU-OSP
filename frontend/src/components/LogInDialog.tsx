@@ -1,5 +1,7 @@
+import { FaGithub } from "react-icons/fa";
+
 import { useForm } from "react-hook-form";
-import { Box, Input, Text, VStack } from "@chakra-ui/react";
+import { Input, Text, VStack } from "@chakra-ui/react";
 import {
   DialogBody,
   DialogCloseTrigger,
@@ -9,33 +11,27 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
-import React from "react";
-import { logIn } from "../api";
-import { useMutation } from "@tanstack/react-query";
-import Cookie from "js-cookie";
-import { useAuthContext } from "./AuthContext";
+import { usernameLogIn } from "../api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IDialog, ILogin } from "../types";
 
 export default function LogInDialog({ open, setOpen }: IDialog) {
-  const { isAuthenticated, setIsAuthenticated } = useAuthContext();
-
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ILogin>();
 
+  const queryClient = useQueryClient();
+
   const mutation = useMutation({
-    mutationFn: logIn,
+    mutationFn: usernameLogIn,
     onMutate: () => {},
-    onSuccess: (data) => {
-      Cookie.set("access_token", data.access, {
-        expires: 7,
-        secure: true,
-        sameSite: "Strict",
-      });
-      setIsAuthenticated(true);
+    onSuccess: () => {
       setOpen(false);
+      reset();
+      queryClient.refetchQueries({ queryKey: ["myinfo"] });
     },
     onError: (error) => {
       console.log("Log in Mutation Failed");
@@ -77,7 +73,13 @@ export default function LogInDialog({ open, setOpen }: IDialog) {
             >
               <Text fontWeight={"bold"}>로그인</Text>
             </Button>
-            {/* <GithubLogin /> */}
+            <Button
+              as="a"
+              href="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email"
+              w="100%"
+            >
+              <FaGithub /> GitHub으로 로그인
+            </Button>
           </DialogBody>
           <DialogCloseTrigger />
         </DialogContent>

@@ -5,7 +5,6 @@ import {
   Separator,
   Spinner,
   Text,
-  VStack,
 } from "@chakra-ui/react";
 import { Link, useParams } from "react-router-dom";
 import NotFound from "./NotFound";
@@ -50,8 +49,8 @@ export default function UserProfile() {
       <Box minW={"200px"} w={"500px"} px={20} py={10}>
         <Heading>User Profile</Heading>
         <HStack spaceX={"2"}>
-          <Text>Github ID: {data?.github_id}</Text>
-          <Link to={`https://github.com/${data?.github_id}`} target="_blank">
+          <Text>Github ID: {data?.username}</Text>
+          <Link to={`https://github.com/${data?.username}`} target="_blank">
             <Button bg={"smu.blue"} color={"white"} size="sm">
               Visit GitHub
             </Button>

@@ -1,43 +1,39 @@
 import { Link } from "react-router-dom";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Box, HStack, Image, MenuTrigger, Text } from "@chakra-ui/react";
 import { Button } from "./ui/button";
 import LogInDialog from "./LogInDialog";
-import SignUpDialog from "./SignUpDialog";
+import useUser from "../lib/useUser";
 import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
-import Cookie from "js-cookie";
-import { useAuthContext } from "./AuthContext";
-import { getMyInfo } from "../api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { logOut } from "../api";
 
 export default function Header() {
-  const { isAuthenticated, setIsAuthenticated, isAuthLoading } =
-    useAuthContext();
+  const { userLoading, isLoggedIn, user } = useUser();
 
   const [logInOpen, setLogInOpen] = useState(false);
-  const [signUpOpen, setSignUpOpen] = useState(false);
 
   const toggleLogInDialog = () => {
     setLogInOpen(!logInOpen);
   };
-  const toggleSignUpDialog = () => {
-    setSignUpOpen(!signUpOpen);
-  };
+
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: logOut,
+    onMutate: () => {},
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ["myinfo"] });
+    },
+    onError: (error) => {
+      console.log("Log out Mutation Failed");
+    },
+  });
 
   const onLogOut = async () => {
-    Cookie.remove("access_token");
-    setIsAuthenticated(false);
+    mutation.mutate();
   };
-
-  const [username, setUsername] = useState(null);
-
-  useEffect(() => {
-    if (isAuthenticated && !username) {
-      getMyInfo().then((data) => {
-        setUsername(data.username);
-      });
-    }
-  }, [isAuthenticated, username]);
 
   return (
     <Box>
@@ -61,8 +57,8 @@ export default function Header() {
               </Text>
             </HStack>
           </Link>
-          {!isAuthLoading ? (
-            !isAuthenticated ? (
+          {!userLoading ? (
+            !isLoggedIn ? (
               <HStack spaceX={2}>
                 <Button
                   borderColor={"smu.blue"}
@@ -72,9 +68,6 @@ export default function Header() {
                   <Text color={"smu.blue"} fontWeight={"bold"}>
                     로그인
                   </Text>
-                </Button>
-                <Button bgColor={"smu.blue"} onClick={toggleSignUpDialog}>
-                  <Text fontWeight={"bold"}>회원가입</Text>
                 </Button>
               </HStack>
             ) : (
@@ -95,12 +88,12 @@ export default function Header() {
                       textOverflow={"ellipsis"}
                       maxWidth={"8ch"}
                     >
-                      {username}
+                      {user?.username}
                     </Text>
                   </Box>
                 </MenuTrigger>
                 <MenuContent>
-                  <Link to={`/@${username}/`} style={{ outline: "none" }}>
+                  <Link to={`/@${user?.username}/`} style={{ outline: "none" }}>
                     <MenuItem value="profile">
                       <Text fontWeight={"bold"}>프로필</Text>
                     </MenuItem>
@@ -121,7 +114,6 @@ export default function Header() {
       </Box>
 
       <LogInDialog open={logInOpen} setOpen={setLogInOpen} />
-      <SignUpDialog open={signUpOpen} setOpen={setSignUpOpen} />
     </Box>
   );
 }

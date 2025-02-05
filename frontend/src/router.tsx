@@ -5,6 +5,7 @@ import NotFound from "./routes/NotFound";
 import Account from "./routes/Account";
 import UserProfile from "./routes/UserProfile";
 import PrivateRoute from "./routes/PrivateRoute";
+import GithubConfirm from "./routes/GithubConfirm";
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,10 @@ const router = createBrowserRouter([
       {
         path: ":usernameWithAt",
         element: <UserProfile />,
+      },
+      {
+        path: "github",
+        element: <GithubConfirm />,
       },
     ],
   },

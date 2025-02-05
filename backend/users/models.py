@@ -4,6 +4,11 @@ from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
 
+    github_email = models.EmailField(
+        null=False,
+        blank=False,
+    )
+
     name = models.CharField(
         max_length=100,
         default="",
@@ -16,13 +21,4 @@ class User(AbstractUser):
     major = models.CharField(
         max_length=100,
         default="",
-    )
-
-    github_id = models.CharField(
-        max_length=100,
-        default="",
-    )
-
-    github_email = models.EmailField(
-        null=True,
     )

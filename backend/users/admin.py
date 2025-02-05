@@ -14,7 +14,6 @@ class CustomUserAdmin(UserAdmin):
                     "password",
                     "name",
                     "student_id",
-                    "github_id",
                     "github_email",
                     "major",
                 ),
@@ -45,9 +44,8 @@ class CustomUserAdmin(UserAdmin):
 
     list_display = (
         "username",
+        "github_email",
         "name",
         "student_id",
         "major",
-        "github_id",
-        "github_email",
     )

@@ -16,20 +16,13 @@ export const getRecentJoinedUsers = () =>
     .then((response) => response.data);
 
 export const getMyInfo = () =>
-  instance
-    .get("users/myinfo", {
-      headers: {
-        Authorization: `Bearer ${Cookie.get("access_token")}`,
-      },
-    })
-    .then((response) => response.data);
+  instance.get("users/myinfo").then((response) => response.data);
 
 export const updateMyInfo = (data: IUser) =>
   instance
     .put("users/myinfo", data, {
       headers: {
         "X-CSRFToken": Cookie.get("csrftoken") || "",
-        Authorization: `Bearer ${Cookie.get("access_token")}`,
       },
     })
     .then((response) => response.data);
@@ -39,7 +32,6 @@ export const deleteMyInfo = () =>
     .delete("users/myinfo", {
       headers: {
         "X-CSRFToken": Cookie.get("csrftoken") || "",
-        Authorization: `Bearer ${Cookie.get("access_token")}`,
       },
     })
     .then((response) => response.status);
@@ -51,7 +43,6 @@ export const changePassword = (
     .put("users/change-password", data, {
       headers: {
         "X-CSRFToken": Cookie.get("csrftoken") || "",
-        Authorization: `Bearer ${Cookie.get("access_token")}`,
       },
     })
     .then((response) => response.status);
@@ -88,3 +79,34 @@ export const signUp = (data: Omit<ISignUp, "confirmPassword">) =>
       headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
     })
     .then((response) => response.status);
+
+export const githubLogIn = (code: string) =>
+  instance
+    .post(
+      "users/github",
+      { code },
+      {
+        headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+      }
+    )
+    .then((response) => response.status);
+
+export const logOut = () =>
+  instance
+    .post(`users/log-out`, null, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
+
+export const usernameLogIn = ({ username, password }: ILogin) =>
+  instance.post(
+    `users/log-in`,
+    { username, password },
+    {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    }
+  );

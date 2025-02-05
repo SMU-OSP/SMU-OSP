@@ -38,8 +38,6 @@ ALLOWED_HOSTS = []
 
 THIRD_PARTY_APPS = [
     "rest_framework",
-    "rest_framework_simplejwt",
-    # "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
 ]
 
@@ -154,19 +152,20 @@ AUTH_USER_MODEL = "users.User"
 MEDIA_ROOT = "images"
 MEDIA_URL = "images/"
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ]
-}
+# REST_FRAMEWORK = {
+#     "DEFAULT_AUTHENTICATION_CLASSES": [
+#         "rest_framework.authentication.SessionAuthentication",
+#     ]
+# }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-}
 
 if DEBUG:
-    # sosp.sookmyung.ac.kr
     CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5173"]
-    CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1:5173"]
+else:
+    CORS_ALLOWED_ORIGINS = ["https://sosp.sookmyung.ac.kr"]
+    CSRF_TRUSTED_ORIGINS = ["https://sosp.sookmyung.ac.kr"]
+
+CORS_ALLOW_CREDENTIALS = True
+GH_CLIENT_ID = env("GH_CLIENT_ID")
+GH_CLIENT_SECRET = env("GH_CLIENT_SECRET")
