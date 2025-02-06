@@ -79,6 +79,7 @@ export default function Header() {
                     borderWidth={"2px"}
                     padding={"2"}
                     borderRadius={"lg"}
+                    cursor={"pointer"}
                   >
                     <Text
                       fontWeight={"bold"}
@@ -94,16 +95,20 @@ export default function Header() {
                 </MenuTrigger>
                 <MenuContent>
                   <Link to={`/@${user?.username}/`} style={{ outline: "none" }}>
-                    <MenuItem value="profile">
+                    <MenuItem value="profile" cursor={"pointer"}>
                       <Text fontWeight={"bold"}>프로필</Text>
                     </MenuItem>
                   </Link>
                   <Link to={`/account/`}>
-                    <MenuItem value="setting">
+                    <MenuItem value="setting" cursor={"pointer"}>
                       <Text fontWeight={"bold"}>계정 관리</Text>
                     </MenuItem>
                   </Link>
-                  <MenuItem value="logOut" onClick={onLogOut}>
+                  <MenuItem
+                    value="logOut"
+                    cursor={"pointer"}
+                    onClick={onLogOut}
+                  >
                     <Text fontWeight={"bold"}>로그아웃</Text>
                   </MenuItem>
                 </MenuContent>

@@ -44,7 +44,7 @@ THIRD_PARTY_APPS = [
 CUSTOM_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
-    "board.apps.BoardConfig",
+    "posts.apps.PostsConfig",
 ]
 
 SYSTEM_APPS = [

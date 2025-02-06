@@ -6,7 +6,7 @@ import Slider from "react-slick";
 // CSS files for react-slick
 import "../ui/slick.min.css";
 import "../ui/slick-theme.min.css";
-import BoardDialog from "./BoardDialog";
+import BoardDialog from "./PostDialog";
 import { IPost } from "../types";
 
 // Settings for the slider

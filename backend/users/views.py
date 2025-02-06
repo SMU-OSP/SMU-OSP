@@ -12,7 +12,6 @@ from .models import User
 from .serializers import (
     PrivateUserSerializer,
     PublicUserSerializer,
-    JoinedUserSerializer,
 )
 
 
@@ -57,14 +56,27 @@ class MyInfo(APIView):
 class Users(APIView):
 
     def get(self, request):
-        all_users = User.objects.all().order_by("-date_joined")
+        all_users = (
+            User.objects.all().filter(is_superuser=False).order_by("-date_joined")
+        )
 
-        limit = request.query_params.get("limit", 5)
-        if type(limit) == str:
-            limit = int(limit)
+        try:
+            start = int(request.query_params.get("start", 0))
+            limit = int(request.query_params.get("limit", 5))
+        except ValueError:
+            return Response(
+                {"error": "Invalid pagination parameters"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        all_users = all_users[:limit]
-        serializer = JoinedUserSerializer(
+        if start < 0 or limit <= 0:
+            return Response(
+                {"error": "Invalid pagination parameters"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        all_users = all_users[start : start + limit]
+        serializer = PublicUserSerializer(
             all_users,
             many=True,
         )
@@ -178,3 +190,13 @@ class GithubLogIn(APIView):
                 return Response(status=status.HTTP_200_OK)
         except Exception:
             return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserCount(APIView):
+
+    def get(self, request):
+        user_count = User.objects.count()
+        return Response(
+            user_count,
+            status=status.HTTP_200_OK,
+        )

@@ -1,19 +1,11 @@
 import Cookie from "js-cookie";
 import axios from "axios";
-import { IChangePassword, ILogin, ISignUp, IUser } from "./types";
+import { ILogin, IUser } from "./types";
 
 const instance = axios.create({
   baseURL: "http://127.0.0.1:8000/api/v1",
   withCredentials: true,
 });
-
-export const getPublicUser = (username: string) =>
-  instance.get(`users/@${username}`).then((response) => response.data);
-
-export const getRecentJoinedUsers = () =>
-  instance
-    .get(`users/`, { params: { limit: 5 } })
-    .then((response) => response.data);
 
 export const getMyInfo = () =>
   instance.get("users/myinfo").then((response) => response.data);
@@ -36,49 +28,27 @@ export const deleteMyInfo = () =>
     })
     .then((response) => response.status);
 
-export const changePassword = (
-  data: Omit<IChangePassword, "confirmPassword">
-) =>
-  instance
-    .put("users/change-password", data, {
-      headers: {
-        "X-CSRFToken": Cookie.get("csrftoken") || "",
-      },
-    })
-    .then((response) => response.status);
+export const getPublicUser = (username: string) =>
+  instance.get(`users/@${username}`).then((response) => response.data);
 
-export const getRecentPosts = () =>
+export const getUsers = (start: number, limit: number) =>
   instance
-    .get("board/", { params: { limit: 5 } })
+    .get(`users/`, { params: { start, limit } })
     .then((response) => response.data);
+
+export const getUserCount = () =>
+  instance.get("users/count").then((response) => response.data);
+
+export const getPosts = (start: number, limit: number) =>
+  instance
+    .get("posts/", { params: { start, limit } })
+    .then((response) => response.data);
+
+export const getPostCount = () =>
+  instance.get("posts/count").then((response) => response.data);
 
 export const getCarouselPosts = () =>
-  instance.get("board?carousel").then((response) => response.data);
-
-export const logIn = ({ username, password }: ILogin) =>
-  instance
-    .post(
-      "token/",
-      { username, password },
-      { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
-    )
-    .then((response) => response.data);
-
-export const verifyToken = (token: string) =>
-  instance
-    .post(
-      "token/verify/",
-      { token },
-      { headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" } }
-    )
-    .then((response) => response.status);
-
-export const signUp = (data: Omit<ISignUp, "confirmPassword">) =>
-  instance
-    .post("users/", data, {
-      headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
-    })
-    .then((response) => response.status);
+  instance.get("posts?carousel").then((response) => response.data);
 
 export const githubLogIn = (code: string) =>
   instance

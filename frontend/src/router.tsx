@@ -6,6 +6,8 @@ import Account from "./routes/Account";
 import UserProfile from "./routes/UserProfile";
 import PrivateRoute from "./routes/PrivateRoute";
 import GithubConfirm from "./routes/GithubConfirm";
+import PostBoard from "./routes/PostBoard";
+import RankBoard from "./routes/RankBoard";
 
 const router = createBrowserRouter([
   {
@@ -16,6 +18,10 @@ const router = createBrowserRouter([
       {
         path: "",
         element: <Home />,
+      },
+      {
+        path: "github",
+        element: <GithubConfirm />,
       },
       {
         path: "account",
@@ -30,8 +36,12 @@ const router = createBrowserRouter([
         element: <UserProfile />,
       },
       {
-        path: "github",
-        element: <GithubConfirm />,
+        path: "posts",
+        element: <PostBoard />,
+      },
+      {
+        path: "rank",
+        element: <RankBoard />,
       },
     ],
   },

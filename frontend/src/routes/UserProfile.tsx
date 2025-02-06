@@ -1,3 +1,4 @@
+import { FaGithub } from "react-icons/fa";
 import {
   Box,
   Heading,
@@ -48,11 +49,17 @@ export default function UserProfile() {
     <Box>
       <Box minW={"200px"} w={"500px"} px={20} py={10}>
         <Heading>User Profile</Heading>
-        <HStack spaceX={"2"}>
+        <HStack>
           <Text>Github ID: {data?.username}</Text>
           <Link to={`https://github.com/${data?.username}`} target="_blank">
-            <Button bg={"smu.blue"} color={"white"} size="sm">
-              Visit GitHub
+            <Button
+              bg={"black"}
+              color={"white"}
+              size="xs"
+              w={"35px"}
+              h={"30px"}
+            >
+              <FaGithub />
             </Button>
           </Link>
         </HStack>

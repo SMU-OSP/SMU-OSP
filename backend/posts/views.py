@@ -8,7 +8,7 @@ from .models import Post
 from .serializers import PostSerializer
 
 
-class Board(APIView):
+class Posts(APIView):
 
     # def get_permissions(self):
     #     if self.request.method == "POST":
@@ -21,11 +21,22 @@ class Board(APIView):
         if "carousel" in request.query_params:
             all_posts = all_posts.filter(on_carousel=True)
         else:
-            limit = request.query_params.get("limit", 5)
-            if type(limit) == str:
-                limit = int(limit)
+            try:
+                start = int(request.query_params.get("start", 0))
+                limit = int(request.query_params.get("limit", 5))
+            except ValueError:
+                return Response(
+                    {"error": "Invalid pagination parameters"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            all_posts = all_posts[:limit]
+            if start < 0 or limit <= 0:
+                return Response(
+                    {"error": "Invalid pagination parameters"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            print(start, limit)
+            all_posts = all_posts[start : start + limit]
 
         serializer = PostSerializer(
             all_posts,
@@ -47,5 +58,15 @@ class PostDetail(APIView):
         serializer = PostSerializer(post)
         return Response(
             serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class PostCount(APIView):
+
+    def get(self, request):
+        post_count = Post.objects.count()
+        return Response(
+            post_count,
             status=status.HTTP_200_OK,
         )

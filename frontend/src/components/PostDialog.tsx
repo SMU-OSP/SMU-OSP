@@ -10,13 +10,13 @@ import {
 import { IPost } from "../types";
 import { format } from "date-fns";
 
-interface IBoardDialog {
+interface IPostDialog {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   post: IPost | null;
 }
 
-export default function BoardDialog({ open, setOpen, post }: IBoardDialog) {
+export default function PostDialog({ open, setOpen, post }: IPostDialog) {
   const BASE_URL = "http://127.0.0.1:8000";
 
   return (

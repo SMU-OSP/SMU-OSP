@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { githubLogIn } from "../api";
 import { useQueryClient } from "@tanstack/react-query";
+import useUser from "../lib/useUser";
 
 export default function GithubConfirm() {
   const { search } = useLocation();
@@ -13,8 +14,13 @@ export default function GithubConfirm() {
     if (code) {
       const status = await githubLogIn(code);
       if (status === 200) {
-        queryClient.refetchQueries({ queryKey: ["myinfo"] });
-        navigate("/");
+        await queryClient.refetchQueries({ queryKey: ["myinfo"] });
+        const user = queryClient.getQueryData(["myinfo"]);
+        if (!user?.name || !user?.student_id || !user?.major) {
+          navigate("/account");
+        } else {
+          navigate("/");
+        }
       }
     }
   };

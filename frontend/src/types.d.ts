@@ -34,18 +34,3 @@ interface ILogin {
   username: string;
   password: string;
 }
-interface ISignUp {
-  username: string;
-  github_email: string;
-  password: string;
-  confirmPassword: string;
-  name: string;
-  student_id: number;
-  major: string;
-}
-
-interface IChangePassword {
-  old_password: string;
-  confirmPassword: string;
-  new_password: string;
-}

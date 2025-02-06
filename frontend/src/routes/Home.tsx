@@ -1,15 +1,15 @@
 import { Box, useBreakpointValue, VStack, HStack } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import Carousel from "../components/Carousel";
-import { getCarouselPosts, getRecentJoinedUsers, getRecentPosts } from "../api";
+import { getCarouselPosts, getPosts, getUsers } from "../api";
 import { IPost, IPublicUser } from "../types";
-import PostList from "../components/PostList";
-import UserList from "../components/UserList";
+import RecentPostList from "../components/RecentPostList";
+import MainUserList from "../components/MainUserList";
 
 export default function Home() {
   const { data: recentPosts = [] } = useQuery<IPost[]>({
     queryKey: ["recentPosts"],
-    queryFn: getRecentPosts,
+    queryFn: () => getPosts(0, 5),
   });
 
   const { data: carouselPosts = [] } = useQuery<IPost[]>({
@@ -19,9 +19,9 @@ export default function Home() {
 
   const { data: recentJoinedUsers = [] } = useQuery<IPublicUser[]>({
     queryKey: ["recentJoinedUsers"],
-    queryFn: getRecentJoinedUsers,
+    queryFn: () => getUsers(0, 5),
   });
-  console.log(recentJoinedUsers);
+
   const listStackDirection = useBreakpointValue({ base: "column", md: "row" });
 
   return (
@@ -30,13 +30,13 @@ export default function Home() {
       <Box>
         {listStackDirection === "row" ? (
           <HStack spaceX={"5"}>
-            <PostList posts={recentPosts} />
-            <UserList users={recentJoinedUsers} />
+            <RecentPostList posts={recentPosts} />
+            <MainUserList users={recentJoinedUsers} />
           </HStack>
         ) : (
           <VStack spaceY={"0"}>
-            <PostList posts={recentPosts} />
-            <UserList users={recentJoinedUsers} />
+            <RecentPostList posts={recentPosts} />
+            <MainUserList users={recentJoinedUsers} />
           </VStack>
         )}
       </Box>

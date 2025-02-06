@@ -50,7 +50,8 @@ export default function Footer() {
         <HStack>
           <Link to={"https://sw.sookmyung.ac.kr/"} target="_blank">
             <Image
-              src="../../public/images/swc_logo.png"
+              src="../../public/images/smsw_logo.png"
+              alt="smsw_logo"
               objectFit={"contain"}
               h={"30px"}
             />
