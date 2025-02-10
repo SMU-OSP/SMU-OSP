@@ -6,7 +6,7 @@ import Slider from "react-slick";
 // CSS files for react-slick
 import "../ui/slick.min.css";
 import "../ui/slick-theme.min.css";
-import BoardDialog from "./PostDialog";
+import PostDialog from "./PostDialog";
 import { IPost } from "../types";
 
 // Settings for the slider
@@ -33,10 +33,10 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
 
   const BASE_URL = "http://127.0.0.1:8000";
 
-  const [boardOpen, setBoardOpen] = useState(false);
+  const [postOpen, setPostOpen] = useState(false);
 
-  const toggleBoardDialog = (post: IPost) => {
-    setBoardOpen(!boardOpen);
+  const togglePostDialog = (post: IPost) => {
+    setPostOpen(!postOpen);
     setSelectedPost(post);
   };
 
@@ -89,15 +89,11 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
             backgroundSize="cover"
             backgroundImage={`url(${BASE_URL}${post.image})`}
             cursor="pointer"
-            onClick={() => toggleBoardDialog(post)}
+            onClick={() => togglePostDialog(post)}
           />
         ))}
       </Slider>
-      <BoardDialog
-        open={boardOpen}
-        setOpen={setBoardOpen}
-        post={selectedPost}
-      />
+      <PostDialog open={postOpen} setOpen={setPostOpen} post={selectedPost} />
     </Box>
   );
 }

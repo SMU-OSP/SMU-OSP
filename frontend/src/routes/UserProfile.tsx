@@ -48,30 +48,28 @@ export default function UserProfile() {
   return (
     <Box>
       <Box minW={"200px"} w={"500px"} px={20} py={10}>
-        <Heading>User Profile</Heading>
-        <HStack>
-          <Text>Github ID: {data?.username}</Text>
-          <Link to={`https://github.com/${data?.username}`} target="_blank">
-            <Button
-              bg={"black"}
-              color={"white"}
-              size="xs"
-              w={"35px"}
-              h={"30px"}
-            >
-              <FaGithub />
-            </Button>
-          </Link>
-        </HStack>
-        <Text mt={"10"}>▲ DB 연결 출력</Text>
-        <Separator />
-        <Text mb={"10"}>▼ DB 연결 안된 임의 출력</Text>
-
-        <Text>종합 활동 점수: 점수</Text>
-        <Text>Commits: Commit numbers</Text>
-        <Text>PRs: PR numbers</Text>
-        <Text>Stars: Star numbers</Text>
-        <Text>Followers: Follower numbers</Text>
+        <Heading>유저 프로필</Heading>
+        <Box px={"5"} py={"5"}>
+          <HStack mb={"2"}>
+            <Text>GitHub ID: {data?.username}</Text>
+            <Link to={`https://github.com/${data?.username}`} target="_blank">
+              <Button
+                bg={"black"}
+                color={"white"}
+                size="xs"
+                w={"35px"}
+                h={"30px"}
+              >
+                <FaGithub />
+              </Button>
+            </Link>
+          </HStack>
+          <Text mb={"2"}>Score: {data?.score}</Text>
+          <Text mb={"2"}>Commit: {data?.commit}</Text>
+          <Text mb={"2"}>PR: {data?.pr}</Text>
+          <Text mb={"2"}>Star: {data?.star}</Text>
+          <Text>issue: {data?.issue}</Text>
+        </Box>
       </Box>
     </Box>
   );

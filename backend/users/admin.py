@@ -20,6 +20,18 @@ class CustomUserAdmin(UserAdmin):
             },
         ),
         (
+            "Activity",
+            {
+                "fields": (
+                    "score",
+                    "commit",
+                    "star",
+                    "pr",
+                    "issue",
+                )
+            },
+        ),
+        (
             "Permissions",
             {
                 "fields": (
@@ -44,6 +56,11 @@ class CustomUserAdmin(UserAdmin):
 
     list_display = (
         "username",
+        "score",
+        "commit",
+        "star",
+        "pr",
+        "issue",
         "github_email",
         "name",
         "student_id",

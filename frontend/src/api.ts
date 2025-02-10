@@ -31,9 +31,14 @@ export const deleteMyInfo = () =>
 export const getPublicUser = (username: string) =>
   instance.get(`users/@${username}`).then((response) => response.data);
 
-export const getUsers = (start: number, limit: number) =>
+export const getRecentUsers = (start: number, limit: number) =>
   instance
     .get(`users/`, { params: { start, limit } })
+    .then((response) => response.data);
+
+export const getUsers = (start: number, limit: number, sortBy: string) =>
+  instance
+    .get(`users/`, { params: { start, limit, sort_by: sortBy } })
     .then((response) => response.data);
 
 export const getUserCount = () =>

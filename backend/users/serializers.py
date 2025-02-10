@@ -7,8 +7,12 @@ class PublicUserSerializer(ModelSerializer):
         model = User
         fields = (
             "username",
-            "github_email",
             "date_joined",
+            "score",
+            "commit",
+            "star",
+            "pr",
+            "issue",
         )
 
 

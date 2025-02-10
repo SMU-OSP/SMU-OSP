@@ -22,7 +22,7 @@ import PostDialog from "../components/PostDialog";
 export default function PostBoard() {
   const [page, setPage] = useState(1);
 
-  const pageSize = 5;
+  const pageSize = 10;
 
   const { data: count = 0, isLoading: isCountLoading } = useQuery<number>({
     queryKey: ["getPostCount"],

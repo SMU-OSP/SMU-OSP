@@ -8,11 +8,12 @@ export interface IUser {
 
 export interface IPublicUser {
   username: string;
-  github_email: string;
-  name: string;
-  major: string;
-  // stars: number;
-  // followers: nubmer;
+  date_joined: Date;
+  score: number;
+  commit: number;
+  star: number;
+  pr: number;
+  issue: number;
 }
 
 export interface IPost {

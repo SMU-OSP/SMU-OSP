@@ -56,9 +56,22 @@ class MyInfo(APIView):
 class Users(APIView):
 
     def get(self, request):
-        all_users = (
-            User.objects.all().filter(is_superuser=False).order_by("-date_joined")
-        )
+        sort_by = request.query_params.get("sort_by")
+        valid_sort_fields = ["commit", "star", "pr", "issue", "score"]
+
+        if not sort_by:
+            all_users = (
+                User.objects.all().filter(is_superuser=False).order_by("-date_joined")
+            )
+        elif sort_by in valid_sort_fields:
+            all_users = (
+                User.objects.all().filter(is_superuser=False).order_by(f"-{sort_by}")
+            )
+        else:
+            return Response(
+                {"error": "Invalid sort field"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             start = int(request.query_params.get("start", 0))
