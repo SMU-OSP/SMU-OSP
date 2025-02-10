@@ -1,7 +1,7 @@
 import { Box, HStack, Separator, Table, Text, VStack } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { IPublicUser } from "../types";
-import { getUserCount, getUsers } from "../api";
+import { getUsers } from "../api";
 import { useQuery } from "@tanstack/react-query";
 import {
   PaginationItems,
@@ -17,36 +17,10 @@ import {
   getSortedRowModel,
   SortingState,
   useReactTable,
+  getPaginationRowModel,
 } from "@tanstack/react-table";
 
 export default function RankBoard() {
-  const [page, setPage] = useState(1);
-
-  const pageSize = 5;
-
-  const { data: count = 0, isLoading: isCountLoading } = useQuery<number>({
-    queryKey: ["getUserCount"],
-    queryFn: getUserCount,
-  });
-
-  const startRange = (page - 1) * pageSize;
-
-  const maxUser = 1000;
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<
-    IPublicUser[]
-  >({
-    queryKey: ["getUsers", startRange, maxUser],
-    queryFn: () => getUsers(startRange, maxUser, "score"),
-  });
-
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [data, setData] = useState(users);
-
-  useEffect(() => {
-    setData(users);
-  }, [users]);
-
-  console.log(data);
   const columns = useMemo<ColumnDef<IPublicUser>[]>(
     () => [
       {
@@ -83,18 +57,37 @@ export default function RankBoard() {
     []
   );
 
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<
+    IPublicUser[]
+  >({
+    queryKey: ["getUsers"],
+    queryFn: () => getUsers(),
+  });
+
+  const [data, setData] = useState(users);
+
+  useEffect(() => {
+    setData(users);
+  }, [users]);
+
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 5,
+  });
+
   const table = useReactTable({
     columns,
     data,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
     state: {
-      sorting,
+      pagination,
     },
   });
 
-  if (isCountLoading || isUsersLoading) {
+  if (isUsersLoading) {
     return <div></div>;
   }
 
@@ -126,15 +119,6 @@ export default function RankBoard() {
                               : ""
                           }
                           onClick={header.column.getToggleSortingHandler()}
-                          title={
-                            header.column.getCanSort()
-                              ? header.column.getNextSortingOrder() === "asc"
-                                ? "Sort ascending"
-                                : header.column.getNextSortingOrder() === "desc"
-                                ? "Sort descending"
-                                : "Clear sort"
-                              : undefined
-                          }
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -153,72 +137,50 @@ export default function RankBoard() {
             ))}
           </Table.Header>
           <Table.Body>
-            {table
-              .getRowModel()
-              .rows.slice(0, pageSize)
-              .map((row) => {
-                return (
-                  <Table.Row key={row.id}>
-                    {row.getVisibleCells().map((cell) => {
-                      return (
-                        <Table.Cell
-                          key={cell.id}
-                          style={{ width: cell.column.getSize() }}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </Table.Cell>
-                      );
-                    })}
-                  </Table.Row>
-                );
-              })}
+            {table.getRowModel().rows.map((row) => {
+              return (
+                <Table.Row key={row.id}>
+                  {row.getVisibleCells().map((cell) => {
+                    return (
+                      <Table.Cell
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Cell>
+                    );
+                  })}
+                </Table.Row>
+              );
+            })}
           </Table.Body>
         </Table.Root>
       </Box>
       <VStack>
         <PaginationRoot
-          page={page}
-          count={count}
-          pageSize={pageSize}
-          onPageChange={(e) => setPage(e.page)}
+          page={pagination.pageIndex + 1}
+          count={data.length}
+          pageSize={pagination.pageSize}
+          onPageChange={(e) =>
+            setPagination({ ...pagination, pageIndex: e.page - 1 })
+          }
         >
           <HStack>
-            <PaginationPrevTrigger />
+            <PaginationPrevTrigger
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            />
             <PaginationItems />
-            <PaginationNextTrigger />
+            <PaginationNextTrigger
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            />
           </HStack>
         </PaginationRoot>
       </VStack>
-      {/* <Box mt={2}>
-        {users.map((user, index) => (
-          <HStack key={index} spaceY={"5"}>
-            <Text flex={7} truncate>
-              {user.username}
-            </Text>
-            <Text flex={3} textAlign={"right"}>
-              {user.score}
-            </Text>
-          </HStack>
-        ))}
-      </Box>
-
-      <VStack>
-        <PaginationRoot
-          page={page}
-          count={count}
-          pageSize={pageSize}
-          onPageChange={(e) => setPage(e.page)}
-        >
-          <HStack>
-            <PaginationPrevTrigger />
-            <PaginationItems />
-            <PaginationNextTrigger />
-          </HStack>
-        </PaginationRoot>
-      </VStack> */}
     </Box>
   );
 }

@@ -75,20 +75,26 @@ class Users(APIView):
 
         try:
             start = int(request.query_params.get("start", 0))
-            limit = int(request.query_params.get("limit", 5))
+            limit = request.query_params.get("limit")
+            if limit is not None:
+                limit = int(limit)
         except ValueError:
             return Response(
                 {"error": "Invalid pagination parameters"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if start < 0 or limit <= 0:
+        if start < 0 or (limit is not None and limit <= 0):
             return Response(
                 {"error": "Invalid pagination parameters"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        all_users = all_users[start : start + limit]
+        if limit is not None:
+            all_users = all_users[start : start + limit]
+        else:
+            all_users = all_users[start:]
+
         serializer = PublicUserSerializer(
             all_users,
             many=True,
@@ -203,13 +209,3 @@ class GithubLogIn(APIView):
                 return Response(status=status.HTTP_200_OK)
         except Exception:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserCount(APIView):
-
-    def get(self, request):
-        user_count = User.objects.count()
-        return Response(
-            user_count,
-            status=status.HTTP_200_OK,
-        )

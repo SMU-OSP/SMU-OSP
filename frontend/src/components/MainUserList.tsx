@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { IPublicUser } from "../types";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getRecentUsers, getUsers } from "../api";
+import { getUsers } from "../api";
 
 export default function UserList() {
   const [selected, setSelected] = useState<"recent" | "active">("recent");
@@ -12,7 +12,7 @@ export default function UserList() {
     IPublicUser[]
   >({
     queryKey: ["recentUsers"],
-    queryFn: () => getRecentUsers(0, 5),
+    queryFn: () => getUsers({ limit: 5 }),
     enabled: selected === "recent",
   });
 
@@ -20,7 +20,7 @@ export default function UserList() {
     IPublicUser[]
   >({
     queryKey: ["activeUsers"],
-    queryFn: () => getUsers(0, 5, "score"),
+    queryFn: () => getUsers({ limit: 5, sortBy: "score" }),
     enabled: selected === "active",
   });
 

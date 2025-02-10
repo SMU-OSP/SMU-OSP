@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import MyInfo, LogIn, LogOut, Users, PublicUser, GithubLogIn, UserCount
+from .views import MyInfo, LogIn, LogOut, Users, PublicUser, GithubLogIn
 
 
 urlpatterns = [
@@ -9,5 +9,4 @@ urlpatterns = [
     path("log-out", LogOut.as_view()),
     path("github", GithubLogIn.as_view()),
     path("@<str:username>", PublicUser.as_view()),
-    path("count", UserCount.as_view(), name="post-count"),
 ]

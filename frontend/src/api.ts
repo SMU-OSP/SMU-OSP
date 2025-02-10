@@ -31,18 +31,24 @@ export const deleteMyInfo = () =>
 export const getPublicUser = (username: string) =>
   instance.get(`users/@${username}`).then((response) => response.data);
 
-export const getRecentUsers = (start: number, limit: number) =>
+export const getUsers = ({
+  start = null,
+  limit = null,
+  sortBy = null,
+}: {
+  start?: number | null;
+  limit?: number | null;
+  sortBy?: string | null;
+} = {}) =>
   instance
-    .get(`users/`, { params: { start, limit } })
+    .get(`users/`, {
+      params: {
+        ...(start !== null && { start }),
+        ...(limit !== null && { limit }),
+        ...(sortBy && { sort_by: sortBy }),
+      },
+    })
     .then((response) => response.data);
-
-export const getUsers = (start: number, limit: number, sortBy: string) =>
-  instance
-    .get(`users/`, { params: { start, limit, sort_by: sortBy } })
-    .then((response) => response.data);
-
-export const getUserCount = () =>
-  instance.get("users/count").then((response) => response.data);
 
 export const getPosts = (start: number, limit: number) =>
   instance
