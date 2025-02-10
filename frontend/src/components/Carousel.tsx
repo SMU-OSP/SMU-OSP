@@ -31,7 +31,7 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
   const top = useBreakpointValue({ base: "90%", md: "50%" });
   const side = useBreakpointValue({ base: "30%", md: "10px" });
 
-  const BASE_URL = "http://127.0.0.1:8000";
+  const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
   const [postOpen, setPostOpen] = useState(false);
 

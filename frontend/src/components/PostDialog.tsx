@@ -17,7 +17,7 @@ interface IPostDialog {
 }
 
 export default function PostDialog({ open, setOpen, post }: IPostDialog) {
-  const BASE_URL = "http://127.0.0.1:8000";
+  const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
   return (
     <VStack>

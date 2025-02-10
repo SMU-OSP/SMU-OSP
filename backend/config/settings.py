@@ -15,6 +15,10 @@ from datetime import timedelta
 
 import environ
 
+import pymysql
+
+pymysql.install_as_MySQLdb()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -31,7 +35,7 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
 
 # Application definition
@@ -97,12 +101,29 @@ WSGI_APPLICATION = "config.wsgi.application"
 if DEBUG:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env("DB_NAME"),
+            "USER": env("DB_USER"),
+            "PASSWORD": env("DB_PASSWORD"),
+            "HOST": env("DB_HOST"),
+            "PORT": env("DB_PORT"),
+        }
+        # "default": {
+        #     "ENGINE": "django.db.backends.sqlite3",
+        #     "NAME": BASE_DIR / "db.sqlite3",
+        # }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env("DB_NAME"),
+            "USER": env("DB_USER"),
+            "PASSWORD": env("DB_PASSWORD"),
+            "HOST": env("DB_HOST"),
+            "PORT": env("DB_PORT"),
         }
     }
-
-
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -163,8 +184,8 @@ if DEBUG:
     CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:5173"]
     CSRF_TRUSTED_ORIGINS = ["http://127.0.0.1:5173"]
 else:
-    CORS_ALLOWED_ORIGINS = ["https://sosp.sookmyung.ac.kr"]
-    CSRF_TRUSTED_ORIGINS = ["https://sosp.sookmyung.ac.kr"]
+    CORS_ALLOWED_ORIGINS = [env("CORS_ALLOWED_ORIGINS")]
+    CSRF_TRUSTED_ORIGINS = [env("CSRF_TRUSTED_ORIGINS")]
 
 CORS_ALLOW_CREDENTIALS = True
 GH_CLIENT_ID = env("GH_CLIENT_ID")
