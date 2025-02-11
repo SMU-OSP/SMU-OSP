@@ -1,12 +1,5 @@
 import { FaGithub } from "react-icons/fa";
-import {
-  Box,
-  Heading,
-  HStack,
-  Separator,
-  Spinner,
-  Text,
-} from "@chakra-ui/react";
+import { Box, Heading, HStack, Spinner, Text } from "@chakra-ui/react";
 import { Link, useParams } from "react-router-dom";
 import NotFound from "./NotFound";
 import { useQuery } from "@tanstack/react-query";

@@ -8,7 +8,7 @@ export interface IUser {
 
 export interface IPublicUser {
   username: string;
-  date_joined: Date;
+  date_joined: string;
   score: number;
   commit: number;
   star: number;
@@ -22,8 +22,8 @@ export interface IPost {
   content: string;
   image: string;
   on_carousel: boolean;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 interface IDialog {

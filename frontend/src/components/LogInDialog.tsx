@@ -1,7 +1,7 @@
 import { FaGithub } from "react-icons/fa";
 
 import { useForm } from "react-hook-form";
-import { Input, Text, VStack } from "@chakra-ui/react";
+import { Input, Link, Text, VStack } from "@chakra-ui/react";
 import {
   DialogBody,
   DialogCloseTrigger,
@@ -33,7 +33,7 @@ export default function LogInDialog({ open, setOpen }: IDialog) {
       reset();
       queryClient.refetchQueries({ queryKey: ["myinfo"] });
     },
-    onError: (error) => {
+    onError: () => {
       console.log("Log in Mutation Failed");
     },
   });
@@ -73,13 +73,14 @@ export default function LogInDialog({ open, setOpen }: IDialog) {
             >
               <Text fontWeight={"bold"}>로그인</Text>
             </Button>
-            <Button
-              as="a"
-              href="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email"
+            <Link
               w="100%"
+              href="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email"
             >
-              <FaGithub /> GitHub으로 로그인
-            </Button>
+              <Button w="100%">
+                <FaGithub /> GitHub으로 로그인
+              </Button>
+            </Link>
           </DialogBody>
           <DialogCloseTrigger />
         </DialogContent>

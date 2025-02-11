@@ -1,12 +1,4 @@
-import {
-  Box,
-  Button,
-  HStack,
-  Image,
-  Separator,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, HStack, Image, Separator, Text } from "@chakra-ui/react";
 import { Link } from "react-router-dom";
 
 export default function Footer() {

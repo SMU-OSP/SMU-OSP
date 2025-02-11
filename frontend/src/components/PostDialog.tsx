@@ -1,4 +1,4 @@
-import { Box, HStack, Image, Input, Text, VStack } from "@chakra-ui/react";
+import { Box, HStack, Image, Text, VStack } from "@chakra-ui/react";
 import {
   DialogBody,
   DialogCloseTrigger,

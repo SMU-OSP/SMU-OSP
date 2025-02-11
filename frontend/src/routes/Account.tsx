@@ -9,15 +9,9 @@ import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
 
 export default function Account() {
-  const { userLoading, isLoggedIn, user } = useUser();
+  const { userLoading, user } = useUser();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm<IUser>();
+  const { register, handleSubmit, setValue, watch } = useForm<IUser>();
 
   const formValues = watch();
 
@@ -36,7 +30,7 @@ export default function Account() {
   const mutation = useMutation({
     mutationFn: updateMyInfo,
     onMutate: () => {},
-    onSuccess: (user) => {
+    onSuccess: () => {
       toaster.create({
         type: "success",
         description: "회원정보가 성공적으로 변경되었습니다.",
@@ -46,7 +40,7 @@ export default function Account() {
         window.location.reload();
       }, 1500);
     },
-    onError: (error) => {
+    onError: () => {
       console.log("MyInfo Update Mutation Failed");
     },
   });

@@ -15,7 +15,6 @@ import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
-  SortingState,
   useReactTable,
   getPaginationRowModel,
 } from "@tanstack/react-table";
