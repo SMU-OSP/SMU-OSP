@@ -58,10 +58,10 @@ export default function UserProfile() {
             </Link>
           </HStack>
           <Text mb={"2"}>Score: {data?.score}</Text>
-          <Text mb={"2"}>Commit: {data?.commit}</Text>
-          <Text mb={"2"}>PR: {data?.pr}</Text>
-          <Text mb={"2"}>Star: {data?.star}</Text>
-          <Text>issue: {data?.issue}</Text>
+          <Text mb={"2"}>Commit: {data?.commits}</Text>
+          <Text mb={"2"}>PR: {data?.prs}</Text>
+          <Text mb={"2"}>Star: {data?.stars}</Text>
+          <Text>issue: {data?.issues}</Text>
         </Box>
       </Box>
     </Box>

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User
+from .models import User, UserActivity
 
 
 @admin.register(User)
@@ -24,10 +24,10 @@ class CustomUserAdmin(UserAdmin):
             {
                 "fields": (
                     "score",
-                    "commit",
-                    "star",
-                    "pr",
-                    "issue",
+                    "commits",
+                    "stars",
+                    "prs",
+                    "issues",
                 )
             },
         ),
@@ -57,12 +57,25 @@ class CustomUserAdmin(UserAdmin):
     list_display = (
         "username",
         "score",
-        "commit",
-        "star",
-        "pr",
-        "issue",
+        "commits",
+        "stars",
+        "prs",
+        "issues",
         "github_email",
         "name",
         "student_id",
         "major",
     )
+
+
+@admin.register(UserActivity)
+class UserActivityAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "activity_date",
+        "commits",
+        "prs",
+        "issues",
+    )
+    search_fields = ("user",)
+    list_filter = ("activity_date",)

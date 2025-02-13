@@ -9,10 +9,10 @@ class PublicUserSerializer(ModelSerializer):
             "username",
             "date_joined",
             "score",
-            "commit",
-            "star",
-            "pr",
-            "issue",
+            "commits",
+            "stars",
+            "prs",
+            "issues",
         )
 
 

@@ -35,7 +35,6 @@ class Posts(APIView):
                     {"error": "Invalid pagination parameters"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            print(start, limit)
             all_posts = all_posts[start : start + limit]
 
         serializer = PostSerializer(

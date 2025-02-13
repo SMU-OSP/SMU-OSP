@@ -10,10 +10,10 @@ export interface IPublicUser {
   username: string;
   date_joined: string;
   score: number;
-  commit: number;
-  star: number;
-  pr: number;
-  issue: number;
+  commits: number;
+  stars: number;
+  prs: number;
+  issues: number;
 }
 
 export interface IPost {

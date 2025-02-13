@@ -197,14 +197,12 @@ class GithubLogIn(APIView):
                 login(request, user)
                 return Response(status=status.HTTP_200_OK)
             except User.DoesNotExist:
-                print("User does not exist")
                 user = User.objects.create(
                     username=user_data.get("login"),
                     github_email=user_emails[0].get("email"),
                 )
                 user.set_unusable_password()
                 user.save()
-                print("User created")
                 login(request, user)
                 return Response(status=status.HTTP_200_OK)
         except Exception:
