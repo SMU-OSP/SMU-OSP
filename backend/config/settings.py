@@ -16,8 +16,10 @@ from datetime import timedelta
 import environ
 
 import pymysql
+from celery.schedules import crontab
 
 pymysql.install_as_MySQLdb()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -179,3 +181,18 @@ GH_PAT = env("GH_PAT")
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static/"
+
+
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+CELERY_TIMEZONE = "Asia/Seoul"
+
+CELERY_BEAT_SCHEDULE = {
+    "daily-update": {
+        "task": "users.tasks.daily_update",
+        "schedule": crontab(minute="*"),
+        # "schedule": crontab(minute="0", hour="6"),
+    },
+}
