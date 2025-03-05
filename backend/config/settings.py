@@ -45,6 +45,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 THIRD_PARTY_APPS = [
     "rest_framework",
     "corsheaders",
+    "import_export",
 ]
 
 CUSTOM_APPS = [
@@ -192,7 +193,6 @@ CELERY_TIMEZONE = "Asia/Seoul"
 CELERY_BEAT_SCHEDULE = {
     "daily-update": {
         "task": "users.tasks.daily_update",
-        "schedule": crontab(minute="*"),
-        # "schedule": crontab(minute="0", hour="6"),
+        "schedule": crontab(minute="0", hour="0,6,12,18"),
     },
 }
