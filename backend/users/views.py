@@ -167,6 +167,75 @@ class LogOut(APIView):
 class GithubLogIn(APIView):
 
     def post(self, request):
+
+        access_token = request.data.get("access_token")
+
+        try:
+            user_data = requests.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+            )
+            user_data = user_data.json()
+            username = user_data.get("login")
+
+            try:
+                user = User.objects.get(username=username)
+                login(request, user)
+                return Response(status=status.HTTP_200_OK)
+            except Exception:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class GithubRegister(APIView):
+
+    def post(self, request):
+
+        access_token = request.data.get("access_token")
+
+        try:
+            user_data = requests.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+            )
+            user_data = user_data.json()
+            user_emails = requests.get(
+                "https://api.github.com/user/emails",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+            )
+            user_emails = user_emails.json()
+
+            username = user_data.get("login")
+            github_email = user_emails[0].get("email")
+
+            user = User.objects.create(
+                username=username,
+                github_email=github_email,
+                name=request.data.get("name"),
+                student_id=request.data.get("student_id"),
+                major=request.data.get("major"),
+            )
+            user.set_unusable_password()
+            user.save()
+            return Response(status=status.HTTP_200_OK)
+        except Exception:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class CheckUserExist(APIView):
+
+    def post(self, request):
         try:
             code = request.data.get("code")
             access_token = requests.post(
@@ -192,18 +261,20 @@ class GithubLogIn(APIView):
             )
             user_emails = user_emails.json()
 
-            try:
-                user = User.objects.get(username=user_data.get("login"))
-                login(request, user)
-                return Response(status=status.HTTP_200_OK)
-            except User.DoesNotExist:
-                user = User.objects.create(
-                    username=user_data.get("login"),
-                    github_email=user_emails[0].get("email"),
-                )
-                user.set_unusable_password()
-                user.save()
-                login(request, user)
-                return Response(status=status.HTTP_200_OK)
+            username = user_data.get("login")
+            github_email = user_emails[0].get("email")
+
+            user = User.objects.filter(username=username).first()
+
+            return Response(
+                {
+                    "username": username,
+                    "github_email": github_email,
+                    "access_token": access_token,
+                    "registered": user is not None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         except Exception:
             return Response(status=status.HTTP_400_BAD_REQUEST)

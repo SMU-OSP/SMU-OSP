@@ -16,16 +16,19 @@ class User(AbstractUser):
 
     name = models.CharField(
         max_length=100,
-        default="",
+        null=False,
+        blank=False,
     )
 
     student_id = models.PositiveIntegerField(
-        null=True,
+        null=False,
+        blank=False,
     )
 
     major = models.CharField(
         max_length=100,
-        default="",
+        null=False,
+        blank=False,
     )
 
     commits = models.PositiveIntegerField(

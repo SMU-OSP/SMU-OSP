@@ -61,11 +61,43 @@ export const getPostCount = () =>
 export const getCarouselPosts = () =>
   instance.get("posts?carousel").then((response) => response.data);
 
-export const githubLogIn = (code: string) =>
+export const checkUserExist = (code: string) =>
   instance
     .post(
-      "users/github",
+      "users/check-user-exist",
       { code },
+      {
+        headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+      }
+    )
+    .then((response) => {
+      return {
+        status: response.status,
+        data: response.data,
+      };
+    });
+
+export const githubLogIn = (access_token: string) =>
+  instance
+    .post(
+      "users/github-log-in",
+      { access_token },
+      {
+        headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+      }
+    )
+    .then((response) => response.status);
+
+export const githubRegister = (
+  access_token: string,
+  name: string,
+  student_id: string,
+  major: string
+) =>
+  instance
+    .post(
+      "users/github-register",
+      { access_token, name, student_id, major },
       {
         headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
       }
