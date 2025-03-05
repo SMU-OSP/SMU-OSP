@@ -1,3 +1,5 @@
+import { FaGithub } from "react-icons/fa";
+
 import { Link } from "react-router-dom";
 
 import { useState } from "react";
@@ -59,8 +61,13 @@ export default function Header() {
           </Link>
           {!userLoading ? (
             !isLoggedIn ? (
-              <HStack spaceX={2}>
-                <Button
+              <Box>
+                <Link to="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email">
+                  <Button>
+                    <FaGithub /> 로그인
+                  </Button>
+                </Link>
+                {/* <Button
                   borderColor={"smu.blue"}
                   bgColor={"white"}
                   onClick={toggleLogInDialog}
@@ -68,8 +75,8 @@ export default function Header() {
                   <Text color={"smu.blue"} fontWeight={"bold"}>
                     로그인
                   </Text>
-                </Button>
-              </HStack>
+                </Button> */}
+              </Box>
             ) : (
               <MenuRoot>
                 <MenuTrigger asChild>
