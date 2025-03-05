@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { githubRegister, githubLogIn, checkUserExist } from "../api";
 import { useQueryClient } from "@tanstack/react-query";
-import { IUser } from "../types";
 import { Button } from "../components/ui/button";
 
 interface IRegisterForm {

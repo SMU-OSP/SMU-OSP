@@ -16,9 +16,9 @@ export default function Header() {
 
   const [logInOpen, setLogInOpen] = useState(false);
 
-  const toggleLogInDialog = () => {
-    setLogInOpen(!logInOpen);
-  };
+  // const toggleLogInDialog = () => {
+  //   setLogInOpen(!logInOpen);
+  // };
 
   const queryClient = useQueryClient();
 
