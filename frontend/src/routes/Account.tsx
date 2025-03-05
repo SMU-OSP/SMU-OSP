@@ -85,7 +85,7 @@ export default function Account() {
           required
           {...register("student_id")}
         />
-        <Heading>전공 / 부서</Heading>
+        <Heading>학과 / 부서</Heading>
         <Input mb={"5"} autoComplete="off" required {...register("major")} />
 
         <Button

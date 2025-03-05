@@ -1,3 +1,5 @@
+from django.utils.html import linebreaks
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
@@ -41,6 +43,10 @@ class Posts(APIView):
             all_posts,
             many=True,
         )
+
+        for post in serializer.data:
+            post["content"] = linebreaks(post["content"])
+
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,
@@ -55,6 +61,9 @@ class PostDetail(APIView):
         except Post.DoesNotExist:
             raise NotFound
         serializer = PostSerializer(post)
+
+        post.content = linebreaks(post.content)
+
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,

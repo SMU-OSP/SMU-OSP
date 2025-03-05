@@ -45,7 +45,7 @@ export default function PostDialog({ open, setOpen, post }: IPostDialog) {
           </DialogHeader>
           <DialogBody>
             <Box>
-              <Box display="flex" justifyContent="center">
+              <Box display="flex" justifyContent="center" mb={"5"}>
                 {post && post.image ? (
                   <Image
                     src={`${BASE_URL}${post.image}`}
@@ -54,7 +54,11 @@ export default function PostDialog({ open, setOpen, post }: IPostDialog) {
                   />
                 ) : null}
               </Box>
-              <Text>{post ? post.content : ""}</Text>
+              {post ? (
+                <Text dangerouslySetInnerHTML={{ __html: post.content }} />
+              ) : (
+                ""
+              )}
             </Box>
           </DialogBody>
           <DialogCloseTrigger />
