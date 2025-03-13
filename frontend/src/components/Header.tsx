@@ -27,6 +27,7 @@ export default function Header() {
     onMutate: () => {},
     onSuccess: () => {
       queryClient.refetchQueries({ queryKey: ["myinfo"] });
+      window.location.reload();
     },
     onError: () => {
       console.log("Log out Mutation Failed");

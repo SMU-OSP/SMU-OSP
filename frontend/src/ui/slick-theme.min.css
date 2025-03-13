@@ -132,7 +132,7 @@
   opacity: 1;
 }
 .slick-dots li button:before {
-  font-size: 6px;
+  font-size: 30px;
   line-height: 20px;
   position: absolute;
   top: 0;

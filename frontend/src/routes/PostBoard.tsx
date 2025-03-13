@@ -7,7 +7,7 @@ import {
   useBreakpointValue,
   VStack,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IPost } from "../types";
 import { getPostCount, getPosts } from "../api";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +41,7 @@ export default function PostBoard() {
   const togglePostDialog = (post: IPost) => {
     setPostOpen(!postOpen);
     setSelectedPost(post);
+    // window.history.pushState(null, "", window.location.href);
   };
 
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
@@ -48,13 +49,24 @@ export default function PostBoard() {
   const titleFontSize = useBreakpointValue({ base: "md", md: "lg" });
   const dateFontSize = useBreakpointValue({ base: "xs", md: "md" });
 
+  // useEffect(() => {
+  //   const handlePopState = () => {
+  //     if (postOpen) {
+  //       setPostOpen(false);
+  //     }
+  //   };
+
+  //   window.addEventListener("popstate", handlePopState);
+  //   return () => window.removeEventListener("popstate", handlePopState);
+  // }, [postOpen]);
+
   if (isCountLoading || isPostsLoading) {
     return <div></div>;
   }
 
   return (
     <Box minW={"200px"} px={20} py={10}>
-      <Text fontSize="xl" fontWeight={"bold"} mb={2}>
+      <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
         공지사항
       </Text>
 

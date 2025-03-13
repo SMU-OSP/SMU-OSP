@@ -14,6 +14,7 @@ export interface IPublicUser {
   stars: number;
   prs: number;
   issues: number;
+  date_joined: string;
 }
 
 export interface IPost {

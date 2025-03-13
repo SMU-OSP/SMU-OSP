@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { githubRegister, githubLogIn, checkUserExist } from "../api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../components/ui/button";
+import { toaster } from "../components/ui/toaster";
 
 interface IRegisterForm {
   accessToken: string;
@@ -21,6 +22,30 @@ export default function GithubConfirm() {
   const [accessToken, setAccessToken] = useState("");
 
   const { register, handleSubmit } = useForm<IRegisterForm>();
+
+  const mutation = useMutation({
+    mutationFn: (data: IRegisterForm) =>
+      githubRegister(accessToken, data.name, data.studentId, data.major),
+    onMutate: () => {},
+    onSuccess: () => {
+      toaster.create({
+        type: "success",
+        description: "회원 가입 되셨습니다.",
+        duration: 1000,
+      });
+      setTimeout(() => {
+        navigate("/");
+        queryClient.refetchQueries({ queryKey: ["myinfo"] });
+      }, 1000);
+    },
+    onError: () => {
+      console.log("User Create Mutation Failed");
+    },
+  });
+
+  const onSubmit = (data: IRegisterForm) => {
+    mutation.mutate(data);
+  };
 
   const confirmLogIn = async () => {
     const code = new URLSearchParams(search).get("code");
@@ -39,10 +64,10 @@ export default function GithubConfirm() {
     }
   };
 
-  const onSubmit = async (data: IRegisterForm) => {
-    await githubRegister(accessToken, data.name, data.studentId, data.major);
-    navigate("/");
-  };
+  // const onSubmit = async (data: IRegisterForm) => {
+  //   await githubRegister(accessToken, data.name, data.studentId, data.major);
+  //   navigate("/");
+  // };
 
   useEffect(() => {
     confirmLogIn();

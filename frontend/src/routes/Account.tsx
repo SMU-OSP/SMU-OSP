@@ -1,12 +1,14 @@
-import { Box, Heading, Input, Text } from "@chakra-ui/react";
+import { Box, Heading, HStack, Input, Text } from "@chakra-ui/react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { updateMyInfo } from "../api";
 import { IUser } from "../types";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toaster } from "../components/ui/toaster";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
+import { useNavigate } from "react-router-dom";
+import DeleteAccountDialog from "../components/DeleteAccountDialog";
 
 export default function Account() {
   const { userLoading, user } = useUser();
@@ -14,6 +16,8 @@ export default function Account() {
   const { register, handleSubmit, setValue, watch } = useForm<IUser>();
 
   const formValues = watch();
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!userLoading && user) {
@@ -27,7 +31,7 @@ export default function Account() {
 
   const isFormChanged = JSON.stringify(formValues) !== JSON.stringify(user);
 
-  const mutation = useMutation({
+  const updateMutation = useMutation({
     mutationFn: updateMyInfo,
     onMutate: () => {},
     onSuccess: () => {
@@ -37,16 +41,22 @@ export default function Account() {
         duration: 1000,
       });
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        navigate("/");
+      }, 1000);
     },
     onError: () => {
-      console.log("MyInfo Update Mutation Failed");
+      console.log("User Update Mutation Failed");
     },
   });
 
   const onSubmit = (user: IUser) => {
-    mutation.mutate(user);
+    updateMutation.mutate(user);
+  };
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const toggleDeleteAccountDialog = () => {
+    setDialogOpen(!dialogOpen);
   };
 
   return (
@@ -87,16 +97,22 @@ export default function Account() {
         />
         <Heading>학과 / 부서</Heading>
         <Input mb={"5"} autoComplete="off" required {...register("major")} />
+        <HStack justifyContent={"space-between"}>
+          <Button
+            bg={"smu.blue"}
+            disabled={!isFormChanged}
+            loading={updateMutation.isPending}
+            onClick={handleSubmit(onSubmit)}
+          >
+            변경
+          </Button>
 
-        <Button
-          bg={"smu.blue"}
-          disabled={!isFormChanged}
-          loading={mutation.isPending}
-          onClick={handleSubmit(onSubmit)}
-        >
-          변경
-        </Button>
+          <Button bg={"smu.gray"} onClick={toggleDeleteAccountDialog}>
+            회원탈퇴
+          </Button>
+        </HStack>
       </Box>
+      <DeleteAccountDialog open={dialogOpen} setOpen={setDialogOpen} />
     </Box>
   );
 }

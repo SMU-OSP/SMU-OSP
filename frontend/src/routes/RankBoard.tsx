@@ -49,7 +49,12 @@ export default function RankBoard() {
       },
       {
         accessorKey: "issues",
-        Header: "Issues",
+        header: "Issues",
+        size: 100,
+      },
+      {
+        accessorKey: "date_joined",
+        header: "Date joined",
         size: 100,
       },
     ],
@@ -92,7 +97,7 @@ export default function RankBoard() {
 
   return (
     <Box minW={"200px"} px={20} py={10}>
-      <Text fontSize="xl" fontWeight={"bold"} mb={2}>
+      <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
         오픈소스 활동 랭킹
       </Text>
 
@@ -119,14 +124,16 @@ export default function RankBoard() {
                           }
                           onClick={header.column.getToggleSortingHandler()}
                         >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                          {{
-                            asc: " 🔼",
-                            desc: " 🔽",
-                          }[header.column.getIsSorted() as string] ?? null}
+                          <Text color={"smu.blue"} fontWeight={"bold"}>
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            {{
+                              asc: " 🔼",
+                              desc: " 🔽",
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </Text>
                         </div>
                       )}
                     </Table.ColumnHeader>
@@ -140,15 +147,44 @@ export default function RankBoard() {
               return (
                 <Table.Row key={row.id}>
                   {row.getVisibleCells().map((cell) => {
+                    const isUsernameColumn = cell.column.id === "username";
+                    const isDateJoinedColumn = cell.column.id === "date_joined";
+
+                    const cellContext = flexRender(
+                      cell.column.columnDef.cell,
+                      cell.getContext()
+                    );
+
+                    const cellValue = cell.getValue();
+
                     return (
                       <Table.Cell
                         key={cell.id}
                         style={{ width: cell.column.getSize() }}
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
+                        <Text fontWeight={isUsernameColumn ? "bold" : "normal"}>
+                          {isDateJoinedColumn ? (
+                            typeof cellValue === "string" ? (
+                              cellValue.substring(0, 10)
+                            ) : (
+                              ""
+                            )
+                          ) : isUsernameColumn ? (
+                            typeof cellValue === "string" ? (
+                              <a
+                                href={`https://github.com/${cellValue}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {cellValue}
+                              </a>
+                            ) : (
+                              ""
+                            )
+                          ) : (
+                            cellContext
+                          )}{" "}
+                        </Text>
                       </Table.Cell>
                     );
                   })}

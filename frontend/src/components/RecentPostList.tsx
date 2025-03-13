@@ -1,7 +1,7 @@
 import { Box, HStack, Separator, Text } from "@chakra-ui/react";
 import { format } from "date-fns";
 import { IPost } from "../types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PostDialog from "./PostDialog";
 import { Link } from "react-router-dom";
 
@@ -11,9 +11,21 @@ export default function RecentPostList({ posts }: { posts: IPost[] }) {
   const togglePostDialog = (post: IPost) => {
     setPostOpen(!postOpen);
     setSelectedPost(post);
+    // window.history.pushState(null, "", window.location.href);
   };
 
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
+
+  // useEffect(() => {
+  //   const handlePopState = () => {
+  //     if (postOpen) {
+  //       setPostOpen(false);
+  //     }
+  //   };
+
+  //   window.addEventListener("popstate", handlePopState);
+  //   return () => window.removeEventListener("popstate", handlePopState);
+  // }, [postOpen]);
 
   return (
     <Box p={3} w={"400px"} h={"200px"}>
