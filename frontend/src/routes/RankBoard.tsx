@@ -1,4 +1,14 @@
-import { Box, HStack, Separator, Table, Text, VStack } from "@chakra-ui/react";
+import {
+  Box,
+  createListCollection,
+  HStack,
+  Portal,
+  Select,
+  Separator,
+  Table,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { IPublicUser } from "../types";
 import { getUsers } from "../api";
@@ -91,15 +101,63 @@ export default function RankBoard() {
     },
   });
 
+  const pageSizeCollection = createListCollection({
+    items: [
+      { label: "5명씩 보기", value: 5 },
+      { label: "10명씩 보기", value: 10 },
+      { label: "20명씩 보기", value: 20 },
+      { label: "50명씩 보기", value: 50 },
+      { label: "100명씩 보기", value: 100 },
+    ],
+  });
+
+  const [value, setValue] = useState<string[]>(["5"]);
+  console.log(value, typeof value[0]);
+  const handlePageSizeChange = (details: { value: string[] }) => {
+    const newPageSize = parseInt(details.value[0], 10);
+    setPagination((prev) => ({ ...prev, pageSize: newPageSize }));
+    setValue(details.value);
+  };
+
   if (isUsersLoading) {
     return <div></div>;
   }
 
   return (
     <Box minW={"200px"} px={20} py={10}>
-      <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
-        오픈소스 활동 랭킹
-      </Text>
+      <HStack justifyContent={"space-between"}>
+        <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
+          오픈소스 활동 랭킹
+        </Text>
+        <Select.Root
+          width={"130px"}
+          size={"xs"}
+          value={value}
+          onValueChange={handlePageSizeChange}
+          collection={pageSizeCollection}
+        >
+          <Select.Control>
+            <Select.Trigger>
+              <Select.ValueText placeholder="페이지 당 인원수" />
+            </Select.Trigger>
+            <Select.IndicatorGroup>
+              <Select.Indicator />
+            </Select.IndicatorGroup>
+          </Select.Control>
+          <Portal>
+            <Select.Positioner>
+              <Select.Content>
+                {pageSizeCollection.items.map((pageSize) => (
+                  <Select.Item item={pageSize} key={pageSize.value}>
+                    {pageSize.label}
+                    <Select.ItemIndicator />
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Portal>
+        </Select.Root>
+      </HStack>
 
       <Separator borderColor={"smu.smuGray"} />
 

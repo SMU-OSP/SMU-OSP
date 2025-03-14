@@ -1,7 +1,7 @@
 import { Box, HStack, Separator, Text } from "@chakra-ui/react";
 import { format } from "date-fns";
 import { IPost } from "../types";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import PostDialog from "./PostDialog";
 import { Link } from "react-router-dom";
 

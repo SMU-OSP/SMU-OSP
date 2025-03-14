@@ -30,7 +30,7 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
   // buttons as the screen size changes
   const top = useBreakpointValue({ base: "90%", md: "50%" });
   const side = useBreakpointValue({ base: "30%", md: "10px" });
-  const carouselHeight = useBreakpointValue({ base: "300px", md: "500px" });
+  const carouselHeight = useBreakpointValue({ base: "250px", md: "400px" });
 
   const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -44,7 +44,7 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
 
   return (
-    <Box position={"relative"} width={"80%"} maxW={"1000px"}>
+    <Box position={"relative"} mt={"5px"} width={"80%"} maxW={"1000px"}>
       {/* Left Icon */}
       <IconButton
         aria-label="left-arrow"

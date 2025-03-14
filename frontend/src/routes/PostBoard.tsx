@@ -7,7 +7,7 @@ import {
   useBreakpointValue,
   VStack,
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IPost } from "../types";
 import { getPostCount, getPosts } from "../api";
 import { useQuery } from "@tanstack/react-query";
