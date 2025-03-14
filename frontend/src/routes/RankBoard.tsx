@@ -86,7 +86,7 @@ export default function RankBoard() {
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 5,
+    pageSize: 10,
   });
 
   const table = useReactTable({
@@ -111,7 +111,7 @@ export default function RankBoard() {
     ],
   });
 
-  const [value, setValue] = useState<string[]>(["5"]);
+  const [value, setValue] = useState<string[]>(["10"]);
   console.log(value, typeof value[0]);
   const handlePageSizeChange = (details: { value: string[] }) => {
     const newPageSize = parseInt(details.value[0], 10);
