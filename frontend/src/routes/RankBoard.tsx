@@ -28,6 +28,8 @@ import {
   useReactTable,
   getPaginationRowModel,
 } from "@tanstack/react-table";
+import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
+import "react-circular-progressbar/dist/styles.css";
 
 export default function RankBoard() {
   const columns = useMemo<ColumnDef<IPublicUser>[]>(
@@ -38,9 +40,29 @@ export default function RankBoard() {
         size: 150,
       },
       {
+        accessorKey: "level",
+        header: "Level",
+        size: 80,
+        cell: ({ row }) => (
+          <Box w={"42px"} h={"42px"}>
+            <CircularProgressbar
+              value={row.original.xp_progress_percent}
+              text={`${row.original.level}`}
+              styles={buildStyles({
+                textSize: "32px",
+                pathColor: "#2b6cb0",
+                textColor: "#1a202c",
+                trailColor: "#edf2f7",
+              })}
+            />
+          </Box>
+        ),
+      },
+      {
         accessorKey: "score",
-        header: "Score",
-        size: 100,
+        header: "XP",
+        size: 80,
+        cell: ({ row }) => Math.floor(row.original.xp),
       },
       {
         accessorKey: "stars",

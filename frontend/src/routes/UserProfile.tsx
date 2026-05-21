@@ -7,6 +7,8 @@ import { IActivityDay, IPublicUser } from "../types";
 import { getPublicUser, getUserActivity } from "../api";
 import { Button } from "../components/ui/button";
 import { ActivityCalendar } from "react-activity-calendar";
+import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
+import "react-circular-progressbar/dist/styles.css";
 
 export default function UserProfile() {
   const { usernameWithAt } = useParams();
@@ -51,45 +53,64 @@ export default function UserProfile() {
     <Box>
       <Box minW={"200px"} w={"800px"} px={20} py={10}>
         <Heading>유저 프로필</Heading>
-        <Box px={"5"} py={"5"}>
-          <HStack mb={"2"}>
-            <Text>GitHub ID: {data?.username}</Text>
-            <Link to={`https://github.com/${data?.username}`} target="_blank">
-              <Button
-                bg={"black"}
-                color={"white"}
-                size="xs"
-                w={"35px"}
-                h={"30px"}
-              >
-                <FaGithub />
-              </Button>
-            </Link>
-          </HStack>
-          <Text mb={"2"}>Score: {data?.score}</Text>
-          <Text mb={"2"}>Commit: {data?.commits}</Text>
-          <Text mb={"2"}>PR: {data?.prs}</Text>
-          <Text mb={"2"}>Star: {data?.stars}</Text>
-          <Text mb={"5"}>Issue: {data?.issues}</Text>
 
-          <Box mt={"8"}>
-            <Heading size={"md"} mb={"3"}>
-              지난 1년 활동
-            </Heading>
-            {isActivityLoading ? (
-              <Spinner size={"sm"} />
-            ) : (
-              <ActivityCalendar
-                data={activity}
-                labels={{
-                  totalCount: "{{count}} contributions in the last year",
-                }}
-                blockSize={12}
-                blockMargin={3}
-                fontSize={12}
-              />
-            )}
+        <HStack px={"5"} py={"5"} align={"flex-start"} gap={"8"}>
+          <Box w={"140px"} h={"140px"} flexShrink={0}>
+            <CircularProgressbar
+              value={data.xp_progress_percent}
+              text={`Lv ${data.level}`}
+              styles={buildStyles({
+                textSize: "20px",
+                pathColor: "#2b6cb0",
+                textColor: "#1a202c",
+                trailColor: "#edf2f7",
+              })}
+            />
+            <Text textAlign={"center"} fontSize={"xs"} mt={"2"} color={"gray.600"}>
+              {Math.floor(data.xp)} / {data.xp_at_next_level} XP
+            </Text>
           </Box>
+
+          <Box flex={1}>
+            <HStack mb={"2"}>
+              <Text>GitHub ID: {data?.username}</Text>
+              <Link to={`https://github.com/${data?.username}`} target="_blank">
+                <Button
+                  bg={"black"}
+                  color={"white"}
+                  size="xs"
+                  w={"35px"}
+                  h={"30px"}
+                >
+                  <FaGithub />
+                </Button>
+              </Link>
+            </HStack>
+            <Text mb={"2"}>XP: {Math.floor(data.xp)}</Text>
+            <Text mb={"2"}>Commit: {data?.commits}</Text>
+            <Text mb={"2"}>PR: {data?.prs}</Text>
+            <Text mb={"2"}>Star: {data?.stars}</Text>
+            <Text>Issue: {data?.issues}</Text>
+          </Box>
+        </HStack>
+
+        <Box mt={"8"} px={"5"}>
+          <Heading size={"md"} mb={"3"}>
+            지난 1년 활동
+          </Heading>
+          {isActivityLoading ? (
+            <Spinner size={"sm"} />
+          ) : (
+            <ActivityCalendar
+              data={activity}
+              labels={{
+                totalCount: "{{count}} contributions in the last year",
+              }}
+              blockSize={12}
+              blockMargin={3}
+              fontSize={12}
+            />
+          )}
         </Box>
       </Box>
     </Box>

@@ -15,6 +15,12 @@ export interface IPublicUser {
   prs: number;
   issues: number;
   date_joined: string;
+  xp: number;
+  level: number;
+  xp_to_next_level: number;
+  xp_progress_percent: number;
+  xp_at_current_level: number;
+  xp_at_next_level: number;
 }
 
 export interface IActivityDay {
