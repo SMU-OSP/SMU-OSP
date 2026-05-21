@@ -19,6 +19,9 @@ import {
   PaginationNextTrigger,
 } from "../components/ui/pagination";
 import PostDialog from "../components/PostDialog";
+import PostCreateDialog from "../components/PostCreateDialog";
+import { Button } from "../components/ui/button";
+import useUser from "../lib/useUser";
 
 const CATEGORY_LABEL: Record<PostCategory, string> = {
   NOTICE: "공지",
@@ -52,6 +55,7 @@ export default function PostBoard() {
   });
 
   const [postOpen, setPostOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const togglePostDialog = (post: IPost) => {
     setPostOpen(!postOpen);
@@ -59,6 +63,8 @@ export default function PostBoard() {
   };
 
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
+
+  const { isLoggedIn } = useUser();
 
   const titleFontSize = useBreakpointValue({ base: "md", md: "lg" });
   const dateFontSize = useBreakpointValue({ base: "xs", md: "md" });
@@ -69,9 +75,22 @@ export default function PostBoard() {
 
   return (
     <Box minW={"200px"} px={20} py={10}>
-      <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
-        커뮤니티
-      </Text>
+      <HStack justifyContent={"space-between"} mb={2}>
+        <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"}>
+          커뮤니티
+        </Text>
+        {isLoggedIn && (
+          <Button
+            size={"sm"}
+            bgColor={"smu.blue"}
+            onClick={() => setCreateOpen(true)}
+          >
+            <Text fontWeight={"bold"} color={"white"}>
+              새 글
+            </Text>
+          </Button>
+        )}
+      </HStack>
 
       <Separator borderColor={"smu.smuGray"} />
 
@@ -119,6 +138,7 @@ export default function PostBoard() {
         </PaginationRoot>
       </VStack>
       <PostDialog open={postOpen} setOpen={setPostOpen} post={selectedPost} />
+      <PostCreateDialog open={createOpen} setOpen={setCreateOpen} />
     </Box>
   );
 }
