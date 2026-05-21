@@ -20,7 +20,7 @@ export default function UserList() {
     IPublicUser[]
   >({
     queryKey: ["activeUsers"],
-    queryFn: () => getUsers({ limit: 5, sortBy: "score" }),
+    queryFn: () => getUsers({ limit: 5, sortBy: "xp" }),
     enabled: selected === "active",
   });
 
@@ -75,8 +75,13 @@ export default function UserList() {
                 <Text flex={7} truncate>
                   {user.username}
                 </Text>
-                <Text flex={3} textAlign={"right"}>
-                  {user.score}
+                <Text
+                  flex={3}
+                  textAlign={"right"}
+                  fontSize={"sm"}
+                  color={"gray.600"}
+                >
+                  Lv {user.level} · {Math.floor(user.xp)} XP
                 </Text>
               </HStack>
             ))}
