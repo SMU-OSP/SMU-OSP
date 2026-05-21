@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import {
+  Badge,
   Box,
   HStack,
   Separator,
@@ -8,7 +9,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useState } from "react";
-import { IPost } from "../types";
+import { IPost, PostCategory } from "../types";
 import { getPostCount, getPosts } from "../api";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,6 +19,20 @@ import {
   PaginationNextTrigger,
 } from "../components/ui/pagination";
 import PostDialog from "../components/PostDialog";
+
+const CATEGORY_LABEL: Record<PostCategory, string> = {
+  NOTICE: "공지",
+  FREE: "자유",
+  QNA: "질문",
+  PROJECT: "프로젝트",
+};
+
+const CATEGORY_COLOR: Record<PostCategory, string> = {
+  NOTICE: "blue",
+  FREE: "gray",
+  QNA: "orange",
+  PROJECT: "purple",
+};
 
 export default function PostBoard() {
   const [page, setPage] = useState(1);
@@ -41,24 +56,12 @@ export default function PostBoard() {
   const togglePostDialog = (post: IPost) => {
     setPostOpen(!postOpen);
     setSelectedPost(post);
-    // window.history.pushState(null, "", window.location.href);
   };
 
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
 
   const titleFontSize = useBreakpointValue({ base: "md", md: "lg" });
   const dateFontSize = useBreakpointValue({ base: "xs", md: "md" });
-
-  // useEffect(() => {
-  //   const handlePopState = () => {
-  //     if (postOpen) {
-  //       setPostOpen(false);
-  //     }
-  //   };
-
-  //   window.addEventListener("popstate", handlePopState);
-  //   return () => window.removeEventListener("popstate", handlePopState);
-  // }, [postOpen]);
 
   if (isCountLoading || isPostsLoading) {
     return <div></div>;
@@ -67,7 +70,7 @@ export default function PostBoard() {
   return (
     <Box minW={"200px"} px={20} py={10}>
       <Text fontSize="xl" fontWeight={"bold"} color={"smu.blue"} mb={2}>
-        공지사항
+        커뮤니티
       </Text>
 
       <Separator borderColor={"smu.smuGray"} />
@@ -75,8 +78,14 @@ export default function PostBoard() {
       <Box mt={2}>
         {posts.map((post) => (
           <HStack key={post.id} spaceY={"5"}>
+            <Badge
+              colorPalette={CATEGORY_COLOR[post.category] ?? "gray"}
+              flexShrink={0}
+            >
+              {CATEGORY_LABEL[post.category] ?? post.category}
+            </Badge>
             <Text
-              flex={7}
+              flex={6}
               truncate
               cursor="pointer"
               _hover={{ fontWeight: "bold" }}
@@ -85,7 +94,10 @@ export default function PostBoard() {
             >
               {post.title}
             </Text>
-            <Text flex={3} textAlign={"right"} fontSize={dateFontSize}>
+            <Text flex={2} fontSize={"xs"} color={"gray.500"} truncate>
+              {post.author?.name ?? "익명"} · ♥ {post.likes_count}
+            </Text>
+            <Text flex={2} textAlign={"right"} fontSize={dateFontSize}>
               {format(post.created_at, "yyyy-MM-dd")}
             </Text>
           </HStack>

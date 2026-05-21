@@ -31,6 +31,9 @@ export const deleteMyInfo = () =>
 export const getPublicUser = (username: string) =>
   instance.get(`users/@${username}`).then((response) => response.data);
 
+export const getUserActivity = (username: string) =>
+  instance.get(`users/@${username}/activity`).then((response) => response.data);
+
 export const getUsers = ({
   start = null,
   limit = null,
@@ -60,6 +63,25 @@ export const getPostCount = () =>
 
 export const getCarouselPosts = () =>
   instance.get("posts?carousel").then((response) => response.data);
+
+export const togglePostLike = (postId: number) =>
+  instance
+    .post(`posts/${postId}/like`, null, {
+      headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+    })
+    .then((response) => response.data as { liked: boolean; likes_count: number });
+
+export const createPost = (data: {
+  title: string;
+  content: string;
+  category?: string;
+  tags?: string[];
+}) =>
+  instance
+    .post("posts/", data, {
+      headers: { "X-CSRFToken": Cookie.get("csrftoken") || "" },
+    })
+    .then((response) => response.data);
 
 export const checkUserExist = (code: string) =>
   instance

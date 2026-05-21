@@ -5,6 +5,7 @@ from .views import (
     LogOut,
     Users,
     PublicUser,
+    UserActivities,
     CheckUserExist,
     GithubRegister,
     GithubLogIn,
@@ -20,4 +21,5 @@ urlpatterns = [
     path("github-log-in", GithubLogIn.as_view()),
     path("github-register", GithubRegister.as_view()),
     path("@<str:username>", PublicUser.as_view()),
+    path("@<str:username>/activity", UserActivities.as_view()),
 ]

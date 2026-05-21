@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, UserActivity
+from .models import User, UserActivity, XPHistory
 
 from import_export import resources
 from import_export.admin import ExportMixin
@@ -114,3 +114,10 @@ class UserActivityAdmin(admin.ModelAdmin):
     )
     search_fields = ("user",)
     list_filter = ("activity_date",)
+
+
+@admin.register(XPHistory)
+class XPHistoryAdmin(admin.ModelAdmin):
+    list_display = ("user", "recorded_date", "xp_value")
+    search_fields = ("user__username",)
+    list_filter = ("recorded_date",)

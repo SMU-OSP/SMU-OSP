@@ -1,8 +1,17 @@
-from rest_framework.serializers import ModelSerializer
+from rest_framework import serializers
+
 from .models import User
 
 
-class PublicUserSerializer(ModelSerializer):
+class PublicUserSerializer(serializers.ModelSerializer):
+
+    xp = serializers.FloatField(read_only=True)
+    level = serializers.IntegerField(read_only=True)
+    xp_to_next_level = serializers.FloatField(read_only=True)
+    xp_progress_percent = serializers.FloatField(read_only=True)
+    xp_at_current_level = serializers.IntegerField(read_only=True)
+    xp_at_next_level = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = User
         fields = (
@@ -13,10 +22,16 @@ class PublicUserSerializer(ModelSerializer):
             "stars",
             "prs",
             "issues",
+            "xp",
+            "level",
+            "xp_to_next_level",
+            "xp_progress_percent",
+            "xp_at_current_level",
+            "xp_at_next_level",
         )
 
 
-class PrivateUserSerializer(ModelSerializer):
+class PrivateUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (

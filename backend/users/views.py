@@ -1,18 +1,33 @@
+from datetime import timedelta
+
 import requests
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.exceptions import ParseError, NotFound
 from rest_framework.permissions import IsAuthenticated
 
-from .models import User
+from .models import User, UserActivity
 from .serializers import (
     PrivateUserSerializer,
     PublicUserSerializer,
 )
+
+
+def _activity_level(count: int) -> int:
+    if count <= 0:
+        return 0
+    if count <= 2:
+        return 1
+    if count <= 5:
+        return 2
+    if count <= 9:
+        return 3
+    return 4
 
 
 class MyInfo(APIView):
@@ -57,15 +72,20 @@ class Users(APIView):
 
     def get(self, request):
         sort_by = request.query_params.get("sort_by")
-        valid_sort_fields = ["commit", "star", "pr", "issue", "score"]
+        # "xp" / "level" are presentational aliases for the underlying score column.
+        sort_alias = {"xp": "score", "level": "score"}
+        valid_sort_fields = ["commit", "star", "pr", "issue", "score", "xp", "level"]
 
         if not sort_by:
             all_users = (
                 User.objects.all().filter(is_superuser=False).order_by("-date_joined")
             )
         elif sort_by in valid_sort_fields:
+            db_field = sort_alias.get(sort_by, sort_by)
             all_users = (
-                User.objects.all().filter(is_superuser=False).order_by(f"-{sort_by}")
+                User.objects.all()
+                .filter(is_superuser=False)
+                .order_by(f"-{db_field}")
             )
         else:
             return Response(
@@ -135,6 +155,46 @@ class PublicUser(APIView):
             serializer.data,
             status=status.HTTP_200_OK,
         )
+
+
+class UserActivities(APIView):
+    """GET /users/@<username>/activity — react-activity-calendar 포맷의 1년치 활동"""
+
+    def get(self, request, username):
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise NotFound
+
+        today = timezone.localdate()
+        start = today - timedelta(days=364)  # inclusive 365-day window
+
+        rows = UserActivity.objects.filter(
+            user=user,
+            activity_date__gte=start,
+            activity_date__lte=today,
+        ).values("activity_date", "commits", "prs", "issues")
+
+        by_date = {}
+        for r in rows:
+            d = r["activity_date"]
+            if d is None:
+                continue
+            by_date[d] = (r["commits"] or 0) + (r["prs"] or 0) + (r["issues"] or 0)
+
+        data = []
+        for offset in range(365):
+            d = start + timedelta(days=offset)
+            count = by_date.get(d, 0)
+            data.append(
+                {
+                    "date": d.isoformat(),
+                    "count": count,
+                    "level": _activity_level(count),
+                }
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class LogIn(APIView):
