@@ -132,8 +132,14 @@ class PostLike(APIView):
 class PostCount(APIView):
 
     def get(self, request):
-        post_count = Post.objects.count()
-        return Response(
-            post_count,
-            status=status.HTTP_200_OK,
-        )
+        qs = Post.objects.all()
+
+        category = request.query_params.get("category")
+        if category:
+            qs = qs.filter(category=category)
+
+        tag = request.query_params.get("tag")
+        if tag:
+            qs = qs.filter(tags__name=tag)
+
+        return Response(qs.count(), status=status.HTTP_200_OK)

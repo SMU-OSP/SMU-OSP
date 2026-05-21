@@ -3,11 +3,13 @@ import {
   Badge,
   Box,
   HStack,
+  NativeSelect,
   Separator,
   Text,
   useBreakpointValue,
   VStack,
 } from "@chakra-ui/react";
+import { CloseButton } from "../components/ui/close-button";
 import { useState } from "react";
 import { IPost, PostCategory } from "../types";
 import { getPostCount, getPosts } from "../api";
@@ -37,21 +39,27 @@ const CATEGORY_COLOR: Record<PostCategory, string> = {
   PROJECT: "purple",
 };
 
+const CATEGORY_VALUES: PostCategory[] = ["NOTICE", "FREE", "QNA", "PROJECT"];
+
 export default function PostBoard() {
   const [page, setPage] = useState(1);
+  const [category, setCategory] = useState<PostCategory | "">("");
+  const [tag, setTag] = useState<string>("");
 
   const pageSize = 10;
 
+  const filters = { category: category || undefined, tag: tag || undefined };
+
   const { data: count = 0, isLoading: isCountLoading } = useQuery<number>({
-    queryKey: ["getPostCount"],
-    queryFn: getPostCount,
+    queryKey: ["getPostCount", category, tag],
+    queryFn: () => getPostCount(filters),
   });
 
   const startRange = (page - 1) * pageSize;
 
   const { data: posts = [], isLoading: isPostsLoading } = useQuery<IPost[]>({
-    queryKey: ["getPosts", startRange, pageSize],
-    queryFn: () => getPosts(startRange, pageSize),
+    queryKey: ["getPosts", startRange, pageSize, category, tag],
+    queryFn: () => getPosts(startRange, pageSize, filters),
   });
 
   const [postOpen, setPostOpen] = useState(false);
@@ -68,6 +76,21 @@ export default function PostBoard() {
 
   const titleFontSize = useBreakpointValue({ base: "md", md: "lg" });
   const dateFontSize = useBreakpointValue({ base: "xs", md: "md" });
+
+  const setCategoryAndResetPage = (next: PostCategory | "") => {
+    setCategory(next);
+    setPage(1);
+  };
+
+  const setTagAndResetPage = (next: string) => {
+    setTag(next);
+    setPage(1);
+  };
+
+  const handleTagFromDialog = (clickedTag: string) => {
+    setPostOpen(false);
+    setTagAndResetPage(clickedTag);
+  };
 
   if (isCountLoading || isPostsLoading) {
     return <div></div>;
@@ -94,12 +117,51 @@ export default function PostBoard() {
 
       <Separator borderColor={"smu.smuGray"} />
 
+      <HStack mt={3} mb={2} gap={3} flexWrap={"wrap"}>
+        <NativeSelect.Root size={"sm"} width={"160px"}>
+          <NativeSelect.Field
+            value={category}
+            onChange={(e) =>
+              setCategoryAndResetPage(e.currentTarget.value as PostCategory | "")
+            }
+          >
+            <option value="">전체 카테고리</option>
+            {CATEGORY_VALUES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABEL[c]}
+              </option>
+            ))}
+          </NativeSelect.Field>
+          <NativeSelect.Indicator />
+        </NativeSelect.Root>
+
+        {tag && (
+          <HStack
+            bg={"gray.100"}
+            px={2}
+            py={1}
+            borderRadius={"md"}
+            gap={1}
+          >
+            <Text fontSize={"sm"}>#{tag}</Text>
+            <CloseButton size={"xs"} onClick={() => setTagAndResetPage("")} />
+          </HStack>
+        )}
+      </HStack>
+
       <Box mt={2}>
+        {posts.length === 0 && (
+          <Text color={"gray.500"} py={5} textAlign={"center"}>
+            조건에 맞는 게시물이 없습니다.
+          </Text>
+        )}
         {posts.map((post) => (
           <HStack key={post.id} spaceY={"5"}>
             <Badge
               colorPalette={CATEGORY_COLOR[post.category] ?? "gray"}
               flexShrink={0}
+              cursor={"pointer"}
+              onClick={() => setCategoryAndResetPage(post.category)}
             >
               {CATEGORY_LABEL[post.category] ?? post.category}
             </Badge>
@@ -137,7 +199,12 @@ export default function PostBoard() {
           </HStack>
         </PaginationRoot>
       </VStack>
-      <PostDialog open={postOpen} setOpen={setPostOpen} post={selectedPost} />
+      <PostDialog
+        open={postOpen}
+        setOpen={setPostOpen}
+        post={selectedPost}
+        onTagClick={handleTagFromDialog}
+      />
       <PostCreateDialog open={createOpen} setOpen={setCreateOpen} />
     </Box>
   );

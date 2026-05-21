@@ -16,6 +16,7 @@ interface IPostDialog {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   post: IPost | null;
+  onTagClick?: (tag: string) => void;
 }
 
 const CATEGORY_LABEL: Record<PostCategory, string> = {
@@ -32,7 +33,12 @@ const CATEGORY_COLOR: Record<PostCategory, string> = {
   PROJECT: "purple",
 };
 
-export default function PostDialog({ open, setOpen, post }: IPostDialog) {
+export default function PostDialog({
+  open,
+  setOpen,
+  post,
+  onTagClick,
+}: IPostDialog) {
   const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
   const [liked, setLiked] = useState(false);
@@ -116,7 +122,12 @@ export default function PostDialog({ open, setOpen, post }: IPostDialog) {
               {post && post.tags && post.tags.length > 0 && (
                 <HStack mt={5} flexWrap={"wrap"}>
                   {post.tags.map((tag) => (
-                    <Badge key={tag} variant={"outline"}>
+                    <Badge
+                      key={tag}
+                      variant={"outline"}
+                      cursor={onTagClick ? "pointer" : "default"}
+                      onClick={() => onTagClick?.(tag)}
+                    >
                       #{tag}
                     </Badge>
                   ))}

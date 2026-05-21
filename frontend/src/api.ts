@@ -53,13 +53,33 @@ export const getUsers = ({
     })
     .then((response) => response.data);
 
-export const getPosts = (start: number, limit: number) =>
+export const getPosts = (
+  start: number,
+  limit: number,
+  filters: { category?: string; tag?: string } = {}
+) =>
   instance
-    .get("posts/", { params: { start, limit } })
+    .get("posts/", {
+      params: {
+        start,
+        limit,
+        ...(filters.category && { category: filters.category }),
+        ...(filters.tag && { tag: filters.tag }),
+      },
+    })
     .then((response) => response.data);
 
-export const getPostCount = () =>
-  instance.get("posts/count").then((response) => response.data);
+export const getPostCount = (
+  filters: { category?: string; tag?: string } = {}
+) =>
+  instance
+    .get("posts/count", {
+      params: {
+        ...(filters.category && { category: filters.category }),
+        ...(filters.tag && { tag: filters.tag }),
+      },
+    })
+    .then((response) => response.data);
 
 export const getCarouselPosts = () =>
   instance.get("posts?carousel").then((response) => response.data);
