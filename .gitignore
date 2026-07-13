@@ -16,6 +16,9 @@ eggs/
 .eggs/
 lib/
 lib64/
+# The Python "lib/" rule above also matches the frontend source dir; keep it tracked.
+!frontend/src/lib/
+!frontend/src/lib/**
 parts/
 sdist/
 var/
