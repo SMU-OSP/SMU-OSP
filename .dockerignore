@@ -1,0 +1,22 @@
+# Backend build context is the repo root — keep it lean.
+.git
+.gitignore
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.env
+**/.env
+*.sqlite3
+
+# Frontend artifacts (frontend has its own .dockerignore too)
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+
+# Docs / editor
+.vscode
+**/.vscode
+*.md
+!README.md
