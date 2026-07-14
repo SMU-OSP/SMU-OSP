@@ -1,4 +1,5 @@
 import { Project } from "../types/project";
+import { ApiResponse } from "../types/response";
 
 const days = (d: number) => {
   const t = new Date();
@@ -41,3 +42,9 @@ export const MOCK_PROJECTS: Project[] = [
     updatedAt: days(0),
   },
 ];
+
+export const MOCK_PROJECTS_RESPONSE = {
+  status: "SUCCESS",
+  data: MOCK_PROJECTS,
+  detail: null,
+} satisfies ApiResponse<Project[]>;

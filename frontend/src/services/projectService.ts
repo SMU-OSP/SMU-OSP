@@ -6,11 +6,10 @@
  * - 실제 API 전환 시 src/api.ts의 getProjects/getProject 호출로 readAll 분기를 교체
  */
 
-import { MOCK_PROJECTS } from "../data/mockProjects";
+import { MOCK_PROJECTS_RESPONSE } from "../data/mockProjects";
 import { ApiResponse, ERROR_CODES } from "../types/response";
 import { Project, ProjectInput } from "../types/project";
 import { nowIso } from "../utils/date";
-import { fail, serverError, success } from "../utils/response";
 
 const STORAGE_KEY = "feat-001-001.projects.v2";
 
@@ -18,15 +17,18 @@ function readAll(): Project[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_PROJECTS));
-      return [...MOCK_PROJECTS];
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(MOCK_PROJECTS_RESPONSE.data)
+      );
+      return [...MOCK_PROJECTS_RESPONSE.data];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return parsed as Project[];
   } catch {
     // fallthrough
   }
-  return [...MOCK_PROJECTS];
+  return [...MOCK_PROJECTS_RESPONSE.data];
 }
 
 function writeAll(list: Project[]) {
@@ -60,12 +62,20 @@ export async function listProjects(
       );
     }
 
-    return success(list);
+    return {
+      status: "SUCCESS",
+      data: list,
+      detail: null,
+    };
   } catch (e) {
-    return serverError(
-      ERROR_CODES.INTERNAL_SERVER_ERROR,
-      `프로젝트 목록 조회 중 오류: ${(e as Error).message}`
-    );
+    return {
+      status: ERROR_CODES.INTERNAL_SERVER_ERROR,
+      data: null,
+      detail: {
+        message: `프로젝트 목록 조회 중 오류: ${(e as Error).message}`,
+        httpStatus: 500,
+      },
+    };
   }
 }
 
@@ -75,18 +85,29 @@ export async function getProject(id: string): Promise<ApiResponse<Project>> {
     const projectId = Number(id);
     const found = list.find((p) => p.id === projectId);
     if (!found) {
-      return fail(
-        ERROR_CODES.PROJECT_NOT_FOUND,
-        `id=${id}에 해당하는 프로젝트를 찾을 수 없습니다.`,
-        404
-      );
+      return {
+        status: ERROR_CODES.PROJECT_NOT_FOUND,
+        data: null,
+        detail: {
+          message: `id=${id}에 해당하는 프로젝트를 찾을 수 없습니다.`,
+          httpStatus: 404,
+        },
+      };
     }
-    return success(found);
+    return {
+      status: "SUCCESS",
+      data: found,
+      detail: null,
+    };
   } catch (e) {
-    return serverError(
-      ERROR_CODES.INTERNAL_SERVER_ERROR,
-      `프로젝트 조회 중 오류: ${(e as Error).message}`
-    );
+    return {
+      status: ERROR_CODES.INTERNAL_SERVER_ERROR,
+      data: null,
+      detail: {
+        message: `프로젝트 조회 중 오류: ${(e as Error).message}`,
+        httpStatus: 500,
+      },
+    };
   }
 }
 
@@ -102,7 +123,16 @@ export async function createProject(
 ): Promise<ApiResponse<Project>> {
   try {
     const msg = validateInput(input);
-    if (msg) return fail(ERROR_CODES.INVALID_PROJECT_INPUT, msg, 400);
+    if (msg) {
+      return {
+        status: ERROR_CODES.INVALID_PROJECT_INPUT,
+        data: null,
+        detail: {
+          message: msg,
+          httpStatus: 400,
+        },
+      };
+    }
 
     const list = readAll();
     const now = nowIso();
@@ -118,12 +148,20 @@ export async function createProject(
     list.unshift(project);
     writeAll(list);
 
-    return success(project);
+    return {
+      status: "SUCCESS",
+      data: project,
+      detail: null,
+    };
   } catch (e) {
-    return serverError(
-      ERROR_CODES.INTERNAL_SERVER_ERROR,
-      `프로젝트 등록 중 오류: ${(e as Error).message}`
-    );
+    return {
+      status: ERROR_CODES.INTERNAL_SERVER_ERROR,
+      data: null,
+      detail: {
+        message: `프로젝트 등록 중 오류: ${(e as Error).message}`,
+        httpStatus: 500,
+      },
+    };
   }
 }
 
