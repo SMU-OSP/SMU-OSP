@@ -3,6 +3,7 @@
  *
  * - 초기 데이터는 mockProjects에서 로드, 이후 변경분은 localStorage에 영속화
  * - 모든 함수는 Promise<ApiResponse<T>>를 반환 → 추후 실제 API 연동 시 시그니처 유지
+ * - 실제 API 전환 시 src/api.ts의 getProjects/getProject 호출로 readAll 분기를 교체
  */
 
 import { MOCK_PROJECTS } from "../data/mockProjects";

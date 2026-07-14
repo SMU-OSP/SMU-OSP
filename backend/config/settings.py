@@ -52,6 +52,7 @@ CUSTOM_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
     "posts.apps.PostsConfig",
+    "projects.apps.ProjectsConfig",
 ]
 
 SYSTEM_APPS = [

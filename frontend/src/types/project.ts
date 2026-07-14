@@ -2,7 +2,7 @@ export type ProjectVisibility = "PUBLIC" | "PRIVATE";
 
 export interface Repository {
   id: number;
-  githubId?: number;
+  githubId?: number | null;
   name: string;
   fullName: string;
   description?: string | null;
@@ -12,7 +12,7 @@ export interface Repository {
   topics?: string[];
   htmlUrl: string;
   updatedAt?: string | null;
-  fetchedAt: string;
+  fetchedAt: string | null;
   refreshStatus?: "SUCCESS" | "FAILED" | null;
   lastErrorCode?: string | null;
 }
