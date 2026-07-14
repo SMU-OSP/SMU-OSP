@@ -21,17 +21,10 @@ class RepositoryAdmin(admin.ModelAdmin):
     list_display = (
         "pk",
         "full_name",
-        "project",
         "language",
         "stars",
         "forks",
         "fetched_at",
     )
-    search_fields = (
-        "name",
-        "full_name",
-        "html_url",
-        "project__name",
-        "project__team_name",
-    )
+    search_fields = ("name", "full_name", "html_url")
     list_filter = ("language", "refresh_status")

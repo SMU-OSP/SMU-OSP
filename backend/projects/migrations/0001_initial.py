@@ -11,42 +11,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name="Project",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("updated_at", models.DateTimeField(auto_now=True)),
-                ("team_id", models.PositiveBigIntegerField()),
-                ("team_name", models.CharField(max_length=100)),
-                ("name", models.CharField(max_length=100)),
-                ("description", models.TextField()),
-                ("repository_url", models.URLField(blank=True, max_length=500, null=True)),
-                ("demo_url", models.URLField(blank=True, max_length=500, null=True)),
-                (
-                    "presentation_url",
-                    models.URLField(blank=True, max_length=500, null=True),
-                ),
-                ("tech_stack", models.JSONField(blank=True, default=list)),
-                ("used_open_source", models.JSONField(blank=True, default=list)),
-                (
-                    "visibility",
-                    models.CharField(
-                        choices=[("PUBLIC", "Public"), ("PRIVATE", "Private")],
-                        default="PUBLIC",
-                        max_length=20,
-                    ),
-                ),
-            ],
-        ),
-        migrations.CreateModel(
             name="Repository",
             fields=[
                 (
@@ -84,12 +48,50 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("last_error_code", models.CharField(blank=True, max_length=100, null=True)),
+            ],
+        ),
+        migrations.CreateModel(
+            name="Project",
+            fields=[
                 (
-                    "project",
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("team_id", models.PositiveBigIntegerField()),
+                ("team_name", models.CharField(max_length=100)),
+                ("name", models.CharField(max_length=100)),
+                ("description", models.TextField()),
+                ("repository_url", models.URLField(blank=True, max_length=500, null=True)),
+                ("demo_url", models.URLField(blank=True, max_length=500, null=True)),
+                (
+                    "presentation_url",
+                    models.URLField(blank=True, max_length=500, null=True),
+                ),
+                ("tech_stack", models.JSONField(blank=True, default=list)),
+                ("used_open_source", models.JSONField(blank=True, default=list)),
+                (
+                    "visibility",
+                    models.CharField(
+                        choices=[("PUBLIC", "Public"), ("PRIVATE", "Private")],
+                        default="PUBLIC",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "repository",
                     models.OneToOneField(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="repository",
-                        to="projects.project",
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="project",
+                        to="projects.repository",
                     ),
                 ),
             ],
