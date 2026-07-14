@@ -52,6 +52,19 @@ export default function Header() {
               </HStack>
             </Link>
             <HStack spaceX={3}>
+              <Link to={"/teams"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={"md"}
+                  color={"smu.blue"}
+                  px={2}
+                  py={1}
+                  borderRadius={"md"}
+                  _hover={{ bg: "smu.blue", color: "white" }}
+                >
+                  팀
+                </Text>
+              </Link>
               <Link to={"/projects"}>
                 <Text
                   fontWeight={"bold"}

@@ -10,6 +10,8 @@ import PostBoard from "./routes/PostBoard";
 import RankBoard from "./routes/RankBoard";
 import ProjectListPage from "./routes/ProjectListPage";
 import ProjectDetailPage from "./routes/ProjectDetailPage";
+import TeamListPage from "./routes/TeamListPage";
+import TeamDetailPage from "./routes/TeamDetailPage";
 
 const router = createBrowserRouter([
   {
@@ -44,6 +46,14 @@ const router = createBrowserRouter([
       {
         path: "rank",
         element: <RankBoard />,
+      },
+      {
+        path: "teams",
+        element: <TeamListPage />,
+      },
+      {
+        path: "teams/:id",
+        element: <TeamDetailPage />,
       },
       {
         path: "projects",
