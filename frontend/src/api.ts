@@ -1,6 +1,7 @@
 import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser } from "./types";
+import { TeamInput } from "./types/team";
 
 const instance = axios.create({
   baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
@@ -79,6 +80,21 @@ export const getProjects = ({
 
 export const getProject = (id: string | number) =>
   instance.get(`projects/${id}`).then((response) => response.data);
+
+export const getTeams = () =>
+  instance.get("teams/").then((response) => response.data);
+
+export const getTeam = (id: string | number) =>
+  instance.get(`teams/${id}`).then((response) => response.data);
+
+export const createTeam = (data: TeamInput) =>
+  instance
+    .post("teams/", data, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
 
 export const checkUserExist = (code: string) =>
   instance
