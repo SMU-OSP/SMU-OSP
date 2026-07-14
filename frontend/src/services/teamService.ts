@@ -8,13 +8,19 @@ import axios from "axios";
 import { createTeam as createTeamApi, getTeam as getTeamApi, getTeams } from "../api";
 import { ApiResponse, ERROR_CODES } from "../types/response";
 import { Team, TeamInput } from "../types/team";
-import { fail } from "../utils/response";
 
 function toApiResponse<T>(error: unknown, fallbackMessage: string): ApiResponse<T> {
   if (axios.isAxiosError(error) && error.response?.data) {
     return error.response.data as ApiResponse<T>;
   }
-  return fail(ERROR_CODES.INTERNAL_SERVER_ERROR, fallbackMessage, 500);
+  return {
+    status: ERROR_CODES.INTERNAL_SERVER_ERROR,
+    data: null,
+    detail: {
+      message: fallbackMessage,
+      httpStatus: 500,
+    },
+  };
 }
 
 export async function listTeams(): Promise<ApiResponse<Team[]>> {
