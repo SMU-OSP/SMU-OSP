@@ -38,18 +38,48 @@ export default function Header() {
           borderBottomWidth={1}
           borderBottomColor={"smu.darkGray"}
         >
-          <Link to={"/"}>
-            <HStack spaceX={1}>
-              <Image
-                src="../../public/images/symbol.png"
-                objectFit={"contain"}
-                h={"50px"}
-              />
-              <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
-                SMU Open-Source Platform
-              </Text>
+          <HStack spaceX={6}>
+            <Link to={"/"}>
+              <HStack spaceX={1}>
+                <Image
+                  src="../../public/images/symbol.png"
+                  objectFit={"contain"}
+                  h={"50px"}
+                />
+                <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
+                  SMU Open-Source Platform
+                </Text>
+              </HStack>
+            </Link>
+            <HStack spaceX={3}>
+              <Link to={"/projects"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={"md"}
+                  color={"smu.blue"}
+                  px={2}
+                  py={1}
+                  borderRadius={"md"}
+                  _hover={{ bg: "smu.blue", color: "white" }}
+                >
+                  프로젝트
+                </Text>
+              </Link>
+              <Link to={"/rank"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={"md"}
+                  color={"smu.blue"}
+                  px={2}
+                  py={1}
+                  borderRadius={"md"}
+                  _hover={{ bg: "smu.blue", color: "white" }}
+                >
+                  랭킹
+                </Text>
+              </Link>
             </HStack>
-          </Link>
+          </HStack>
           {!userLoading ? (
             !isLoggedIn ? (
               <Box>
