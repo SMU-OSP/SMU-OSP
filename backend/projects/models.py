@@ -3,11 +3,40 @@ from django.db import models
 from common.models import CommonModel
 
 
+class Project(CommonModel):
+    class Visibility(models.TextChoices):
+        PUBLIC = "PUBLIC", "Public"
+        PRIVATE = "PRIVATE", "Private"
+
+    team_id = models.PositiveBigIntegerField()
+    team_name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    repository_url = models.URLField(max_length=500, null=True, blank=True)
+    demo_url = models.URLField(max_length=500, null=True, blank=True)
+    presentation_url = models.URLField(max_length=500, null=True, blank=True)
+    tech_stack = models.JSONField(default=list, blank=True)
+    used_open_source = models.JSONField(default=list, blank=True)
+    visibility = models.CharField(
+        max_length=20,
+        choices=Visibility.choices,
+        default=Visibility.PUBLIC,
+    )
+
+    def __str__(self):
+        return self.name
+
+
 class Repository(CommonModel):
     class RefreshStatus(models.TextChoices):
         SUCCESS = "SUCCESS", "Success"
         FAILED = "FAILED", "Failed"
 
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="repository",
+    )
     github_id = models.PositiveBigIntegerField(null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
     full_name = models.CharField(max_length=255)
@@ -29,34 +58,3 @@ class Repository(CommonModel):
 
     def __str__(self):
         return self.full_name
-
-
-class Project(CommonModel):
-    class Visibility(models.TextChoices):
-        PUBLIC = "PUBLIC", "Public"
-        PRIVATE = "PRIVATE", "Private"
-
-    team_id = models.PositiveBigIntegerField()
-    team_name = models.CharField(max_length=100)
-    name = models.CharField(max_length=100)
-    description = models.TextField()
-    repository = models.OneToOneField(
-        Repository,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="project",
-    )
-    repository_url = models.URLField(max_length=500, null=True, blank=True)
-    demo_url = models.URLField(max_length=500, null=True, blank=True)
-    presentation_url = models.URLField(max_length=500, null=True, blank=True)
-    tech_stack = models.JSONField(default=list, blank=True)
-    used_open_source = models.JSONField(default=list, blank=True)
-    visibility = models.CharField(
-        max_length=20,
-        choices=Visibility.choices,
-        default=Visibility.PUBLIC,
-    )
-
-    def __str__(self):
-        return self.name

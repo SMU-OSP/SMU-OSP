@@ -38,7 +38,7 @@ class RepositorySerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     teamId = serializers.IntegerField(source="team_id")
     teamName = serializers.CharField(source="team_name")
-    repositoryId = serializers.IntegerField(source="repository_id", allow_null=True)
+    repositoryId = serializers.SerializerMethodField()
     repositoryUrl = serializers.URLField(source="repository_url", allow_null=True)
     demoUrl = serializers.URLField(source="demo_url", allow_null=True)
     presentationUrl = serializers.URLField(
@@ -50,7 +50,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         source="used_open_source",
         child=serializers.CharField(),
     )
-    repository = RepositorySerializer(read_only=True)
+    repository = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at")
     updatedAt = serializers.DateTimeField(source="updated_at")
 
@@ -73,3 +73,19 @@ class ProjectSerializer(serializers.ModelSerializer):
             "createdAt",
             "updatedAt",
         )
+
+    def get_repository_instance(self, obj):
+        try:
+            return obj.repository
+        except Repository.DoesNotExist:
+            return None
+
+    def get_repositoryId(self, obj):
+        repository = self.get_repository_instance(obj)
+        return repository.pk if repository else None
+
+    def get_repository(self, obj):
+        repository = self.get_repository_instance(obj)
+        if repository is None:
+            return None
+        return RepositorySerializer(repository).data

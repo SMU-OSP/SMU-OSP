@@ -7,7 +7,19 @@ from .models import Project, Repository
 
 class ProjectApiTests(TestCase):
     def setUp(self):
-        repository = Repository.objects.create(
+        self.project = Project.objects.create(
+            team_id=1,
+            team_name="SOSP Team",
+            name="SOSP",
+            description="SMU Open-Source Platform",
+            repository_url="https://github.com/Jiyeon125/SMU-OSP",
+            demo_url="https://sosp.sookmyung.ac.kr",
+            tech_stack=["React", "Django"],
+            used_open_source=["Django REST framework"],
+            visibility=Project.Visibility.PUBLIC,
+        )
+        Repository.objects.create(
+            project=self.project,
             github_id=101,
             name="SMU-OSP",
             full_name="Jiyeon125/SMU-OSP",
@@ -20,18 +32,6 @@ class ProjectApiTests(TestCase):
             github_updated_at=timezone.now(),
             fetched_at=timezone.now(),
             refresh_status=Repository.RefreshStatus.SUCCESS,
-        )
-        self.project = Project.objects.create(
-            team_id=1,
-            team_name="SOSP Team",
-            name="SOSP",
-            description="SMU Open-Source Platform",
-            repository=repository,
-            repository_url="https://github.com/Jiyeon125/SMU-OSP",
-            demo_url="https://sosp.sookmyung.ac.kr",
-            tech_stack=["React", "Django"],
-            used_open_source=["Django REST framework"],
-            visibility=Project.Visibility.PUBLIC,
         )
 
     def test_project_list_response_shape(self):
@@ -63,3 +63,11 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["status"], "PROJECT_NOT_FOUND")
         self.assertIsNone(body["data"])
         self.assertEqual(body["detail"]["httpStatus"], 404)
+
+    def test_project_delete_cascades_repository(self):
+        repository_id = self.project.repository.pk
+
+        self.project.delete()
+
+        self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
+        self.assertFalse(Repository.objects.filter(pk=repository_id).exists())
