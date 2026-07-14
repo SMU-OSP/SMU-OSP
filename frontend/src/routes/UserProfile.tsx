@@ -9,17 +9,19 @@ import { Button } from "../components/ui/button";
 
 export default function UserProfile() {
   const { usernameWithAt } = useParams();
-
-  if (!usernameWithAt?.startsWith("@")) {
-    return <NotFound />;
-  }
-
-  const username = usernameWithAt.slice(1);
+  const usernameParam = usernameWithAt ?? "";
+  const isValidUsername = usernameParam.startsWith("@");
+  const username = isValidUsername ? usernameParam.slice(1) : "";
 
   const { isLoading, data, isError } = useQuery<IPublicUser>({
-    queryKey: ["publicUser"],
+    queryKey: ["publicUser", username],
     queryFn: () => getPublicUser(username),
+    enabled: isValidUsername,
   });
+
+  if (!isValidUsername) {
+    return <NotFound />;
+  }
 
   if (isLoading) {
     return (
