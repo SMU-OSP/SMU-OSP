@@ -27,6 +27,7 @@ export interface ApiFailure {
 export type ApiResponse<T, D = null> = ApiSuccess<T, D> | ApiFailure;
 
 export const ERROR_CODES = {
+  TEAM_NOT_FOUND: "TEAM_NOT_FOUND",
   PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND",
   INVALID_PROJECT_INPUT: "INVALID_PROJECT_INPUT",
   INVALID_GITHUB_URL: "INVALID_GITHUB_URL",
