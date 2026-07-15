@@ -82,10 +82,14 @@ class TeamSerializer(serializers.ModelSerializer):
             for member in members
             if member.get("name", "").strip() and member.get("role", "").strip()
         ]
-        if not attrs.get("name", "").strip():
+        name = attrs.get("name", "").strip()
+        if not name:
             raise serializers.ValidationError({"name": "팀명을 입력해주세요."})
+        if Team.objects.filter(name=name).exists():
+            raise serializers.ValidationError({"name": "이미 등록된 팀명입니다."})
         if not valid_members:
             raise serializers.ValidationError({"members": "팀원을 1명 이상 입력해주세요."})
+        attrs["name"] = name
         return attrs
 
     @transaction.atomic

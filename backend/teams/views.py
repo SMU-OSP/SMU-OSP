@@ -41,6 +41,16 @@ class Teams(APIView):
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = TeamSerializer(data=request.data, context={"request": request})
         if not serializer.is_valid():
             return Response(
