@@ -8,15 +8,21 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import TeamCreateDialog from "../components/TeamCreateDialog";
 import { Button } from "../components/ui/button";
+import useUser from "../lib/useUser";
 import { listTeams } from "../services/teamService";
 import { formatDateKST } from "../utils/date";
 
+const GITHUB_LOGIN_URL =
+  "https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email";
+
 export default function TeamListPage() {
+  const { userLoading, isLoggedIn } = useUser();
   const [createOpen, setCreateOpen] = useState(false);
+  const [pendingCreateOpen, setPendingCreateOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [sortBy, setSortBy] = useState<"latest" | "name">("latest");
   const { data, isLoading } = useQuery({
@@ -55,6 +61,32 @@ export default function TeamListPage() {
     return list;
   }, [keyword, sortBy, teams]);
 
+  useEffect(() => {
+    if (!pendingCreateOpen || userLoading) return;
+
+    setPendingCreateOpen(false);
+    if (isLoggedIn) {
+      setCreateOpen(true);
+      return;
+    }
+
+    window.location.href = GITHUB_LOGIN_URL;
+  }, [isLoggedIn, pendingCreateOpen, userLoading]);
+
+  const handleCreateClick = () => {
+    if (userLoading) {
+      setPendingCreateOpen(true);
+      return;
+    }
+
+    if (!isLoggedIn) {
+      window.location.href = GITHUB_LOGIN_URL;
+      return;
+    }
+
+    setCreateOpen(true);
+  };
+
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1200px"} mx={"auto"}>
       <VStack alignItems={"stretch"} gap={5}>
@@ -67,7 +99,10 @@ export default function TeamListPage() {
               팀을 생성하고 팀원 역할과 등록 프로젝트 현황을 확인합니다.
             </Text>
           </Box>
-          <Button bg={"smu.blue"} onClick={() => setCreateOpen(true)}>
+          <Button
+            bg={"smu.blue"}
+            onClick={handleCreateClick}
+          >
             팀 생성
           </Button>
         </HStack>

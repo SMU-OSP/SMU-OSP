@@ -5,7 +5,7 @@ from common.models import CommonModel
 
 
 class Team(CommonModel):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(null=True, blank=True)
     logo_url = models.URLField(max_length=500, null=True, blank=True)
     leader = models.ForeignKey(

@@ -79,6 +79,8 @@ export default function TeamCreateDialog({
   };
 
   const handleSubmit = () => {
+    if (mutation.isPending) return;
+
     setErrorMessage("");
     mutation.mutate({
       name,
@@ -107,6 +109,7 @@ export default function TeamCreateDialog({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="팀명을 입력하세요"
+                  disabled={mutation.isPending}
                 />
               </Field>
               <Field label="팀 로고 URL">
@@ -114,6 +117,7 @@ export default function TeamCreateDialog({
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
                   placeholder="https://example.com/logo.png"
+                  disabled={mutation.isPending}
                 />
               </Field>
             </SimpleGrid>
@@ -124,6 +128,7 @@ export default function TeamCreateDialog({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="팀 소개와 수행 프로젝트 맥락을 입력하세요"
                 minH={"96px"}
+                disabled={mutation.isPending}
               />
             </Field>
 
@@ -135,6 +140,7 @@ export default function TeamCreateDialog({
                 <Button
                   size={"sm"}
                   variant={"outline"}
+                  disabled={mutation.isPending}
                   onClick={() => setMembers((current) => [...current, emptyMember()])}
                 >
                   팀원 추가
@@ -158,6 +164,7 @@ export default function TeamCreateDialog({
                         }
                         placeholder="이름"
                         size={"sm"}
+                        disabled={mutation.isPending}
                       />
                       <Input
                         value={member.role}
@@ -166,6 +173,7 @@ export default function TeamCreateDialog({
                         }
                         placeholder="역할"
                         size={"sm"}
+                        disabled={mutation.isPending}
                       />
                       <Input
                         value={member.githubId}
@@ -174,6 +182,7 @@ export default function TeamCreateDialog({
                         }
                         placeholder="GitHub ID"
                         size={"sm"}
+                        disabled={mutation.isPending}
                       />
                       <HStack>
                         <Input
@@ -183,12 +192,13 @@ export default function TeamCreateDialog({
                           }
                           placeholder="email"
                           size={"sm"}
+                          disabled={mutation.isPending}
                         />
                         <Button
                           size={"sm"}
                           variant={"ghost"}
                           onClick={() => removeMember(index)}
-                          disabled={members.length === 1}
+                          disabled={members.length === 1 || mutation.isPending}
                         >
                           삭제
                         </Button>
@@ -215,7 +225,11 @@ export default function TeamCreateDialog({
           </VStack>
         </DialogBody>
         <DialogFooter>
-          <Button variant={"outline"} onClick={() => onOpenChange(false)}>
+          <Button
+            variant={"outline"}
+            disabled={mutation.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             취소
           </Button>
           <Button

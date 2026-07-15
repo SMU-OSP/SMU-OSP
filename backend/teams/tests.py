@@ -1,25 +1,41 @@
 from django.test import TestCase
+from django.contrib.auth import get_user_model
 
 from .models import Team
 
 
 class TeamApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="jiyeon",
+            password="password",
+            github_email="0215wldus@sookmyung.ac.kr",
+            name="권지연",
+            student_id=215,
+            major="IT공학",
+        )
+
+    def team_payload(self, name="SOSP Team"):
+        return {
+            "name": name,
+            "description": "팀 프로젝트 등록 구조를 구성하는 팀입니다.",
+            "logoUrl": "",
+            "members": [
+                {
+                    "name": "권지연",
+                    "role": "프론트엔드",
+                    "githubId": "Jiyeon125",
+                    "email": "0215wldus@sookmyung.ac.kr",
+                }
+            ],
+        }
+
     def test_create_team_response_shape(self):
+        self.client.force_login(self.user)
+
         response = self.client.post(
             "/api/v1/teams/",
-            data={
-                "name": "SOSP Team",
-                "description": "팀 프로젝트 등록 구조를 구성하는 팀입니다.",
-                "logoUrl": "",
-                "members": [
-                    {
-                        "name": "권지연",
-                        "role": "프론트엔드",
-                        "githubId": "Jiyeon125",
-                        "email": "0215wldus@sookmyung.ac.kr",
-                    }
-                ],
-            },
+            data=self.team_payload(),
             content_type="application/json",
         )
 
@@ -32,6 +48,8 @@ class TeamApiTests(TestCase):
         self.assertEqual(body["data"]["members"][0]["githubId"], "Jiyeon125")
 
     def test_create_team_allows_blank_optional_member_fields(self):
+        self.client.force_login(self.user)
+
         response = self.client.post(
             "/api/v1/teams/",
             data={
@@ -78,6 +96,8 @@ class TeamApiTests(TestCase):
         self.assertEqual(body["detail"]["httpStatus"], 404)
 
     def test_create_team_requires_member(self):
+        self.client.force_login(self.user)
+
         response = self.client.post(
             "/api/v1/teams/",
             data={"name": "SOSP Team", "members": []},
@@ -88,3 +108,34 @@ class TeamApiTests(TestCase):
         body = response.json()
         self.assertEqual(body["status"], "REQUIRED_FIELD_MISSING")
         self.assertIsNone(body["data"])
+
+    def test_create_team_requires_login(self):
+        response = self.client.post(
+            "/api/v1/teams/",
+            data=self.team_payload(),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        body = response.json()
+        self.assertEqual(body["status"], "PERMISSION_DENIED")
+        self.assertEqual(Team.objects.count(), 0)
+
+    def test_create_team_rejects_duplicate_name(self):
+        self.client.force_login(self.user)
+
+        first_response = self.client.post(
+            "/api/v1/teams/",
+            data=self.team_payload(),
+            content_type="application/json",
+        )
+        second_response = self.client.post(
+            "/api/v1/teams/",
+            data=self.team_payload(),
+            content_type="application/json",
+        )
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(second_response.status_code, 400)
+        self.assertEqual(second_response.json()["status"], "REQUIRED_FIELD_MISSING")
+        self.assertEqual(Team.objects.filter(name="SOSP Team").count(), 1)
