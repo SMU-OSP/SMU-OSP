@@ -1,5 +1,8 @@
 from rest_framework import serializers
 
+from teams.models import Team
+from teams.serializers import TeamMemberSerializer
+
 from .models import Project, Repository
 
 
@@ -165,3 +168,39 @@ class ProjectSerializer(serializers.ModelSerializer):
             "createdAt",
             "updatedAt",
         )
+
+
+class ProjectTeamSerializer(serializers.ModelSerializer):
+    logoUrl = serializers.URLField(source="logo_url", allow_null=True)
+    leaderId = serializers.IntegerField(source="leader_id", allow_null=True)
+    leaderName = serializers.CharField(source="leader_name")
+    members = TeamMemberSerializer(many=True)
+    createdAt = serializers.DateTimeField(source="created_at")
+    updatedAt = serializers.DateTimeField(source="updated_at")
+
+    class Meta:
+        model = Team
+        fields = (
+            "id",
+            "name",
+            "description",
+            "logoUrl",
+            "leaderId",
+            "leaderName",
+            "members",
+            "createdAt",
+            "updatedAt",
+        )
+
+
+class ProjectDetailSerializer(ProjectSerializer):
+    team = serializers.SerializerMethodField()
+
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + ("team",)
+
+    def get_team(self, obj):
+        team = self.context.get("team")
+        if team is None:
+            return None
+        return ProjectTeamSerializer(team).data

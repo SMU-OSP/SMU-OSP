@@ -1,3 +1,5 @@
+import { Team } from "./team";
+
 export type ProjectVisibility = "PUBLIC" | "PRIVATE";
 
 export interface Repository {
@@ -31,6 +33,7 @@ export interface Project {
   usedOpenSource: string[];
   visibility: ProjectVisibility;
   repository?: Repository | null;
+  team?: Team | null;
   createdAt: string;
   updatedAt: string;
 }

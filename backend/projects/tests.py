@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from teams.models import Team
+from teams.models import Team, TeamMember
 
 from .models import Project, Repository
 
@@ -25,6 +25,13 @@ class ProjectApiTests(TestCase):
             leader=self.user,
             leader_name="권지연",
         )
+        self.member = TeamMember.objects.create(
+            team=self.team,
+            name="권지연",
+            role="Backend",
+            github_id="Jiyeon125",
+            email="0215wldus@gmail.com",
+        )
         repository = Repository.objects.create(
             github_id=101,
             name="SMU-OSP",
@@ -40,7 +47,7 @@ class ProjectApiTests(TestCase):
             refresh_status=Repository.RefreshStatus.SUCCESS,
         )
         self.project = Project.objects.create(
-            team_id=1,
+            team_id=self.team.pk,
             team_name="SOSP Team",
             name="SOSP",
             description="SMU Open-Source Platform",
@@ -73,6 +80,22 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(body["data"]["id"], self.project.pk)
         self.assertEqual(body["data"]["repositoryUrl"], "https://github.com/Jiyeon125/SMU-OSP")
+        self.assertEqual(body["data"]["team"]["id"], self.team.pk)
+        self.assertEqual(body["data"]["team"]["name"], "SOSP Team")
+        self.assertEqual(body["data"]["team"]["leaderName"], "권지연")
+        self.assertEqual(len(body["data"]["team"]["members"]), 1)
+        self.assertEqual(body["data"]["team"]["members"][0]["name"], "권지연")
+        self.assertEqual(body["data"]["team"]["members"][0]["role"], "Backend")
+
+    def test_project_detail_returns_null_team_when_team_missing(self):
+        Team.objects.filter(pk=self.team.pk).delete()
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
+        self.assertIsNone(body["data"]["team"])
 
     def test_project_detail_not_found(self):
         response = self.client.get("/api/v1/projects/999")
@@ -258,7 +281,7 @@ class ProjectApiTests(TestCase):
 
         for index in range(1, total + 1):
             project = Project.objects.create(
-                team_id=1,
+                team_id=self.team.pk,
                 team_name="SOSP Team",
                 name=f"Project {index}",
                 description=f"Project {index} description",

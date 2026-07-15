@@ -8,7 +8,11 @@ from teams.models import Team
 
 from .github import GitHubRepositoryError, upsert_repository_from_url
 from .models import Project
-from .serializers import ProjectCreateSerializer, ProjectSerializer
+from .serializers import (
+    ProjectCreateSerializer,
+    ProjectDetailSerializer,
+    ProjectSerializer,
+)
 
 DEFAULT_PAGE_SIZE = 10
 
@@ -169,7 +173,12 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        serializer = ProjectSerializer(project)
+        team = (
+            Team.objects.prefetch_related("members")
+            .filter(pk=project.team_id)
+            .first()
+        )
+        serializer = ProjectDetailSerializer(project, context={"team": team})
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
 
