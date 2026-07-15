@@ -8,20 +8,20 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import ProjectCard from "../components/ProjectCard";
 import { Button } from "../components/ui/button";
 import { listProjects } from "../services/projectService";
 import { PROJECT_VISIBILITY_LABEL, ProjectVisibility } from "../types/project";
 import { formatDateKST } from "../utils/date";
+import { getPageWindow } from "../utils/pagination";
+
+const CARD_PAGE_SIZE = 12;
+const BOARD_PAGE_SIZE = 20;
+const PAGE_WINDOW_SIZE = 10;
 
 export default function ProjectListPage() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => listProjects(),
-  });
-
   const [viewMode, setViewMode] = useState<"cards" | "board">("cards");
   const [keyword, setKeyword] = useState<string>("");
   const [techFilter, setTechFilter] = useState<string>("");
@@ -32,72 +32,72 @@ export default function ProjectListPage() {
   const [sortBy, setSortBy] = useState<
     "latest" | "name" | "stars" | "githubUpdated"
   >("latest");
+  const [page, setPage] = useState(1);
 
-  const allProjects = useMemo(
+  const pageSize = viewMode === "cards" ? CARD_PAGE_SIZE : BOARD_PAGE_SIZE;
+  const start = (page - 1) * pageSize;
+
+  const { data, isLoading } = useQuery({
+    queryKey: [
+      "projects",
+      viewMode,
+      keyword,
+      techFilter,
+      languageFilter,
+      visibilityFilter,
+      sortBy,
+      start,
+      pageSize,
+    ],
+    queryFn: () =>
+      listProjects({
+        keyword,
+        techStack: techFilter,
+        language: languageFilter,
+        visibility: visibilityFilter,
+        sort: sortBy,
+        start,
+        limit: pageSize,
+      }),
+  });
+
+  const { data: optionData } = useQuery({
+    queryKey: ["projects", "filter-options"],
+    queryFn: () => listProjects({ start: 0, limit: 1000 }),
+  });
+
+  useEffect(() => {
+    setPage(1);
+  }, [viewMode, keyword, techFilter, languageFilter, visibilityFilter, sortBy]);
+
+  const projects = useMemo(
     () => (data?.status === "SUCCESS" ? data.data : []),
     [data]
+  );
+  const pagination = data?.status === "SUCCESS" ? data.detail.pagination : null;
+  const totalCount = pagination?.count ?? projects.length;
+  const totalPages = pagination?.totalPages ?? 1;
+  const pageNumbers = getPageWindow(page, totalPages, PAGE_WINDOW_SIZE);
+  const hasPreviousGroup = pageNumbers[0] > 1;
+  const hasNextGroup = pageNumbers[pageNumbers.length - 1] < totalPages;
+  const optionProjects = useMemo(
+    () => (optionData?.status === "SUCCESS" ? optionData.data : projects),
+    [optionData, projects]
   );
 
   const techOptions = useMemo(() => {
     const set = new Set<string>();
-    for (const p of allProjects) for (const t of p.techStack) set.add(t);
+    for (const p of optionProjects) for (const t of p.techStack) set.add(t);
     return Array.from(set).sort();
-  }, [allProjects]);
+  }, [optionProjects]);
 
   const languageOptions = useMemo(() => {
     const set = new Set<string>();
-    for (const p of allProjects) {
+    for (const p of optionProjects) {
       if (p.repository?.language) set.add(p.repository.language);
     }
     return Array.from(set).sort();
-  }, [allProjects]);
-
-  const filtered = useMemo(() => {
-    let list = [...allProjects];
-    const q = keyword.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.teamName.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.repository?.fullName.toLowerCase().includes(q)
-      );
-    }
-    if (techFilter) {
-      list = list.filter((p) => p.techStack.includes(techFilter));
-    }
-    if (languageFilter) {
-      list = list.filter((p) => p.repository?.language === languageFilter);
-    }
-    if (visibilityFilter !== "ALL") {
-      list = list.filter((p) => p.visibility === visibilityFilter);
-    }
-    if (sortBy === "name") {
-      list.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortBy === "stars") {
-      list.sort((a, b) => (b.repository?.stars || 0) - (a.repository?.stars || 0));
-    } else if (sortBy === "githubUpdated") {
-      list.sort(
-        (a, b) =>
-          new Date(b.repository?.updatedAt || 0).getTime() -
-          new Date(a.repository?.updatedAt || 0).getTime()
-      );
-    } else {
-      list.sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-    }
-    return list;
-  }, [
-    allProjects,
-    keyword,
-    techFilter,
-    languageFilter,
-    visibilityFilter,
-    sortBy,
-  ]);
+  }, [optionProjects]);
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1200px"} mx={"auto"}>
@@ -237,7 +237,7 @@ export default function ProjectListPage() {
 
             <HStack gap={2}>
               <Text fontSize={"xs"} color={"smu.darkGray"}>
-                결과: {filtered.length}개
+                결과: {totalCount}개
               </Text>
               {(keyword ||
                 techFilter ||
@@ -264,7 +264,7 @@ export default function ProjectListPage() {
           <Box display={"flex"} justifyContent={"center"} p={10}>
             <Spinner />
           </Box>
-        ) : filtered.length === 0 ? (
+        ) : projects.length === 0 ? (
           <Box
             p={10}
             textAlign={"center"}
@@ -281,7 +281,7 @@ export default function ProjectListPage() {
           <>
             {viewMode === "cards" ? (
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={4}>
-                {filtered.map((p) => (
+                {projects.map((p) => (
                   <ProjectCard key={p.id} project={p} />
                 ))}
               </SimpleGrid>
@@ -322,7 +322,7 @@ export default function ProjectListPage() {
                     </Box>
                   </Box>
                   <Box as="tbody">
-                    {filtered.map((p) => (
+                    {projects.map((p) => (
                       <Box as="tr" key={p.id}>
                         <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>
                           <Text fontWeight={"bold"} color={"smu.blue"}>
@@ -391,6 +391,52 @@ export default function ProjectListPage() {
                 </Box>
               </Box>
             )}
+            <HStack justifyContent={"center"} flexWrap={"wrap"} gap={2}>
+              <Button
+                size={"sm"}
+                variant={"outline"}
+                disabled={!pagination?.hasPrevious}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              >
+                이전
+              </Button>
+              {hasPreviousGroup && (
+                <Button
+                  size={"sm"}
+                  variant={"outline"}
+                  onClick={() => setPage(pageNumbers[0] - 1)}
+                >
+                  이전 10
+                </Button>
+              )}
+              {pageNumbers.map((pageNumber) => (
+                <Button
+                  key={pageNumber}
+                  size={"sm"}
+                  variant={pageNumber === page ? "solid" : "outline"}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              ))}
+              {hasNextGroup && (
+                <Button
+                  size={"sm"}
+                  variant={"outline"}
+                  onClick={() => setPage(pageNumbers[pageNumbers.length - 1] + 1)}
+                >
+                  다음 10
+                </Button>
+              )}
+              <Button
+                size={"sm"}
+                variant={"outline"}
+                disabled={!pagination?.hasNext}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              >
+                다음
+              </Button>
+            </HStack>
           </>
         )}
       </VStack>

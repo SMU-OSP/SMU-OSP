@@ -1,17 +1,21 @@
 /**
  * Project Service (mock + localStorage)
  *
- * - 초기 데이터는 mockProjects에서 로드, 이후 변경분은 localStorage에 영속화
+ * - 초기 데이터는 mockProjects에서 로드하고 localStorage에 저장해 리뷰 중 화면 확인에 사용
  * - 모든 함수는 Promise<ApiResponse<T>>를 반환 → 추후 실제 API 연동 시 시그니처 유지
  * - 실제 API 전환 시 src/api.ts의 getProjects/getProject 호출로 readAll 분기를 교체
  */
 
 import { MOCK_PROJECTS_RESPONSE } from "../data/mockProjects";
-import { ApiResponse, ERROR_CODES } from "../types/response";
-import { Project, ProjectInput } from "../types/project";
-import { nowIso } from "../utils/date";
+import {
+  ApiResponse,
+  ERROR_CODES,
+  PaginationDetail,
+  PaginationMeta,
+} from "../types/response";
+import { Project, ProjectVisibility } from "../types/project";
 
-const STORAGE_KEY = "feat-001-001.projects.v2";
+const STORAGE_KEY = "feat-001-001.projects.v3";
 
 function readAll(): Project[] {
   try {
@@ -31,30 +35,69 @@ function readAll(): Project[] {
   return [...MOCK_PROJECTS_RESPONSE.data];
 }
 
-function writeAll(list: Project[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+export interface ListFilter {
+  keyword?: string;
+  techStack?: string;
+  language?: string;
+  visibility?: "ALL" | ProjectVisibility;
+  sort?: "latest" | "name" | "stars" | "githubUpdated";
+  start?: number;
+  limit?: number;
 }
 
-export interface ListFilter {
-  techStack?: string;
-  sort?: "latest" | "name";
+function buildPagination(start: number, limit: number, count: number): PaginationMeta {
+  const totalPages = count > 0 ? Math.ceil(count / limit) : 1;
+
+  return {
+    start,
+    limit,
+    count,
+    currentPage: Math.floor(start / limit) + 1,
+    totalPages,
+    hasPrevious: start > 0,
+    hasNext: start + limit < count,
+  };
 }
 
 export async function listProjects(
   filter: ListFilter = {}
-): Promise<ApiResponse<Project[]>> {
+): Promise<ApiResponse<Project[], PaginationDetail>> {
   try {
     let list = readAll();
+    const keyword = filter.keyword?.trim().toLowerCase();
 
+    if (keyword) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(keyword) ||
+          p.teamName.toLowerCase().includes(keyword) ||
+          p.description.toLowerCase().includes(keyword) ||
+          p.repository?.fullName.toLowerCase().includes(keyword)
+      );
+    }
     if (filter.techStack) {
       const target = filter.techStack.toLowerCase();
       list = list.filter((p) =>
         p.techStack.map((t) => t.toLowerCase()).includes(target)
       );
     }
+    if (filter.language) {
+      list = list.filter((p) => p.repository?.language === filter.language);
+    }
+    if (filter.visibility && filter.visibility !== "ALL") {
+      list = list.filter((p) => p.visibility === filter.visibility);
+    }
 
     if (filter.sort === "name") {
       list.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filter.sort === "stars") {
+      list.sort((a, b) => (b.repository?.stars || 0) - (a.repository?.stars || 0));
+    } else if (filter.sort === "githubUpdated") {
+      list.sort(
+        (a, b) =>
+          new Date(b.repository?.updatedAt || 0).getTime() -
+          new Date(a.repository?.updatedAt || 0).getTime()
+      );
     } else {
       list.sort(
         (a, b) =>
@@ -62,10 +105,17 @@ export async function listProjects(
       );
     }
 
+    const start = Math.max(0, filter.start ?? 0);
+    const limit = Math.max(1, filter.limit ?? 10);
+    const count = list.length;
+    const pagedList = list.slice(start, start + limit);
+
     return {
       status: "SUCCESS",
-      data: list,
-      detail: null,
+      data: pagedList,
+      detail: {
+        pagination: buildPagination(start, limit, count),
+      },
     };
   } catch (e) {
     return {
@@ -109,82 +159,4 @@ export async function getProject(id: string): Promise<ApiResponse<Project>> {
       },
     };
   }
-}
-
-function validateInput(input: ProjectInput): string | null {
-  if (!input.name?.trim()) return "프로젝트명을 입력해주세요.";
-  if (!input.description?.trim()) return "상세 설명을 입력해주세요.";
-  if (!input.techStack?.length) return "기술 스택을 1개 이상 입력해주세요.";
-  return null;
-}
-
-export async function createProject(
-  input: ProjectInput
-): Promise<ApiResponse<Project>> {
-  try {
-    const msg = validateInput(input);
-    if (msg) {
-      return {
-        status: ERROR_CODES.INVALID_PROJECT_INPUT,
-        data: null,
-        detail: {
-          message: msg,
-          httpStatus: 400,
-        },
-      };
-    }
-
-    const list = readAll();
-    const now = nowIso();
-    const project: Project = {
-      ...input,
-      id: Math.max(0, ...list.map((p) => p.id)) + 1,
-      teamName: input.teamName || `team #${input.teamId}`,
-      repositoryId: null,
-      repository: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    list.unshift(project);
-    writeAll(list);
-
-    return {
-      status: "SUCCESS",
-      data: project,
-      detail: null,
-    };
-  } catch (e) {
-    return {
-      status: ERROR_CODES.INTERNAL_SERVER_ERROR,
-      data: null,
-      detail: {
-        message: `프로젝트 등록 중 오류: ${(e as Error).message}`,
-        httpStatus: 500,
-      },
-    };
-  }
-}
-
-// 내부 사용: 지원/관심 시 카운트 증가 등에 사용
-export function patchProjectSync(
-  id: string,
-  patch: Partial<Project>
-): Project | null {
-  const list = readAll();
-  const projectId = Number(id);
-  const idx = list.findIndex((p) => p.id === projectId);
-  if (idx < 0) return null;
-  const next: Project = {
-    ...list[idx],
-    ...patch,
-    updatedAt: nowIso(),
-  };
-  list[idx] = next;
-  writeAll(list);
-  return next;
-}
-
-// 테스트/디버깅용 초기화 헬퍼
-export function resetProjectsForDev() {
-  localStorage.removeItem(STORAGE_KEY);
 }

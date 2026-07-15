@@ -1,7 +1,21 @@
-export interface ApiSuccess<T> {
+export interface PaginationMeta {
+  start: number;
+  limit: number;
+  count: number;
+  currentPage: number;
+  totalPages: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+}
+
+export interface PaginationDetail {
+  pagination: PaginationMeta;
+}
+
+export interface ApiSuccess<T, D = null> {
   status: "SUCCESS";
   data: T;
-  detail: null;
+  detail: D;
 }
 
 export interface ApiFailure {
@@ -10,7 +24,7 @@ export interface ApiFailure {
   detail: { message: string; httpStatus: number };
 }
 
-export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+export type ApiResponse<T, D = null> = ApiSuccess<T, D> | ApiFailure;
 
 export const ERROR_CODES = {
   PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND",
@@ -21,6 +35,7 @@ export const ERROR_CODES = {
   PRIVATE_REPOSITORY: "PRIVATE_REPOSITORY",
   PERMISSION_DENIED: "PERMISSION_DENIED",
   REQUIRED_FIELD_MISSING: "REQUIRED_FIELD_MISSING",
+  INVALID_PAGINATION_PARAMETER: "INVALID_PAGINATION_PARAMETER",
   INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
 } as const;
 
