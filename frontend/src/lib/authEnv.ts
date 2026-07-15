@@ -1,7 +1,7 @@
 export const githubOAuthUrl =
   "https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email";
 
-const appEnv = import.meta.env.VITE_ENV || import.meta.env.MODE;
+const appEnv = import.meta.env.VITE_ENV || "production";
 
 export const isProductionAuth = appEnv === "production";
 

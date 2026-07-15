@@ -104,7 +104,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
+      VITE_ENV: development
       VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+      VITE_DEV_LOGIN_USERNAME: ${VITE_DEV_LOGIN_USERNAME}
+      VITE_DEV_LOGIN_PASSWORD: ${VITE_DEV_LOGIN_PASSWORD}
     command: npm run dev -- --host 0.0.0.0
     volumes:
       - ./frontend:/app

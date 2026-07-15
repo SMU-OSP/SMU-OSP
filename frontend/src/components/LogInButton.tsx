@@ -53,7 +53,7 @@ export default function LogInButton({
       toaster.create({
         type: "warning",
         description:
-          "개발 로그인 계정이 설정되지 않았습니다. frontend/.env를 확인해주세요.",
+          "개발 로그인 계정이 설정되지 않았습니다. 환경변수를 확인해주세요.",
         duration: 3000,
       });
       return;
