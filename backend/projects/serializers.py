@@ -35,6 +35,98 @@ class RepositorySerializer(serializers.ModelSerializer):
         )
 
 
+class ProjectCreateSerializer(serializers.ModelSerializer):
+    idempotencyKey = serializers.CharField(
+        source="idempotency_key",
+        max_length=100,
+        write_only=True,
+    )
+    teamId = serializers.IntegerField(source="team_id")
+    repositoryUrl = serializers.URLField(
+        source="repository_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+    demoUrl = serializers.URLField(
+        source="demo_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+    presentationUrl = serializers.URLField(
+        source="presentation_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+    techStack = serializers.ListField(
+        source="tech_stack",
+        child=serializers.CharField(),
+        required=False,
+    )
+    usedOpenSource = serializers.ListField(
+        source="used_open_source",
+        child=serializers.CharField(),
+        required=False,
+    )
+
+    class Meta:
+        model = Project
+        fields = (
+            "idempotencyKey",
+            "teamId",
+            "name",
+            "description",
+            "repositoryUrl",
+            "demoUrl",
+            "presentationUrl",
+            "techStack",
+            "usedOpenSource",
+            "visibility",
+        )
+
+    def validate(self, attrs):
+        attrs["idempotency_key"] = self._strip_required(
+            attrs.get("idempotency_key"),
+            "멱등키가 필요합니다.",
+        )
+        attrs["name"] = self._strip_required(
+            attrs.get("name"),
+            "프로젝트명을 입력해주세요.",
+        )
+        attrs["description"] = self._strip_required(
+            attrs.get("description"),
+            "프로젝트 설명을 입력해주세요.",
+        )
+
+        for field in ("repository_url", "demo_url", "presentation_url"):
+            attrs[field] = self._strip_optional(attrs.get(field))
+
+        attrs["tech_stack"] = self._normalize_string_list(
+            attrs.get("tech_stack", [])
+        )
+        attrs["used_open_source"] = self._normalize_string_list(
+            attrs.get("used_open_source", [])
+        )
+        return attrs
+
+    def _strip_required(self, value, message):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError(message)
+        return value
+
+    def _strip_optional(self, value):
+        value = (value or "").strip()
+        return value or None
+
+    def _normalize_string_list(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("목록 형식으로 입력해주세요.")
+        return [item.strip() for item in value if item and item.strip()]
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     teamId = serializers.IntegerField(source="team_id")
     teamName = serializers.CharField(source="team_name")

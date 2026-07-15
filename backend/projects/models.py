@@ -40,6 +40,12 @@ class Project(CommonModel):
     team_name = models.CharField(max_length=100)
     name = models.CharField(max_length=100)
     description = models.TextField()
+    idempotency_key = models.CharField(
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True,
+    )
     repository = models.OneToOneField(
         Repository,
         on_delete=models.SET_NULL,

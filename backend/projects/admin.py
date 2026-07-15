@@ -9,10 +9,11 @@ class ProjectAdmin(admin.ModelAdmin):
         "pk",
         "name",
         "team_name",
+        "idempotency_key",
         "visibility",
         "updated_at",
     )
-    search_fields = ("name", "team_name", "repository_url")
+    search_fields = ("name", "team_name", "repository_url", "idempotency_key")
     list_filter = ("visibility",)
 
 
