@@ -1,6 +1,29 @@
-import { Team } from "./team";
-
 export type ProjectVisibility = "PUBLIC" | "PRIVATE";
+export type ProjectTeamMemberStatus = "ACTIVE" | "INACTIVE";
+
+export interface ProjectDetailTeamMember {
+  id: number;
+  teamId: number;
+  userId?: number | null;
+  name: string;
+  role: string;
+  githubId?: string | null;
+  email?: string | null;
+  status: ProjectTeamMemberStatus;
+  joinedAt: string;
+}
+
+export interface ProjectDetailTeam {
+  id: number;
+  name: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  leaderId?: number | null;
+  leaderName: string;
+  members: ProjectDetailTeamMember[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Repository {
   id: number;
@@ -33,7 +56,7 @@ export interface Project {
   usedOpenSource: string[];
   visibility: ProjectVisibility;
   repository?: Repository | null;
-  team?: Team | null;
+  team?: ProjectDetailTeam | null;
   createdAt: string;
   updatedAt: string;
 }

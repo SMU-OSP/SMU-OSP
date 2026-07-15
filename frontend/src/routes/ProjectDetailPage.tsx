@@ -4,6 +4,7 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { getProject } from "../services/projectService";
 import { PROJECT_VISIBILITY_LABEL } from "../types/project";
+import type { ProjectDetailTeamMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 function Section({
@@ -63,6 +64,35 @@ function Stat({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </Box>
+  );
+}
+
+function MemberRow({ member }: { member: ProjectDetailTeamMember }) {
+  return (
+    <HStack
+      p={3}
+      borderWidth={1}
+      borderColor={"smu.gray"}
+      borderRadius={"md"}
+      justifyContent={"space-between"}
+      alignItems={"flex-start"}
+      flexWrap={"wrap"}
+      gap={3}
+    >
+      <Box>
+        <Text fontWeight={"bold"} color={"smu.blue"}>
+          {member.name}
+        </Text>
+        <Text fontSize={"sm"} color={"smu.darkGray"}>
+          {member.role}
+        </Text>
+      </Box>
+      <HStack gap={2} flexWrap={"wrap"} justifyContent={"flex-end"}>
+        {member.githubId && <Pill>GitHub: {member.githubId}</Pill>}
+        {member.email && <Pill>{member.email}</Pill>}
+        <Pill bg={"#f7f7f7"}>{formatDateTimeKST(member.joinedAt)}</Pill>
+      </HStack>
+    </HStack>
   );
 }
 
@@ -155,6 +185,8 @@ export default function ProjectDetailPage() {
   const project = resp.data;
   const repositoryName = getRepositoryDisplayName(project);
   const repositoryUrl = project.repository?.htmlUrl || project.repositoryUrl;
+  const team = project.team;
+  const teamName = team?.name || project.teamName;
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1000px"} mx={"auto"}>
@@ -187,13 +219,13 @@ export default function ProjectDetailPage() {
               <Pill bg={"smu.lightBlue"} color={"white"}>
                 {PROJECT_VISIBILITY_LABEL[project.visibility]}
               </Pill>
-              <Pill>{project.teamName}</Pill>
+              <Pill>{teamName}</Pill>
             </VStack>
           </HStack>
 
           <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={5}>
             <Stat label="프로젝트 ID" value={`${project.id}`} />
-            <Stat label="팀" value={project.teamName} />
+            <Stat label="팀" value={teamName} />
             <Stat
               label="생성일"
               value={formatDateTimeKST(project.createdAt)}
@@ -225,6 +257,99 @@ export default function ProjectDetailPage() {
               </HStack>
             </Section>
           </VStack>
+        </Box>
+
+        <Box
+          p={5}
+          borderWidth={1}
+          borderColor={"smu.gray"}
+          borderRadius={"lg"}
+          bg={"white"}
+        >
+          <HStack
+            justifyContent={"space-between"}
+            alignItems={"flex-start"}
+            mb={3}
+            gap={3}
+            flexWrap={"wrap"}
+          >
+            <Box>
+              <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
+                팀 정보
+              </Text>
+              <Text fontSize={"sm"} color={"smu.darkGray"}>
+                프로젝트를 등록한 팀과 참여 멤버를 확인합니다.
+              </Text>
+            </Box>
+            {team && (
+              <RouterLink to={`/teams/${team.id}`}>
+                <Button variant={"outline"}>팀 상세</Button>
+              </RouterLink>
+            )}
+          </HStack>
+
+          {team ? (
+            <VStack alignItems={"stretch"} gap={4}>
+              <Box
+                p={4}
+                borderWidth={1}
+                borderColor={"smu.gray"}
+                borderRadius={"md"}
+                bg={"#f7f7f7"}
+              >
+                <Text fontSize={"md"} fontWeight={"bold"} color={"smu.blue"}>
+                  {team.name}
+                </Text>
+                <Text fontSize={"sm"} color={"smu.darkGray"} mt={1}>
+                  {team.description || "팀 설명이 없습니다."}
+                </Text>
+                <SimpleGrid columns={{ base: 2, md: 4 }} gap={2} mt={3}>
+                  <Stat label="팀 ID" value={`${team.id}`} />
+                  <Stat label="팀장" value={team.leaderName} />
+                  <Stat label="팀원" value={`${team.members.length}명`} />
+                  <Stat
+                    label="팀 생성일"
+                    value={formatDateTimeKST(team.createdAt)}
+                  />
+                </SimpleGrid>
+              </Box>
+
+              <Box>
+                <Text
+                  fontSize={"sm"}
+                  fontWeight={"bold"}
+                  color={"smu.blue"}
+                  mb={2}
+                >
+                  팀원
+                </Text>
+                {team.members.length ? (
+                  <VStack alignItems={"stretch"} gap={2}>
+                    {team.members.map((member) => (
+                      <MemberRow key={member.id} member={member} />
+                    ))}
+                  </VStack>
+                ) : (
+                  <Text fontSize={"sm"} color={"smu.darkGray"}>
+                    등록된 팀원이 없습니다.
+                  </Text>
+                )}
+              </Box>
+            </VStack>
+          ) : (
+            <Box
+              p={4}
+              borderWidth={1}
+              borderColor={"smu.gray"}
+              borderRadius={"md"}
+              bg={"#f7f7f7"}
+            >
+              <Text fontSize={"sm"} color={"smu.darkGray"}>
+                연결된 팀 상세 정보가 없습니다. 프로젝트에 저장된 팀 스냅샷 기준으로{" "}
+                {project.teamName}을 표시합니다.
+              </Text>
+            </Box>
+          )}
         </Box>
 
         <Box
