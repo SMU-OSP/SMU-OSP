@@ -1,7 +1,5 @@
-import { FaGithub } from "react-icons/fa";
-
 import { useForm } from "react-hook-form";
-import { Input, Link, Text, VStack } from "@chakra-ui/react";
+import { Input, Text, VStack } from "@chakra-ui/react";
 import {
   DialogBody,
   DialogCloseTrigger,
@@ -14,6 +12,7 @@ import { Button } from "./ui/button";
 import { usernameLogIn } from "../api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IDialog, ILogin } from "../types";
+import LogInButton from "./LogInButton";
 
 export default function LogInDialog({ open, setOpen }: IDialog) {
   const {
@@ -73,14 +72,7 @@ export default function LogInDialog({ open, setOpen }: IDialog) {
             >
               <Text fontWeight={"bold"}>로그인</Text>
             </Button>
-            <Link
-              w="100%"
-              href="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email"
-            >
-              <Button w="100%">
-                <FaGithub /> GitHub으로 로그인
-              </Button>
-            </Link>
+            <LogInButton w="100%" label="GitHub으로 로그인" mt={2} />
           </DialogBody>
           <DialogCloseTrigger />
         </DialogContent>
