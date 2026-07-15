@@ -111,21 +111,28 @@ export default function ProjectListPage() {
               프로젝트 카드에서 산출물과 Repository 연결 정보를 확인해 보세요.
             </Text>
           </Box>
-          <HStack gap={2}>
-            <Button
-              size={"sm"}
-              variant={viewMode === "cards" ? "solid" : "outline"}
-              onClick={() => setViewMode("cards")}
-            >
-              카드
-            </Button>
-            <Button
-              size={"sm"}
-              variant={viewMode === "board" ? "solid" : "outline"}
-              onClick={() => setViewMode("board")}
-            >
-              게시판
-            </Button>
+          <HStack gap={2} flexWrap={"wrap"} justifyContent={"flex-end"}>
+            <RouterLink to={"/projects/new"}>
+              <Button size={"sm"} bg={"smu.blue"}>
+                프로젝트 등록
+              </Button>
+            </RouterLink>
+            <HStack gap={2}>
+              <Button
+                size={"sm"}
+                variant={viewMode === "cards" ? "solid" : "outline"}
+                onClick={() => setViewMode("cards")}
+              >
+                카드
+              </Button>
+              <Button
+                size={"sm"}
+                variant={viewMode === "board" ? "solid" : "outline"}
+                onClick={() => setViewMode("board")}
+              >
+                게시판
+              </Button>
+            </HStack>
           </HStack>
         </HStack>
 

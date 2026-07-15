@@ -55,7 +55,10 @@ export default function TeamDetailPage() {
           <Button variant={"outline"} onClick={() => navigate("/teams")}>
             목록으로
           </Button>
-          <Button bg={"smu.blue"} disabled>
+          <Button
+            bg={"smu.blue"}
+            onClick={() => navigate(`/projects/new?teamId=${team.id}`)}
+          >
             프로젝트 등록
           </Button>
         </HStack>

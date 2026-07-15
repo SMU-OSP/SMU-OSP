@@ -11,7 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createTeam } from "../services/teamService";
-import { TeamMemberInput } from "../types/team";
+import { Team, TeamMemberInput } from "../types/team";
 import { Button } from "./ui/button";
 import {
   DialogBody,
@@ -26,6 +26,8 @@ import {
 interface TeamCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  navigateOnSuccess?: boolean;
+  onCreated?: (team: Team) => void;
 }
 
 const emptyMember = (): TeamMemberInput => ({
@@ -38,6 +40,8 @@ const emptyMember = (): TeamMemberInput => ({
 export default function TeamCreateDialog({
   open,
   onOpenChange,
+  navigateOnSuccess = true,
+  onCreated,
 }: TeamCreateDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -55,8 +59,11 @@ export default function TeamCreateDialog({
         return;
       }
       queryClient.invalidateQueries({ queryKey: ["teams"] });
+      onCreated?.(response.data);
       onOpenChange(false);
-      navigate(`/teams/${response.data.id}`);
+      if (navigateOnSuccess) {
+        navigate(`/teams/${response.data.id}`);
+      }
     },
   });
 

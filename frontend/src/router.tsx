@@ -10,6 +10,7 @@ import PostBoard from "./routes/PostBoard";
 import RankBoard from "./routes/RankBoard";
 import ProjectListPage from "./routes/ProjectListPage";
 import ProjectDetailPage from "./routes/ProjectDetailPage";
+import ProjectCreatePage from "./routes/ProjectCreatePage";
 import TeamListPage from "./routes/TeamListPage";
 import TeamDetailPage from "./routes/TeamDetailPage";
 
@@ -58,6 +59,10 @@ const router = createBrowserRouter([
       {
         path: "projects",
         element: <ProjectListPage />,
+      },
+      {
+        path: "projects/new",
+        element: <ProjectCreatePage />,
       },
       {
         path: "projects/:id",
