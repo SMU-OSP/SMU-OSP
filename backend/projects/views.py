@@ -2,29 +2,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.responses import fail, success
+
 from .models import Project
 from .serializers import ProjectSerializer
 
 DEFAULT_PAGE_SIZE = 10
-
-
-def success(data, detail=None):
-    return {
-        "status": "SUCCESS",
-        "data": data,
-        "detail": detail,
-    }
-
-
-def fail(code, message, http_status):
-    return {
-        "status": code,
-        "data": None,
-        "detail": {
-            "message": message,
-            "httpStatus": http_status,
-        },
-    }
 
 
 def parse_pagination(query_params):
