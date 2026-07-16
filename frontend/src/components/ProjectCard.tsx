@@ -158,7 +158,6 @@ export default function ProjectCard({ project }: Props) {
           gap={3}
           flexWrap={"wrap"}
         >
-          <Text>{project.teamName}</Text>
           <Text>수정 {formatDateKST(project.updatedAt)}</Text>
         </HStack>
 

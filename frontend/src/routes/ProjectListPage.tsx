@@ -13,7 +13,7 @@ import { Link as RouterLink } from "react-router-dom";
 import ProjectCard from "../components/ProjectCard";
 import { Button } from "../components/ui/button";
 import { listProjects } from "../services/projectService";
-import { PROJECT_VISIBILITY_LABEL, ProjectVisibility } from "../types/project";
+import { ProjectVisibility } from "../types/project";
 import { formatDateKST } from "../utils/date";
 import { getPageWindow } from "../utils/pagination";
 
@@ -105,13 +105,18 @@ export default function ProjectListPage() {
         <HStack justifyContent={"space-between"} alignItems={"center"}>
           <Box>
             <Text fontSize={"2xl"} fontWeight={"bold"} color={"smu.blue"}>
-              팀 프로젝트 결과물
+              프로젝트 결과물
             </Text>
             <Text fontSize={"sm"} color={"smu.darkGray"}>
               프로젝트 카드에서 산출물과 Repository 연결 정보를 확인해 보세요.
             </Text>
           </Box>
           <HStack gap={2}>
+            <RouterLink to="/projects/new">
+              <Button size={"sm"} bg={"smu.blue"}>
+                프로젝트 등록
+              </Button>
+            </RouterLink>
             <Button
               size={"sm"}
               variant={viewMode === "cards" ? "solid" : "outline"}
@@ -148,7 +153,7 @@ export default function ProjectListPage() {
                   검색
                 </Text>
                 <Input
-                  placeholder="프로젝트/팀/Repository"
+                  placeholder="프로젝트/Repository"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   width={"220px"}
@@ -298,7 +303,6 @@ export default function ProjectListPage() {
                     <Box as="tr">
                       {[
                         "프로젝트",
-                        "팀",
                         "Repository",
                         "언어",
                         "stars",
@@ -330,12 +334,6 @@ export default function ProjectListPage() {
                           </Text>
                           <Text fontSize={"xs"} color={"smu.darkGray"} lineClamp={1}>
                             {p.description}
-                          </Text>
-                        </Box>
-                        <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>
-                          <Text fontSize={"sm"}>{p.teamName}</Text>
-                          <Text fontSize={"xs"} color={"smu.darkGray"}>
-                            {PROJECT_VISIBILITY_LABEL[p.visibility]}
                           </Text>
                         </Box>
                         <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>

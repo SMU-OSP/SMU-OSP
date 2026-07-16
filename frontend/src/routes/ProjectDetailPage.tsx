@@ -187,13 +187,11 @@ export default function ProjectDetailPage() {
               <Pill bg={"smu.lightBlue"} color={"white"}>
                 {PROJECT_VISIBILITY_LABEL[project.visibility]}
               </Pill>
-              <Pill>{project.teamName}</Pill>
             </VStack>
           </HStack>
 
-          <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={5}>
+          <SimpleGrid columns={{ base: 1, md: 3 }} gap={3} mb={5}>
             <Stat label="프로젝트 ID" value={`${project.id}`} />
-            <Stat label="팀" value={project.teamName} />
             <Stat
               label="생성일"
               value={formatDateTimeKST(project.createdAt)}
