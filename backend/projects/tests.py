@@ -117,6 +117,7 @@ class ProjectApiTests(TestCase):
         self.assertTrue(Team.objects.filter(name="New Project").exists())
         created_project = Project.objects.get(name="New Project")
         self.assertEqual(created_project.team.name, "New Project")
+        self.assertEqual(created_project.team.leader_name, self.user.name)
         self.assertEqual(
             created_project.repository_url,
             "https://github.com/example/new-project",

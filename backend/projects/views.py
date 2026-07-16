@@ -99,6 +99,7 @@ class Projects(APIView):
                     name=data["name"],
                     description=data["description"],
                     leader=request.user,
+                    leader_name=request.user.name,
                 )
                 project = Project.objects.create(
                     team=team,
