@@ -57,7 +57,7 @@ class Projects(APIView):
             )
 
         projects = (
-            Project.objects.select_related("repository", "team")
+            Project.objects.select_related("repository")
             .all()
             .order_by("-updated_at", "-pk")
         )
@@ -141,7 +141,7 @@ class Projects(APIView):
 class ProjectDetail(APIView):
     def get(self, request, pk):
         try:
-            project = Project.objects.select_related("repository", "team").get(pk=pk)
+            project = Project.objects.select_related("repository").get(pk=pk)
         except Project.DoesNotExist:
             return Response(
                 fail(
