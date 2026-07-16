@@ -1,5 +1,4 @@
 from datetime import timedelta
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -100,7 +99,7 @@ class ProjectApiTests(TestCase):
             data={
                 "name": "New Project",
                 "description": "프로젝트 정보만 입력해 등록합니다.",
-                "repositoryUrl": "",
+                "repositoryUrl": "https://github.com/example/new-project",
                 "demoUrl": "",
                 "presentationUrl": "",
                 "techStack": ["React", "Django"],
@@ -118,6 +117,11 @@ class ProjectApiTests(TestCase):
         self.assertTrue(Team.objects.filter(name="New Project").exists())
         created_project = Project.objects.get(name="New Project")
         self.assertEqual(created_project.team.name, "New Project")
+        self.assertEqual(
+            created_project.repository_url,
+            "https://github.com/example/new-project",
+        )
+        self.assertIsNone(created_project.repository_id)
 
     def test_create_project_requires_login(self):
         response = self.client.post(
@@ -213,32 +217,6 @@ class ProjectApiTests(TestCase):
         self.assertEqual(
             body["detail"]["message"],
             "URL은 http 또는 https 형식으로 입력해주세요.",
-        )
-
-    @patch("projects.views.upsert_repository_from_url")
-    def test_create_project_rejects_duplicate_repository(self, mock_upsert):
-        self.client.force_login(self.user)
-        mock_upsert.return_value = self.project.repository
-
-        response = self.client.post(
-            "/api/v1/projects/",
-            data={
-                "name": "Repository Duplicate Project",
-                "description": "다른 프로젝트명으로 같은 Repository를 등록합니다.",
-                "repositoryUrl": "https://github.com/Jiyeon125/SMU-OSP",
-            },
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 400)
-        body = response.json()
-        self.assertEqual(body["status"], "DUPLICATE_PROJECT_REPOSITORY")
-        self.assertEqual(
-            body["detail"]["message"],
-            "이미 다른 프로젝트에 연결된 Repository입니다.",
-        )
-        self.assertFalse(
-            Project.objects.filter(name="Repository Duplicate Project").exists()
         )
 
     def test_project_list_first_page_pagination_order_and_count(self):

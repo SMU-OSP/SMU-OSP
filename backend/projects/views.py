@@ -6,7 +6,6 @@ from rest_framework.views import APIView
 from common.responses import fail, success
 from teams.models import Team
 
-from .github import GitHubRepositoryError, upsert_repository_from_url
 from .models import Project
 from .serializers import ProjectCreateSerializer, ProjectSerializer
 
@@ -92,26 +91,7 @@ class Projects(APIView):
             )
 
         data = serializer.validated_data
-        repository = None
         repository_url = data.get("repository_url")
-        if repository_url:
-            try:
-                repository = upsert_repository_from_url(repository_url)
-            except GitHubRepositoryError as exc:
-                return Response(
-                    fail(exc.code, exc.message, exc.http_status),
-                    status=exc.http_status,
-                )
-
-        if repository and Project.objects.filter(repository=repository).exists():
-            return Response(
-                fail(
-                    "DUPLICATE_PROJECT_REPOSITORY",
-                    "이미 다른 프로젝트에 연결된 Repository입니다.",
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         try:
             with transaction.atomic():
@@ -124,7 +104,6 @@ class Projects(APIView):
                     team=team,
                     name=data["name"],
                     description=data["description"],
-                    repository=repository,
                     repository_url=repository_url,
                     demo_url=data.get("demo_url"),
                     presentation_url=data.get("presentation_url"),
