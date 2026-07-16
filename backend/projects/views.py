@@ -1,5 +1,4 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,8 +11,6 @@ from .models import Project
 from .serializers import ProjectCreateSerializer, ProjectSerializer
 
 DEFAULT_PAGE_SIZE = 10
-MAX_FILTER_VALUE_LENGTH = 100
-VALID_SORT_FIELDS = {"latest", "name", "stars", "githubUpdated"}
 
 
 def parse_pagination(query_params):
@@ -46,67 +43,6 @@ def pagination_detail(start, limit, count):
     }
 
 
-def apply_project_filters(projects, query_params):
-    keyword = query_params.get("keyword", "").strip()
-    tech_stack = query_params.get("techStack", "").strip()
-    language = query_params.get("language", "").strip()
-    visibility = query_params.get("visibility", "").strip()
-    sort = query_params.get("sort", "latest").strip() or "latest"
-    if any(
-        len(value) > MAX_FILTER_VALUE_LENGTH
-        for value in (keyword, tech_stack, language, visibility, sort)
-    ):
-        return None
-
-    if visibility and visibility != "ALL":
-        valid_visibility = {choice[0] for choice in Project.Visibility.choices}
-        if visibility not in valid_visibility:
-            return None
-        projects = projects.filter(visibility=visibility)
-
-    if sort not in VALID_SORT_FIELDS:
-        return None
-
-    if keyword:
-        projects = projects.filter(
-            Q(name__icontains=keyword)
-            | Q(description__icontains=keyword)
-            | Q(repository__full_name__icontains=keyword)
-        )
-    if tech_stack:
-        projects = projects.filter(tech_stack__contains=[tech_stack])
-    if language:
-        projects = projects.filter(repository__language=language)
-
-    if sort == "name":
-        return projects.order_by("name", "pk")
-    if sort == "stars":
-        return projects.order_by("-repository__stars", "-updated_at", "-pk")
-    if sort == "githubUpdated":
-        return projects.order_by("-repository__github_updated_at", "-updated_at", "-pk")
-    return projects.order_by("-updated_at", "-pk")
-
-
-def project_filter_options():
-    tech_stacks = set()
-    for stack in Project.objects.values_list("tech_stack", flat=True):
-        if isinstance(stack, list):
-            tech_stacks.update(item for item in stack if item)
-
-    languages = (
-        Project.objects.select_related("repository")
-        .exclude(repository__language__isnull=True)
-        .exclude(repository__language="")
-        .values_list("repository__language", flat=True)
-        .distinct()
-    )
-
-    return {
-        "techStacks": sorted(tech_stacks),
-        "languages": sorted(languages),
-    }
-
-
 class Projects(APIView):
     def get(self, request):
         start, limit = parse_pagination(request.query_params)
@@ -120,20 +56,11 @@ class Projects(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        projects = apply_project_filters(
-            Project.objects.select_related("repository").all(),
-            request.query_params,
+        projects = (
+            Project.objects.select_related("repository")
+            .all()
+            .order_by("-updated_at", "-pk")
         )
-        if projects is None:
-            return Response(
-                fail(
-                    "INVALID_PROJECT_FILTER",
-                    "프로젝트 목록 조회 조건을 확인해주세요.",
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         count = projects.count()
         projects = projects[start : start + limit]
         serializer = ProjectSerializer(projects, many=True)
@@ -218,14 +145,6 @@ class Projects(APIView):
         return Response(
             success(ProjectSerializer(project).data),
             status=status.HTTP_201_CREATED,
-        )
-
-
-class ProjectFilterOptions(APIView):
-    def get(self, request):
-        return Response(
-            success(project_filter_options()),
-            status=status.HTTP_200_OK,
         )
 
 

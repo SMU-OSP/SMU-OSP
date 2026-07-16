@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import ProjectCard from "../components/ProjectCard";
 import { Button } from "../components/ui/button";
-import { getProjectFilterOptions, listProjects } from "../services/projectService";
+import { listProjects } from "../services/projectService";
 import { ProjectVisibility } from "../types/project";
 import { formatDateKST } from "../utils/date";
 import { getPageWindow } from "../utils/pagination";
@@ -63,7 +63,7 @@ export default function ProjectListPage() {
 
   const { data: optionData } = useQuery({
     queryKey: ["projects", "filter-options"],
-    queryFn: getProjectFilterOptions,
+    queryFn: () => listProjects({ start: 0, limit: 1000 }),
   });
 
   useEffect(() => {
@@ -80,12 +80,24 @@ export default function ProjectListPage() {
   const pageNumbers = getPageWindow(page, totalPages, PAGE_WINDOW_SIZE);
   const hasPreviousGroup = pageNumbers[0] > 1;
   const hasNextGroup = pageNumbers[pageNumbers.length - 1] < totalPages;
-  const errorMessage =
-    data && data.status !== "SUCCESS" ? data.detail.message : "";
-  const techOptions =
-    optionData?.status === "SUCCESS" ? optionData.data.techStacks : [];
-  const languageOptions =
-    optionData?.status === "SUCCESS" ? optionData.data.languages : [];
+  const optionProjects = useMemo(
+    () => (optionData?.status === "SUCCESS" ? optionData.data : projects),
+    [optionData, projects]
+  );
+
+  const techOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of optionProjects) for (const t of p.techStack) set.add(t);
+    return Array.from(set).sort();
+  }, [optionProjects]);
+
+  const languageOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of optionProjects) {
+      if (p.repository?.language) set.add(p.repository.language);
+    }
+    return Array.from(set).sort();
+  }, [optionProjects]);
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1200px"} mx={"auto"}>
@@ -223,7 +235,7 @@ export default function ProjectListPage() {
                   <option value="latest">최신순</option>
                   <option value="name">이름순</option>
                   <option value="stars">star 높은 순</option>
-                  <option value="githubUpdated">Repository 업데이트 최신순</option>
+                  <option value="githubUpdated">업데이트 최신순</option>
                 </select>
               </VStack>
             </HStack>
@@ -256,19 +268,6 @@ export default function ProjectListPage() {
         {isLoading ? (
           <Box display={"flex"} justifyContent={"center"} p={10}>
             <Spinner />
-          </Box>
-        ) : errorMessage ? (
-          <Box
-            p={10}
-            textAlign={"center"}
-            borderWidth={1}
-            borderColor={"smu.orange"}
-            borderRadius={"lg"}
-            bg={"#fff8ec"}
-          >
-            <Text color={"smu.orange"} fontWeight={"bold"}>
-              {errorMessage}
-            </Text>
           </Box>
         ) : projects.length === 0 ? (
           <Box
