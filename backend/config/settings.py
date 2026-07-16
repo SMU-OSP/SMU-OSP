@@ -52,6 +52,7 @@ CUSTOM_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
     "posts.apps.PostsConfig",
+    "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
 ]
 

@@ -1,6 +1,7 @@
 from django.db import models
 
 from common.models import CommonModel
+from teams.models import Team
 
 
 class Repository(CommonModel):
@@ -36,9 +37,12 @@ class Project(CommonModel):
         PUBLIC = "PUBLIC", "Public"
         PRIVATE = "PRIVATE", "Private"
 
-    team_id = models.PositiveBigIntegerField()
-    team_name = models.CharField(max_length=100)
-    name = models.CharField(max_length=100)
+    team = models.OneToOneField(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="project",
+    )
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField()
     repository = models.OneToOneField(
         Repository,
