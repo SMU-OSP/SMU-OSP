@@ -1,7 +1,7 @@
 import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser } from "./types";
-import { ProjectInput } from "./types/project";
+import { ProjectInput, ProjectVisibility } from "./types/project";
 
 const instance = axios.create({
   baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
@@ -65,18 +65,36 @@ export const getCarouselPosts = () =>
 export const getProjects = ({
   start = null,
   limit = null,
+  keyword = null,
+  techStack = null,
+  language = null,
+  visibility = null,
+  sort = null,
 }: {
   start?: number | null;
   limit?: number | null;
+  keyword?: string | null;
+  techStack?: string | null;
+  language?: string | null;
+  visibility?: "ALL" | ProjectVisibility | null;
+  sort?: "latest" | "name" | "stars" | "githubUpdated" | null;
 } = {}) =>
   instance
     .get("projects/", {
       params: {
         ...(start !== null && { start }),
         ...(limit !== null && { limit }),
+        ...(keyword && { keyword }),
+        ...(techStack && { techStack }),
+        ...(language && { language }),
+        ...(visibility && { visibility }),
+        ...(sort && { sort }),
       },
     })
     .then((response) => response.data);
+
+export const getProjectFilterOptions = () =>
+  instance.get("projects/options").then((response) => response.data);
 
 export const getProject = (id: string | number) =>
   instance.get(`projects/${id}`).then((response) => response.data);

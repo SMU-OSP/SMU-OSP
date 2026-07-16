@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -150,6 +151,100 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["detail"]["message"], "이미 등록된 프로젝트명입니다.")
         self.assertEqual(Project.objects.filter(name="SOSP").count(), 1)
 
+    @patch("projects.views.upsert_repository_from_url")
+    def test_create_project_rejects_duplicate_repository(self, mock_upsert):
+        self.client.force_login(self.user)
+        mock_upsert.return_value = self.project.repository
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Repository Duplicate Project",
+                "description": "다른 프로젝트명으로 같은 Repository를 등록합니다.",
+                "repositoryUrl": "https://github.com/Jiyeon125/SMU-OSP",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "DUPLICATE_PROJECT_REPOSITORY")
+        self.assertEqual(
+            body["detail"]["message"],
+            "이미 다른 프로젝트에 연결된 Repository입니다.",
+        )
+        self.assertFalse(
+            Project.objects.filter(name="Repository Duplicate Project").exists()
+        )
+
+    def test_project_list_filters_and_sorts_on_backend(self):
+        self.create_project_with_repository(
+            name="Alpha Project",
+            tech_stack=["FastAPI"],
+            language="Python",
+            stars=8,
+            visibility=Project.Visibility.PUBLIC,
+            github_id=201,
+        )
+        self.create_project_with_repository(
+            name="Beta Project",
+            tech_stack=["Spring"],
+            language="Java",
+            stars=15,
+            visibility=Project.Visibility.PRIVATE,
+            github_id=202,
+        )
+
+        keyword_response = self.client.get("/api/v1/projects/?keyword=Alpha")
+        keyword_body = keyword_response.json()
+        self.assertEqual(keyword_response.status_code, 200)
+        self.assertEqual([p["name"] for p in keyword_body["data"]], ["Alpha Project"])
+
+        stack_response = self.client.get("/api/v1/projects/?techStack=FastAPI")
+        stack_body = stack_response.json()
+        self.assertEqual(stack_response.status_code, 200)
+        self.assertEqual([p["name"] for p in stack_body["data"]], ["Alpha Project"])
+
+        visibility_response = self.client.get("/api/v1/projects/?visibility=PRIVATE")
+        visibility_body = visibility_response.json()
+        self.assertEqual(visibility_response.status_code, 200)
+        self.assertEqual(
+            [p["name"] for p in visibility_body["data"]],
+            ["Beta Project"],
+        )
+
+        sort_response = self.client.get("/api/v1/projects/?sort=stars&limit=3")
+        sort_body = sort_response.json()
+        self.assertEqual(sort_response.status_code, 200)
+        self.assertEqual(sort_body["data"][0]["name"], "Beta Project")
+
+    def test_project_list_invalid_filter_parameter(self):
+        response = self.client.get("/api/v1/projects/?visibility=INVALID")
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
+        self.assertEqual(body["detail"]["httpStatus"], 400)
+
+    def test_project_filter_options(self):
+        self.create_project_with_repository(
+            name="Filter Option Project",
+            tech_stack=["FastAPI", "React"],
+            language="Python",
+            stars=1,
+            visibility=Project.Visibility.PUBLIC,
+            github_id=203,
+        )
+
+        response = self.client.get("/api/v1/projects/options")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
+        self.assertIn("React", body["data"]["techStacks"])
+        self.assertIn("FastAPI", body["data"]["techStacks"])
+        self.assertIn("Python", body["data"]["languages"])
+
     def test_project_list_first_page_pagination_order_and_count(self):
         self.create_projects_for_pagination(total=25)
 
@@ -221,3 +316,41 @@ class ProjectApiTests(TestCase):
             Project.objects.filter(pk=project.pk).update(
                 updated_at=base + timedelta(minutes=index)
             )
+
+    def create_project_with_repository(
+        self,
+        name,
+        tech_stack,
+        language,
+        stars,
+        visibility,
+        github_id,
+    ):
+        team = Team.objects.create(
+            name=name,
+            description=f"{name} description",
+        )
+        repository = Repository.objects.create(
+            github_id=github_id,
+            name=name.lower().replace(" ", "-"),
+            full_name=f"example/{name.lower().replace(' ', '-')}",
+            description=f"{name} repository",
+            stars=stars,
+            forks=0,
+            language=language,
+            topics=[],
+            html_url=f"https://github.com/example/{name.lower().replace(' ', '-')}",
+            github_updated_at=timezone.now(),
+            fetched_at=timezone.now(),
+            refresh_status=Repository.RefreshStatus.SUCCESS,
+        )
+        return Project.objects.create(
+            team=team,
+            name=name,
+            description=f"{name} description",
+            repository=repository,
+            repository_url=repository.html_url,
+            tech_stack=tech_stack,
+            used_open_source=[],
+            visibility=visibility,
+        )
