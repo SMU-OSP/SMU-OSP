@@ -151,6 +151,70 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["detail"]["message"], "이미 등록된 프로젝트명입니다.")
         self.assertEqual(Project.objects.filter(name="SOSP").count(), 1)
 
+    def test_create_project_rejects_html_tag_input(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "<script>alert(1)</script>",
+                "description": "프로젝트 설명입니다.",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            body["detail"]["message"],
+            "프로젝트명에는 HTML 태그를 입력할 수 없습니다.",
+        )
+        self.assertFalse(
+            Project.objects.filter(name="<script>alert(1)</script>").exists()
+        )
+
+    def test_create_project_rejects_control_character_input(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Invalid\x01Project",
+                "description": "프로젝트 설명입니다.",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            body["detail"]["message"],
+            "프로젝트명에는 제어 문자를 입력할 수 없습니다.",
+        )
+
+    def test_create_project_rejects_unsupported_url_scheme(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Invalid URL Project",
+                "description": "프로젝트 설명입니다.",
+                "demoUrl": "ftp://example.com/demo",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            body["detail"]["message"],
+            "URL은 http 또는 https 형식으로 입력해주세요.",
+        )
+
     @patch("projects.views.upsert_repository_from_url")
     def test_create_project_rejects_duplicate_repository(self, mock_upsert):
         self.client.force_login(self.user)
@@ -178,7 +242,7 @@ class ProjectApiTests(TestCase):
         )
 
     def test_project_list_filters_and_sorts_on_backend(self):
-        self.create_project_with_repository(
+        old_repository_project = self.create_project_with_repository(
             name="Alpha Project",
             tech_stack=["FastAPI"],
             language="Python",
@@ -186,7 +250,7 @@ class ProjectApiTests(TestCase):
             visibility=Project.Visibility.PUBLIC,
             github_id=201,
         )
-        self.create_project_with_repository(
+        new_repository_project = self.create_project_with_repository(
             name="Beta Project",
             tech_stack=["Spring"],
             language="Java",
@@ -194,6 +258,12 @@ class ProjectApiTests(TestCase):
             visibility=Project.Visibility.PRIVATE,
             github_id=202,
         )
+        old_repository_project.repository.github_updated_at = (
+            timezone.now() - timedelta(days=2)
+        )
+        old_repository_project.repository.save(update_fields=["github_updated_at"])
+        new_repository_project.repository.github_updated_at = timezone.now()
+        new_repository_project.repository.save(update_fields=["github_updated_at"])
 
         keyword_response = self.client.get("/api/v1/projects/?keyword=Alpha")
         keyword_body = keyword_response.json()
@@ -218,6 +288,13 @@ class ProjectApiTests(TestCase):
         self.assertEqual(sort_response.status_code, 200)
         self.assertEqual(sort_body["data"][0]["name"], "Beta Project")
 
+        github_updated_response = self.client.get(
+            "/api/v1/projects/?sort=githubUpdated&limit=3"
+        )
+        github_updated_body = github_updated_response.json()
+        self.assertEqual(github_updated_response.status_code, 200)
+        self.assertEqual(github_updated_body["data"][0]["name"], "Beta Project")
+
     def test_project_list_invalid_filter_parameter(self):
         response = self.client.get("/api/v1/projects/?visibility=INVALID")
 
@@ -225,6 +302,13 @@ class ProjectApiTests(TestCase):
         body = response.json()
         self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
         self.assertEqual(body["detail"]["httpStatus"], 400)
+
+    def test_project_list_rejects_too_long_filter_parameter(self):
+        response = self.client.get(f"/api/v1/projects/?keyword={'x' * 101}")
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
 
     def test_project_filter_options(self):
         self.create_project_with_repository(

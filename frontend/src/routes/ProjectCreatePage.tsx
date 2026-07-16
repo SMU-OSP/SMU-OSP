@@ -17,6 +17,11 @@ import useUser from "../lib/useUser";
 import { createProject } from "../services/projectService";
 import { PROJECT_VISIBILITY_LABEL, ProjectVisibility } from "../types/project";
 
+const MAX_PROJECT_NAME_LENGTH = 100;
+const MAX_PROJECT_DESCRIPTION_LENGTH = 2000;
+const MAX_PROJECT_URL_LENGTH = 500;
+const MAX_PROJECT_LIST_INPUT_LENGTH = 2000;
+
 function parseCommaList(value: string) {
   return value
     .split(",")
@@ -150,6 +155,7 @@ export default function ProjectCreatePage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="프로젝트명을 입력하세요"
+                  maxLength={MAX_PROJECT_NAME_LENGTH}
                   disabled={mutation.isPending}
                 />
               </Field>
@@ -175,6 +181,7 @@ export default function ProjectCreatePage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="프로젝트 목적과 결과물 설명을 입력하세요"
                 minH={"120px"}
+                maxLength={MAX_PROJECT_DESCRIPTION_LENGTH}
                 disabled={mutation.isPending}
               />
             </Field>
@@ -184,6 +191,7 @@ export default function ProjectCreatePage() {
                 value={repositoryUrl}
                 onChange={(e) => setRepositoryUrl(e.target.value)}
                 placeholder="https://github.com/owner/repository"
+                maxLength={MAX_PROJECT_URL_LENGTH}
                 disabled={mutation.isPending}
               />
             </Field>
@@ -194,6 +202,7 @@ export default function ProjectCreatePage() {
                   value={demoUrl}
                   onChange={(e) => setDemoUrl(e.target.value)}
                   placeholder="https://example.com"
+                  maxLength={MAX_PROJECT_URL_LENGTH}
                   disabled={mutation.isPending}
                 />
               </Field>
@@ -202,6 +211,7 @@ export default function ProjectCreatePage() {
                   value={presentationUrl}
                   onChange={(e) => setPresentationUrl(e.target.value)}
                   placeholder="https://example.com/slides"
+                  maxLength={MAX_PROJECT_URL_LENGTH}
                   disabled={mutation.isPending}
                 />
               </Field>
@@ -213,6 +223,7 @@ export default function ProjectCreatePage() {
                   value={techStack}
                   onChange={(e) => setTechStack(e.target.value)}
                   placeholder="React, Django, PostgreSQL"
+                  maxLength={MAX_PROJECT_LIST_INPUT_LENGTH}
                   disabled={mutation.isPending}
                 />
               </Field>
@@ -221,6 +232,7 @@ export default function ProjectCreatePage() {
                   value={usedOpenSource}
                   onChange={(e) => setUsedOpenSource(e.target.value)}
                   placeholder="Chakra UI, React Query"
+                  maxLength={MAX_PROJECT_LIST_INPUT_LENGTH}
                   disabled={mutation.isPending}
                 />
               </Field>

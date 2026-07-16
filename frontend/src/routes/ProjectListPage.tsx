@@ -223,7 +223,7 @@ export default function ProjectListPage() {
                   <option value="latest">최신순</option>
                   <option value="name">이름순</option>
                   <option value="stars">star 높은 순</option>
-                  <option value="githubUpdated">업데이트 최신순</option>
+                  <option value="githubUpdated">Repository 업데이트 최신순</option>
                 </select>
               </VStack>
             </HStack>

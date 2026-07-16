@@ -12,6 +12,7 @@ from .models import Project
 from .serializers import ProjectCreateSerializer, ProjectSerializer
 
 DEFAULT_PAGE_SIZE = 10
+MAX_FILTER_VALUE_LENGTH = 100
 VALID_SORT_FIELDS = {"latest", "name", "stars", "githubUpdated"}
 
 
@@ -51,6 +52,11 @@ def apply_project_filters(projects, query_params):
     language = query_params.get("language", "").strip()
     visibility = query_params.get("visibility", "").strip()
     sort = query_params.get("sort", "latest").strip() or "latest"
+    if any(
+        len(value) > MAX_FILTER_VALUE_LENGTH
+        for value in (keyword, tech_stack, language, visibility, sort)
+    ):
+        return None
 
     if visibility and visibility != "ALL":
         valid_visibility = {choice[0] for choice in Project.Visibility.choices}

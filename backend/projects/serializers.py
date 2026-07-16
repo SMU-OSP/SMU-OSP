@@ -1,6 +1,16 @@
+import re
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
 from .models import Project, Repository
+
+ALLOWED_URL_SCHEMES = {"http", "https"}
+HTML_TAG_PATTERN = re.compile(r"</?[a-zA-Z][^>]*>")
+MAX_DESCRIPTION_LENGTH = 2000
+MAX_URL_LENGTH = 500
+MAX_LIST_ITEMS = 20
+MAX_LIST_ITEM_LENGTH = 100
 
 
 class RepositorySerializer(serializers.ModelSerializer):
@@ -63,9 +73,11 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         },
     )
     description = serializers.CharField(
+        max_length=MAX_DESCRIPTION_LENGTH,
         error_messages={
             "blank": "프로젝트 설명을 입력해주세요.",
             "required": "프로젝트 설명을 입력해주세요.",
+            "max_length": "프로젝트 설명은 2000자 이하로 입력해주세요.",
         },
     )
     repositoryUrl = BlankableURLField(
@@ -73,30 +85,58 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
         allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
     )
     demoUrl = BlankableURLField(
         source="demo_url",
         required=False,
         allow_null=True,
         allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
     )
     presentationUrl = BlankableURLField(
         source="presentation_url",
         required=False,
         allow_null=True,
         allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
     )
     techStack = serializers.ListField(
         source="tech_stack",
-        child=serializers.CharField(),
+        child=serializers.CharField(
+            allow_blank=True,
+            max_length=MAX_LIST_ITEM_LENGTH,
+            trim_whitespace=True,
+            error_messages={
+                "max_length": "각 항목은 100자 이하로 입력해주세요.",
+            },
+        ),
         required=False,
-        error_messages={"not_a_list": "목록 형식으로 입력해주세요."},
+        max_length=MAX_LIST_ITEMS,
+        error_messages={
+            "not_a_list": "목록 형식으로 입력해주세요.",
+            "max_length": "최대 20개까지 입력할 수 있습니다.",
+        },
     )
     usedOpenSource = serializers.ListField(
         source="used_open_source",
-        child=serializers.CharField(),
+        child=serializers.CharField(
+            allow_blank=True,
+            max_length=MAX_LIST_ITEM_LENGTH,
+            trim_whitespace=True,
+            error_messages={
+                "max_length": "각 항목은 100자 이하로 입력해주세요.",
+            },
+        ),
         required=False,
-        error_messages={"not_a_list": "목록 형식으로 입력해주세요."},
+        max_length=MAX_LIST_ITEMS,
+        error_messages={
+            "not_a_list": "목록 형식으로 입력해주세요.",
+            "max_length": "최대 20개까지 입력할 수 있습니다.",
+        },
     )
     visibility = serializers.ChoiceField(
         choices=Project.Visibility.choices,
@@ -122,19 +162,30 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             attrs.get("name"),
             "프로젝트명을 입력해주세요.",
         )
+        name = self._validate_plain_text(
+            "name",
+            name,
+            "프로젝트명",
+            allow_newlines=False,
+        )
         if Project.objects.filter(name=name).exists():
             raise serializers.ValidationError(
                 {"name": "이미 등록된 프로젝트명입니다."}
             )
 
         attrs["name"] = name
-        attrs["description"] = self._strip_required(
-            attrs.get("description"),
-            "프로젝트 설명을 입력해주세요.",
+        attrs["description"] = self._validate_plain_text(
+            "description",
+            self._strip_required(
+                attrs.get("description"),
+                "프로젝트 설명을 입력해주세요.",
+            ),
+            "프로젝트 설명",
+            allow_newlines=True,
         )
 
         for field in ("repository_url", "demo_url", "presentation_url"):
-            attrs[field] = self._strip_optional(attrs.get(field))
+            attrs[field] = self._strip_optional_url(attrs.get(field))
 
         attrs["tech_stack"] = self._normalize_string_list(
             attrs.get("tech_stack", [])
@@ -154,10 +205,52 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         value = (value or "").strip()
         return value or None
 
+    def _strip_optional_url(self, value):
+        value = self._strip_optional(value)
+        if not value:
+            return None
+
+        if urlparse(value).scheme.lower() not in ALLOWED_URL_SCHEMES:
+            raise serializers.ValidationError(
+                "URL은 http 또는 https 형식으로 입력해주세요."
+            )
+        return value
+
     def _normalize_string_list(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError("목록 형식으로 입력해주세요.")
-        return [item.strip() for item in value if item and item.strip()]
+
+        return [
+            self._validate_plain_text(
+                "listItem",
+                item.strip(),
+                "목록 항목",
+                allow_newlines=False,
+            )
+            for item in value
+            if item and item.strip()
+        ]
+
+    def _validate_plain_text(self, field, value, label, allow_newlines):
+        allowed_controls = {"\t"}
+        if allow_newlines:
+            allowed_controls.update({"\n", "\r"})
+
+        has_control_character = any(
+            (ord(char) < 32 or ord(char) == 127) and char not in allowed_controls
+            for char in value
+        )
+        if has_control_character:
+            raise serializers.ValidationError(
+                {field: f"{label}에는 제어 문자를 입력할 수 없습니다."}
+            )
+
+        if HTML_TAG_PATTERN.search(value):
+            raise serializers.ValidationError(
+                {field: f"{label}에는 HTML 태그를 입력할 수 없습니다."}
+            )
+
+        return value
 
 
 class ProjectSerializer(serializers.ModelSerializer):
