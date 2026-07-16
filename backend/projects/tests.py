@@ -1,13 +1,28 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+from teams.models import Team
 
 from .models import Project, Repository
 
 
 class ProjectApiTests(TestCase):
     def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="jiyeon",
+            password="password",
+            github_email="0215wldus@sookmyung.ac.kr",
+            name="권지연",
+            student_id=215,
+            major="IT공학",
+        )
+        self.team = Team.objects.create(
+            name="SOSP",
+            description="SMU Open-Source Platform",
+            leader=self.user,
+        )
         repository = Repository.objects.create(
             github_id=101,
             name="SMU-OSP",
@@ -23,8 +38,7 @@ class ProjectApiTests(TestCase):
             refresh_status=Repository.RefreshStatus.SUCCESS,
         )
         self.project = Project.objects.create(
-            team_id=1,
-            team_name="SOSP Team",
+            team=self.team,
             name="SOSP",
             description="SMU Open-Source Platform",
             repository=repository,
@@ -43,7 +57,8 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(len(body["data"]), 1)
         self.assertEqual(body["data"][0]["name"], "SOSP")
-        self.assertEqual(body["data"][0]["teamName"], "SOSP Team")
+        self.assertNotIn("teamName", body["data"][0])
+        self.assertNotIn("teamId", body["data"][0])
         self.assertEqual(body["data"][0]["repository"]["fullName"], "Jiyeon125/SMU-OSP")
         self.assertEqual(body["detail"]["pagination"]["count"], 1)
         self.assertEqual(body["detail"]["pagination"]["currentPage"], 1)
@@ -68,11 +83,71 @@ class ProjectApiTests(TestCase):
 
     def test_project_delete_removes_repository(self):
         repository_id = self.project.repository_id
+        team_id = self.project.team_id
 
         Project.objects.filter(pk=self.project.pk).delete()
 
         self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
         self.assertFalse(Repository.objects.filter(pk=repository_id).exists())
+        self.assertFalse(Team.objects.filter(pk=team_id).exists())
+
+    def test_create_project_creates_internal_team(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "New Project",
+                "description": "프로젝트 정보만 입력해 등록합니다.",
+                "repositoryUrl": "",
+                "demoUrl": "",
+                "presentationUrl": "",
+                "techStack": ["React", "Django"],
+                "usedOpenSource": ["Django REST framework"],
+                "visibility": "PUBLIC",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
+        self.assertEqual(body["data"]["name"], "New Project")
+        self.assertNotIn("teamName", body["data"])
+        self.assertTrue(Team.objects.filter(name="New Project").exists())
+        created_project = Project.objects.get(name="New Project")
+        self.assertEqual(created_project.team.name, "New Project")
+
+    def test_create_project_requires_login(self):
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Anonymous Project",
+                "description": "로그인 없이 등록할 수 없습니다.",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        body = response.json()
+        self.assertEqual(body["status"], "PERMISSION_DENIED")
+
+    def test_create_project_rejects_duplicate_name(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "SOSP",
+                "description": "이미 존재하는 프로젝트명입니다.",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(Project.objects.filter(name="SOSP").count(), 1)
 
     def test_project_list_first_page_pagination_order_and_count(self):
         self.create_projects_for_pagination(total=25)
@@ -126,9 +201,12 @@ class ProjectApiTests(TestCase):
         created_projects = []
 
         for index in range(1, total + 1):
+            team = Team.objects.create(
+                name=f"Project {index}",
+                description=f"Project {index} description",
+            )
             project = Project.objects.create(
-                team_id=1,
-                team_name="SOSP Team",
+                team=team,
                 name=f"Project {index}",
                 description=f"Project {index} description",
                 repository_url=f"https://github.com/example/project-{index}",
