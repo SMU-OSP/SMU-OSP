@@ -133,7 +133,7 @@ export default function ProjectCreatePage() {
               프로젝트 등록
             </Text>
             <Text fontSize={"sm"} color={"smu.darkGray"}>
-              GitHub Repository와 연결할 프로젝트 결과물을 등록합니다.
+              프로젝트 정보와 결과물 링크를 등록합니다.
             </Text>
           </Box>
           <Button variant={"outline"} onClick={() => navigate("/projects")}>
