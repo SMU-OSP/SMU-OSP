@@ -147,6 +147,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         body = response.json()
         self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(body["detail"]["message"], "이미 등록된 프로젝트명입니다.")
         self.assertEqual(Project.objects.filter(name="SOSP").count(), 1)
 
     def test_project_list_first_page_pagination_order_and_count(self):

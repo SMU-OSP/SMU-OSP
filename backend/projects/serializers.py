@@ -36,6 +36,11 @@ class RepositorySerializer(serializers.ModelSerializer):
 
 
 class BlankableURLField(serializers.URLField):
+    default_error_messages = {
+        **serializers.URLField.default_error_messages,
+        "invalid": "올바른 URL 형식으로 입력해주세요.",
+    }
+
     def run_validation(self, data=serializers.empty):
         if data == "":
             return None
@@ -48,6 +53,21 @@ class BlankableURLField(serializers.URLField):
 
 
 class ProjectCreateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(
+        max_length=100,
+        validators=[],
+        error_messages={
+            "blank": "프로젝트명을 입력해주세요.",
+            "required": "프로젝트명을 입력해주세요.",
+            "max_length": "프로젝트명은 100자 이하로 입력해주세요.",
+        },
+    )
+    description = serializers.CharField(
+        error_messages={
+            "blank": "프로젝트 설명을 입력해주세요.",
+            "required": "프로젝트 설명을 입력해주세요.",
+        },
+    )
     repositoryUrl = BlankableURLField(
         source="repository_url",
         required=False,
@@ -70,11 +90,18 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         source="tech_stack",
         child=serializers.CharField(),
         required=False,
+        error_messages={"not_a_list": "목록 형식으로 입력해주세요."},
     )
     usedOpenSource = serializers.ListField(
         source="used_open_source",
         child=serializers.CharField(),
         required=False,
+        error_messages={"not_a_list": "목록 형식으로 입력해주세요."},
+    )
+    visibility = serializers.ChoiceField(
+        choices=Project.Visibility.choices,
+        required=False,
+        error_messages={"invalid_choice": "공개 범위를 확인해주세요."},
     )
 
     class Meta:
