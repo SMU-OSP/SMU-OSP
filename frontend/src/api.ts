@@ -1,6 +1,7 @@
 import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser } from "./types";
+import { ProjectInput } from "./types/project";
 
 const instance = axios.create({
   baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
@@ -79,6 +80,15 @@ export const getProjects = ({
 
 export const getProject = (id: string | number) =>
   instance.get(`projects/${id}`).then((response) => response.data);
+
+export const createProject = (data: ProjectInput) =>
+  instance
+    .post("projects/", data, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
 
 export const checkUserExist = (code: string) =>
   instance

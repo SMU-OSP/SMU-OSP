@@ -19,8 +19,6 @@ export interface Repository {
 
 export interface Project {
   id: number;
-  teamId: number;
-  teamName: string;
   name: string;
   description: string;
   repositoryId?: number | null;
@@ -35,10 +33,16 @@ export interface Project {
   updatedAt: string;
 }
 
-export type ProjectInput = Omit<
-  Project,
-  "id" | "repository" | "createdAt" | "updatedAt"
->;
+export interface ProjectInput {
+  name: string;
+  description: string;
+  repositoryUrl?: string | null;
+  demoUrl?: string | null;
+  presentationUrl?: string | null;
+  techStack: string[];
+  usedOpenSource: string[];
+  visibility: ProjectVisibility;
+}
 
 export const PROJECT_VISIBILITY_LABEL: Record<ProjectVisibility, string> = {
   PUBLIC: "공개",

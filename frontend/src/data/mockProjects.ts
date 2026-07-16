@@ -7,14 +7,6 @@ const days = (d: number) => {
   return t.toISOString();
 };
 
-const teamNames = [
-  "SOSP Team",
-  "Open Campus",
-  "Git Bridge",
-  "Code Mate",
-  "Repo Lab",
-];
-
 const techStacks = [
   ["React", "TypeScript", "Chakra UI", "Vite"],
   ["Django", "DRF", "MySQL"],
@@ -60,19 +52,16 @@ const languages = [
 const createProject = (id: number): Project => {
   const stack = techStacks[(id - 1) % techStacks.length];
   const language = languages[(id - 1) % languages.length];
-  const teamName = teamNames[(id - 1) % teamNames.length];
   const repoName = id === 1 ? "SMU-OSP" : `sosp-project-${id}`;
   const fullName = id === 1 ? "Jiyeon125/SMU-OSP" : `SMU-OSP/${repoName}`;
 
   return {
     id,
-    teamId: ((id - 1) % teamNames.length) + 1,
-    teamName,
     name: id === 1 ? "SOSP" : `SOSP Sample Project ${id}`,
     description:
       id === 1
         ? "숙명여자대학교 오픈소스 프로젝트를 등록하고 GitHub Repository와 연결하는 플랫폼입니다."
-        : `${teamName}에서 등록한 페이지네이션 확인용 샘플 프로젝트입니다.`,
+        : "페이지네이션 확인용 샘플 프로젝트입니다.",
     repositoryId: id,
     repositoryUrl:
       id === 1
