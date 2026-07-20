@@ -124,6 +124,7 @@ class Projects(APIView):
                     presentation_url=data.get("presentation_url"),
                     tech_stack=data.get("tech_stack", []),
                     used_open_source=data.get("used_open_source", []),
+                    max_members=data["max_members"],
                 )
                 Member.objects.create(
                     project=project,

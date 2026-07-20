@@ -58,11 +58,11 @@ export interface ProjectInput {
   presentationUrl?: string | null;
   techStack: string[];
   usedOpenSource: string[];
+  maxMembers: number;
 }
 
 export interface ProjectUpdateInput extends ProjectInput {
   status: ProjectStatus;
-  maxMembers: number;
 }
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {

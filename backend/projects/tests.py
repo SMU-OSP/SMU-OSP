@@ -355,6 +355,7 @@ class ProjectApiTests(TestCase):
                 "presentationUrl": "",
                 "techStack": ["React", "Django"],
                 "usedOpenSource": ["Django REST framework"],
+                "maxMembers": 7,
             },
             content_type="application/json",
         )
@@ -369,12 +370,13 @@ class ProjectApiTests(TestCase):
         self.assertNotIn("repositoryId", body["data"])
         self.assertNotIn("repositoryUrl", body["data"])
         self.assertEqual(body["data"]["status"], "ACTIVE")
-        self.assertEqual(body["data"]["maxMembers"], 5)
+        self.assertEqual(body["data"]["maxMembers"], 7)
         self.assertEqual(
             body["data"]["repository"]["htmlUrl"],
             "https://github.com/example/new-project",
         )
         created_project = Project.objects.get(name="New Project")
+        self.assertEqual(created_project.max_members, 7)
         leader_member = created_project.members.get()
         self.assertEqual(leader_member.user, self.user)
         self.assertEqual(leader_member.status, Member.Status.JOINED)
@@ -404,7 +406,9 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         body = response.json()
         self.assertIsNone(body["data"]["repository"])
+        self.assertEqual(body["data"]["maxMembers"], 5)
         project = Project.objects.get(name="Project Without Repository")
+        self.assertEqual(project.max_members, 5)
         self.assertFalse(Repository.objects.filter(project=project).exists())
         self.assertTrue(project.members.get().is_leader)
 

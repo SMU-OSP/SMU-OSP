@@ -45,6 +45,7 @@ export default function ProjectCreatePage() {
   const [presentationUrl, setPresentationUrl] = useState("");
   const [techStack, setTechStack] = useState("");
   const [usedOpenSource, setUsedOpenSource] = useState("");
+  const [maxMembers, setMaxMembers] = useState("5");
   const [errorMessage, setErrorMessage] = useState("");
 
   const mutation = useMutation({
@@ -72,6 +73,12 @@ export default function ProjectCreatePage() {
       return;
     }
 
+    const parsedMaxMembers = Number(maxMembers);
+    if (!Number.isInteger(parsedMaxMembers) || parsedMaxMembers < 1) {
+      setErrorMessage("최대 인원은 1명 이상의 정수로 입력해주세요.");
+      return;
+    }
+
     setErrorMessage("");
     mutation.mutate({
       name: name.trim(),
@@ -81,6 +88,7 @@ export default function ProjectCreatePage() {
       presentationUrl: optionalUrl(presentationUrl),
       techStack: parseCommaList(techStack),
       usedOpenSource: parseCommaList(usedOpenSource),
+      maxMembers: parsedMaxMembers,
     });
   };
 
@@ -163,6 +171,16 @@ export default function ProjectCreatePage() {
                 placeholder="프로젝트 목적과 결과물 설명을 입력하세요"
                 minH={"120px"}
                 maxLength={MAX_PROJECT_DESCRIPTION_LENGTH}
+                disabled={mutation.isPending}
+              />
+            </Field>
+
+            <Field label="최대 인원" required>
+              <Input
+                type="number"
+                min={1}
+                value={maxMembers}
+                onChange={(e) => setMaxMembers(e.target.value)}
                 disabled={mutation.isPending}
               />
             </Field>
