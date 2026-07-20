@@ -1,7 +1,7 @@
 from urllib.parse import urlparse
 
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Prefetch
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +16,8 @@ from .serializers import (
 )
 
 DEFAULT_PAGE_SIZE = 10
+TRUE_QUERY_VALUES = {"1", "true"}
+FALSE_QUERY_VALUES = {"0", "false"}
 
 
 def parse_repository_identity(repository_url):
@@ -64,6 +66,20 @@ def pagination_detail(start, limit, count):
     }
 
 
+def parse_boolean_filter(query_params, name):
+    value = query_params.get(name)
+    if value is None:
+        return False
+
+    normalized = value.strip().lower()
+    if normalized in TRUE_QUERY_VALUES:
+        return True
+    if normalized in FALSE_QUERY_VALUES:
+        return False
+
+    raise ValueError(name)
+
+
 class Projects(APIView):
     def get(self, request):
         start, limit = parse_pagination(request.query_params)
@@ -77,11 +93,51 @@ class Projects(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        try:
+            joined = parse_boolean_filter(request.query_params, "joined")
+            owned = parse_boolean_filter(request.query_params, "owned")
+        except ValueError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_FILTER",
+                    f"{error.args[0]}는 true 또는 false여야 합니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (joined or owned) and not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         projects = (
             Project.objects.select_related("repository")
             .all()
             .order_by("-updated_at", "-pk")
         )
+
+        if joined or owned:
+            membership_filter = Q()
+            if joined:
+                membership_filter |= Q(
+                    members__user=request.user,
+                    members__status=Member.Status.JOINED,
+                    members__is_leader=False,
+                )
+            if owned:
+                membership_filter |= Q(
+                    members__user=request.user,
+                    members__status=Member.Status.JOINED,
+                    members__is_leader=True,
+                )
+            projects = projects.filter(membership_filter).distinct()
+
         count = projects.count()
         projects = projects[start : start + limit]
         serializer = ProjectSerializer(projects, many=True)

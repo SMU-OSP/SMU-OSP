@@ -608,6 +608,102 @@ class ProjectApiTests(TestCase):
         payload.update(overrides)
         return payload
 
+    def test_project_list_owned_filter_requires_login(self):
+        response = self.client.get("/api/v1/projects/?owned=true")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+
+    def test_project_list_joined_filter_requires_login(self):
+        response = self.client.get("/api/v1/projects/?joined=true")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+
+    def test_project_list_owned_filter_returns_leader_projects_only(self):
+        joined_project = Project.objects.create(
+            name="Joined Project",
+            description="Joined as a member",
+        )
+        Member.objects.create(
+            project=joined_project,
+            user=self.user,
+            is_leader=False,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get("/api/v1/projects/?owned=true")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(
+            [project["id"] for project in body["data"]],
+            [self.project.pk],
+        )
+        self.assertEqual(body["detail"]["pagination"]["count"], 1)
+
+    def test_project_list_joined_filter_excludes_leader_and_inactive_memberships(self):
+        joined_project = Project.objects.create(
+            name="Joined Project",
+            description="Joined as a member",
+        )
+        Member.objects.create(
+            project=joined_project,
+            user=self.user,
+            is_leader=False,
+            status=Member.Status.JOINED,
+        )
+        left_project = Project.objects.create(
+            name="Left Project",
+            description="No longer participating",
+        )
+        Member.objects.create(
+            project=left_project,
+            user=self.user,
+            is_leader=False,
+            status=Member.Status.LEFT,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get("/api/v1/projects/?joined=true")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual([project["id"] for project in body["data"]], [joined_project.pk])
+        self.assertEqual(body["detail"]["pagination"]["count"], 1)
+
+    def test_project_list_joined_and_owned_filters_return_all_my_projects(self):
+        joined_project = Project.objects.create(
+            name="Joined Project",
+            description="Joined as a member",
+        )
+        Member.objects.create(
+            project=joined_project,
+            user=self.user,
+            is_leader=False,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            "/api/v1/projects/?joined=true&owned=true&start=0&limit=1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body["data"]), 1)
+        self.assertEqual(body["detail"]["pagination"]["count"], 2)
+        self.assertEqual(body["detail"]["pagination"]["totalPages"], 2)
+
+    def test_project_list_rejects_invalid_boolean_filter(self):
+        response = self.client.get("/api/v1/projects/?joined=yes")
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
+        self.assertEqual(body["detail"]["httpStatus"], 400)
+
     def create_projects_for_pagination(self, total):
         self.project.delete()
         base = timezone.now()
