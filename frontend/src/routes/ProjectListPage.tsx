@@ -25,7 +25,7 @@ import { getPageWindow } from "../utils/pagination";
 const CARD_PAGE_SIZE = 12;
 const BOARD_PAGE_SIZE = 20;
 const PAGE_WINDOW_SIZE = 10;
-type ProjectScope = "all" | "mine";
+type ProjectScope = "all" | "owned" | "joined";
 
 function ProjectTreeItem({
   active,
@@ -77,8 +77,8 @@ export default function ProjectListPage() {
       listProjects({
         start,
         limit: pageSize,
-        owned: projectScope === "mine",
-        joined: projectScope === "mine",
+        owned: projectScope === "owned",
+        joined: projectScope === "joined",
       }),
   });
 
@@ -91,7 +91,15 @@ export default function ProjectListPage() {
   const emptyMessage =
     projectScope === "all"
       ? "등록된 프로젝트가 없습니다."
-      : "참여 중인 프로젝트가 없습니다.";
+      : projectScope === "owned"
+        ? "운영 중인 프로젝트가 없습니다."
+        : "참여 중인 프로젝트가 없습니다.";
+  const pageTitle =
+    projectScope === "all"
+      ? "전체 프로젝트"
+      : projectScope === "owned"
+        ? "운영 중인 프로젝트"
+        : "참여 중인 프로젝트";
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1280px"} mx={"auto"}>
@@ -128,15 +136,42 @@ export default function ProjectListPage() {
                 >
                   전체 프로젝트
                 </ProjectTreeItem>
-                <ProjectTreeItem
-                  active={projectScope === "mine"}
-                  onClick={() => {
-                    setProjectScope("mine");
-                    setPage(1);
-                  }}
+                <Box px={3} py={2}>
+                  <Text
+                    fontSize={"sm"}
+                    fontWeight={"bold"}
+                    color={"smu.blue"}
+                  >
+                    내 프로젝트
+                  </Text>
+                </Box>
+                <Box
+                  ml={4}
+                  pl={2}
+                  borderLeftWidth={1}
+                  borderLeftColor={"smu.gray"}
                 >
-                  내 프로젝트
-                </ProjectTreeItem>
+                  <VStack alignItems={"stretch"} gap={1}>
+                    <ProjectTreeItem
+                      active={projectScope === "owned"}
+                      onClick={() => {
+                        setProjectScope("owned");
+                        setPage(1);
+                      }}
+                    >
+                      운영 중인 프로젝트
+                    </ProjectTreeItem>
+                    <ProjectTreeItem
+                      active={projectScope === "joined"}
+                      onClick={() => {
+                        setProjectScope("joined");
+                        setPage(1);
+                      }}
+                    >
+                      참여 중인 프로젝트
+                    </ProjectTreeItem>
+                  </VStack>
+                </Box>
               </VStack>
             </Box>
           </Box>
@@ -151,12 +186,14 @@ export default function ProjectListPage() {
           >
             <Box>
               <Text fontSize={"2xl"} fontWeight={"bold"} color={"smu.blue"}>
-                {projectScope === "all" ? "전체 프로젝트" : "내 프로젝트"}
+                {pageTitle}
               </Text>
               <Text fontSize={"sm"} color={"smu.darkGray"}>
                 {projectScope === "all"
                   ? "등록된 프로젝트와 Repository 연결 정보를 확인해 보세요."
-                  : "내가 운영하거나 참여 중인 프로젝트를 확인해 보세요."}
+                  : projectScope === "owned"
+                    ? "내가 팀장으로 운영 중인 프로젝트를 확인해 보세요."
+                    : "내가 팀원으로 참여 중인 프로젝트를 확인해 보세요."}
               </Text>
             </Box>
             <RouterLink to="/projects/new" style={{ display: "block" }}>
@@ -278,7 +315,7 @@ export default function ProjectListPage() {
                   <ProjectCard
                     key={p.id}
                     project={p}
-                    showMembershipRole={projectScope === "mine"}
+                    showMembershipRole={projectScope !== "all"}
                   />
                 ))}
               </SimpleGrid>
@@ -295,7 +332,7 @@ export default function ProjectListPage() {
                     <Box as="tr">
                       {[
                         "프로젝트",
-                        ...(projectScope === "mine" ? ["역할"] : []),
+                        ...(projectScope !== "all" ? ["역할"] : []),
                         "Repository",
                         "언어",
                         "stars",
@@ -329,7 +366,7 @@ export default function ProjectListPage() {
                             {p.description}
                           </Text>
                         </Box>
-                        {projectScope === "mine" && (
+                        {projectScope !== "all" && (
                           <Box
                             as="td"
                             p={3}
