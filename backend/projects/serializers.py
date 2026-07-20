@@ -138,12 +138,6 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             "max_length": "최대 20개까지 입력할 수 있습니다.",
         },
     )
-    visibility = serializers.ChoiceField(
-        choices=Project.Visibility.choices,
-        required=False,
-        error_messages={"invalid_choice": "공개 범위를 확인해주세요."},
-    )
-
     class Meta:
         model = Project
         fields = (
@@ -154,7 +148,6 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             "presentationUrl",
             "techStack",
             "usedOpenSource",
-            "visibility",
         )
 
     def validate(self, attrs):
@@ -254,8 +247,6 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    repositoryId = serializers.IntegerField(source="repository_id", allow_null=True)
-    repositoryUrl = serializers.URLField(source="repository_url", allow_null=True)
     demoUrl = serializers.URLField(source="demo_url", allow_null=True)
     presentationUrl = serializers.URLField(
         source="presentation_url",
@@ -266,7 +257,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         source="used_open_source",
         child=serializers.CharField(),
     )
-    repository = RepositorySerializer(read_only=True)
+    maxMembers = serializers.IntegerField(source="max_members")
+    repository = RepositorySerializer(read_only=True, allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at")
     updatedAt = serializers.DateTimeField(source="updated_at")
 
@@ -276,13 +268,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "description",
-            "repositoryId",
-            "repositoryUrl",
             "demoUrl",
             "presentationUrl",
             "techStack",
             "usedOpenSource",
-            "visibility",
+            "status",
+            "maxMembers",
             "repository",
             "createdAt",
             "updatedAt",

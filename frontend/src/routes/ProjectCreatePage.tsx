@@ -15,7 +15,6 @@ import LogInButton from "../components/LogInButton";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
 import { createProject } from "../services/projectService";
-import { PROJECT_VISIBILITY_LABEL, ProjectVisibility } from "../types/project";
 
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_DESCRIPTION_LENGTH = 2000;
@@ -46,7 +45,6 @@ export default function ProjectCreatePage() {
   const [presentationUrl, setPresentationUrl] = useState("");
   const [techStack, setTechStack] = useState("");
   const [usedOpenSource, setUsedOpenSource] = useState("");
-  const [visibility, setVisibility] = useState<ProjectVisibility>("PUBLIC");
   const [errorMessage, setErrorMessage] = useState("");
 
   const mutation = useMutation({
@@ -83,7 +81,6 @@ export default function ProjectCreatePage() {
       presentationUrl: optionalUrl(presentationUrl),
       techStack: parseCommaList(techStack),
       usedOpenSource: parseCommaList(usedOpenSource),
-      visibility,
     });
   };
 
@@ -149,31 +146,15 @@ export default function ProjectCreatePage() {
           bg={"white"}
         >
           <VStack alignItems={"stretch"} gap={5}>
-            <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-              <Field label="프로젝트명" required>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="프로젝트명을 입력하세요"
-                  maxLength={MAX_PROJECT_NAME_LENGTH}
-                  disabled={mutation.isPending}
-                />
-              </Field>
-              <Field label="공개 범위" required>
-                <select
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value as ProjectVisibility)}
-                  disabled={mutation.isPending}
-                  style={selectStyle}
-                >
-                  {Object.entries(PROJECT_VISIBILITY_LABEL).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </SimpleGrid>
+            <Field label="프로젝트명" required>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="프로젝트명을 입력하세요"
+                maxLength={MAX_PROJECT_NAME_LENGTH}
+                disabled={mutation.isPending}
+              />
+            </Field>
 
             <Field label="프로젝트 설명" required>
               <Textarea
@@ -294,13 +275,3 @@ function Field({
     </Box>
   );
 }
-
-const selectStyle: React.CSSProperties = {
-  height: "40px",
-  width: "100%",
-  border: "1px solid #d9d9d6",
-  borderRadius: "6px",
-  padding: "0 10px",
-  fontSize: "0.875rem",
-  background: "white",
-};

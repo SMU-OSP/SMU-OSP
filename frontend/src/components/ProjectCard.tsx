@@ -1,6 +1,6 @@
 import { Box, HStack, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router-dom";
-import { PROJECT_VISIBILITY_LABEL, Project } from "../types/project";
+import { PROJECT_STATUS_LABEL, Project } from "../types/project";
 import { formatDateKST } from "../utils/date";
 
 interface Props {
@@ -31,22 +31,10 @@ function Pill({
   );
 }
 
-function getRepositoryName(githubUrl?: string | null) {
-  if (!githubUrl) return null;
-  try {
-    const url = new URL(githubUrl);
-    const [owner, repo] = url.pathname.split("/").filter(Boolean);
-    return owner && repo ? `${owner}/${repo.replace(/\.git$/, "")}` : githubUrl;
-  } catch {
-    return githubUrl;
-  }
-}
-
 export default function ProjectCard({ project }: Props) {
   const repository = project.repository;
-  const repositoryName =
-    repository?.fullName || getRepositoryName(project.repositoryUrl);
-  const repositoryUrl = repository?.htmlUrl || project.repositoryUrl;
+  const repositoryName = repository?.fullName;
+  const repositoryUrl = repository?.htmlUrl;
 
   return (
     <Box
@@ -65,7 +53,7 @@ export default function ProjectCard({ project }: Props) {
             {project.name}
           </Text>
           <Pill bg={"smu.lightBlue"} color={"white"}>
-            {PROJECT_VISIBILITY_LABEL[project.visibility]}
+            {PROJECT_STATUS_LABEL[project.status]}
           </Pill>
         </HStack>
 

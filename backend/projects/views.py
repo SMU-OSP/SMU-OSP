@@ -1,15 +1,31 @@
+from urllib.parse import urlparse
+
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
-from teams.models import Team
-
-from .models import Project
+from .models import Member, Project, Repository
 from .serializers import ProjectCreateSerializer, ProjectSerializer
 
 DEFAULT_PAGE_SIZE = 10
+
+
+def parse_repository_identity(repository_url):
+    parsed = urlparse(repository_url)
+    path_parts = [part for part in parsed.path.split("/") if part]
+    repository_name = (
+        path_parts[-1].removesuffix(".git")
+        if path_parts
+        else parsed.hostname or "repository"
+    )
+    full_name = (
+        "/".join(path_parts[-2:]).removesuffix(".git")
+        if len(path_parts) >= 2
+        else repository_name
+    )
+    return repository_name[:150], full_name[:300]
 
 
 def parse_pagination(query_params):
@@ -95,23 +111,30 @@ class Projects(APIView):
 
         try:
             with transaction.atomic():
-                team = Team.objects.create(
-                    name=data["name"],
-                    description=data["description"],
-                    leader=request.user,
-                    leader_name=request.user.name,
-                )
                 project = Project.objects.create(
-                    team=team,
                     name=data["name"],
                     description=data["description"],
-                    repository_url=repository_url,
                     demo_url=data.get("demo_url"),
                     presentation_url=data.get("presentation_url"),
                     tech_stack=data.get("tech_stack", []),
                     used_open_source=data.get("used_open_source", []),
-                    visibility=data.get("visibility", Project.Visibility.PUBLIC),
                 )
+                Member.objects.create(
+                    project=project,
+                    user=request.user,
+                    is_leader=True,
+                    status=Member.Status.JOINED,
+                )
+                if repository_url:
+                    repository_name, full_name = parse_repository_identity(
+                        repository_url
+                    )
+                    Repository.objects.create(
+                        project=project,
+                        name=repository_name,
+                        full_name=full_name,
+                        html_url=repository_url,
+                    )
         except IntegrityError:
             return Response(
                 fail(

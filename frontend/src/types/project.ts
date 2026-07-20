@@ -1,4 +1,4 @@
-export type ProjectVisibility = "PUBLIC" | "PRIVATE";
+export type ProjectStatus = "ACTIVE" | "FINISHED" | "INACTIVE" | "DELETED";
 
 export interface Repository {
   id: number;
@@ -21,13 +21,12 @@ export interface Project {
   id: number;
   name: string;
   description: string;
-  repositoryId?: number | null;
-  repositoryUrl?: string | null;
   demoUrl?: string | null;
   presentationUrl?: string | null;
   techStack: string[];
   usedOpenSource: string[];
-  visibility: ProjectVisibility;
+  status: ProjectStatus;
+  maxMembers: number;
   repository?: Repository | null;
   createdAt: string;
   updatedAt: string;
@@ -41,10 +40,11 @@ export interface ProjectInput {
   presentationUrl?: string | null;
   techStack: string[];
   usedOpenSource: string[];
-  visibility: ProjectVisibility;
 }
 
-export const PROJECT_VISIBILITY_LABEL: Record<ProjectVisibility, string> = {
-  PUBLIC: "공개",
-  PRIVATE: "비공개",
+export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
+  ACTIVE: "진행 중",
+  FINISHED: "완료",
+  INACTIVE: "비활성",
+  DELETED: "삭제",
 };

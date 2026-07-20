@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { getProject } from "../services/projectService";
-import { PROJECT_VISIBILITY_LABEL } from "../types/project";
+import { PROJECT_STATUS_LABEL } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 function Section({
@@ -64,24 +64,6 @@ function Stat({ label, value }: { label: string; value: string }) {
       </Text>
     </Box>
   );
-}
-
-function getRepositoryName(githubUrl?: string | null) {
-  if (!githubUrl) return null;
-  try {
-    const url = new URL(githubUrl);
-    const [owner, repo] = url.pathname.split("/").filter(Boolean);
-    return owner && repo ? `${owner}/${repo.replace(/\.git$/, "")}` : githubUrl;
-  } catch {
-    return githubUrl;
-  }
-}
-
-function getRepositoryDisplayName(project: {
-  repository?: { fullName: string } | null;
-  repositoryUrl?: string | null;
-}) {
-  return project.repository?.fullName || getRepositoryName(project.repositoryUrl);
 }
 
 function ExternalTextLink({
@@ -153,8 +135,8 @@ export default function ProjectDetailPage() {
   }
 
   const project = resp.data;
-  const repositoryName = getRepositoryDisplayName(project);
-  const repositoryUrl = project.repository?.htmlUrl || project.repositoryUrl;
+  const repositoryName = project.repository?.fullName;
+  const repositoryUrl = project.repository?.htmlUrl;
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1000px"} mx={"auto"}>
@@ -185,13 +167,14 @@ export default function ProjectDetailPage() {
             </VStack>
             <VStack alignItems={"flex-end"} gap={1}>
               <Pill bg={"smu.lightBlue"} color={"white"}>
-                {PROJECT_VISIBILITY_LABEL[project.visibility]}
+                {PROJECT_STATUS_LABEL[project.status]}
               </Pill>
             </VStack>
           </HStack>
 
-          <SimpleGrid columns={{ base: 1, md: 3 }} gap={3} mb={5}>
+          <SimpleGrid columns={{ base: 1, md: 4 }} gap={3} mb={5}>
             <Stat label="프로젝트 ID" value={`${project.id}`} />
+            <Stat label="최대 팀원" value={`${project.maxMembers}명`} />
             <Stat
               label="생성일"
               value={formatDateTimeKST(project.createdAt)}

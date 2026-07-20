@@ -1,11 +1,12 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
-from teams.models import Team
 
-from .models import Project, Repository
+from .models import Member, Project, Repository
 
 
 class ProjectApiTests(TestCase):
@@ -18,12 +19,16 @@ class ProjectApiTests(TestCase):
             student_id=215,
             major="IT공학",
         )
-        self.team = Team.objects.create(
+        self.project = Project.objects.create(
             name="SOSP",
             description="SMU Open-Source Platform",
-            leader=self.user,
+            demo_url="https://sosp.sookmyung.ac.kr",
+            tech_stack=["React", "Django"],
+            used_open_source=["Django REST framework"],
+            status=Project.Status.ACTIVE,
         )
-        repository = Repository.objects.create(
+        self.repository = Repository.objects.create(
+            project=self.project,
             github_id=101,
             name="SMU-OSP",
             full_name="Jiyeon125/SMU-OSP",
@@ -37,16 +42,11 @@ class ProjectApiTests(TestCase):
             fetched_at=timezone.now(),
             refresh_status=Repository.RefreshStatus.SUCCESS,
         )
-        self.project = Project.objects.create(
-            team=self.team,
-            name="SOSP",
-            description="SMU Open-Source Platform",
-            repository=repository,
-            repository_url="https://github.com/Jiyeon125/SMU-OSP",
-            demo_url="https://sosp.sookmyung.ac.kr",
-            tech_stack=["React", "Django"],
-            used_open_source=["Django REST framework"],
-            visibility=Project.Visibility.PUBLIC,
+        self.member = Member.objects.create(
+            project=self.project,
+            user=self.user,
+            is_leader=True,
+            status=Member.Status.JOINED,
         )
 
     def test_project_list_response_shape(self):
@@ -59,6 +59,11 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["data"][0]["name"], "SOSP")
         self.assertNotIn("teamName", body["data"][0])
         self.assertNotIn("teamId", body["data"][0])
+        self.assertNotIn("leaderId", body["data"][0])
+        self.assertNotIn("repositoryId", body["data"][0])
+        self.assertNotIn("repositoryUrl", body["data"][0])
+        self.assertEqual(body["data"][0]["status"], "ACTIVE")
+        self.assertEqual(body["data"][0]["maxMembers"], 5)
         self.assertEqual(body["data"][0]["repository"]["fullName"], "Jiyeon125/SMU-OSP")
         self.assertEqual(body["detail"]["pagination"]["count"], 1)
         self.assertEqual(body["detail"]["pagination"]["currentPage"], 1)
@@ -70,7 +75,10 @@ class ProjectApiTests(TestCase):
         body = response.json()
         self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(body["data"]["id"], self.project.pk)
-        self.assertEqual(body["data"]["repositoryUrl"], "https://github.com/Jiyeon125/SMU-OSP")
+        self.assertEqual(
+            body["data"]["repository"]["htmlUrl"],
+            "https://github.com/Jiyeon125/SMU-OSP",
+        )
 
     def test_project_detail_not_found(self):
         response = self.client.get("/api/v1/projects/999")
@@ -81,17 +89,17 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(body["data"])
         self.assertEqual(body["detail"]["httpStatus"], 404)
 
-    def test_project_delete_removes_repository(self):
-        repository_id = self.project.repository_id
-        team_id = self.project.team_id
+    def test_project_delete_cascades_to_repository_and_members(self):
+        repository_id = self.repository.pk
+        member_id = self.member.pk
 
         Project.objects.filter(pk=self.project.pk).delete()
 
         self.assertFalse(Project.objects.filter(pk=self.project.pk).exists())
         self.assertFalse(Repository.objects.filter(pk=repository_id).exists())
-        self.assertFalse(Team.objects.filter(pk=team_id).exists())
+        self.assertFalse(Member.objects.filter(pk=member_id).exists())
 
-    def test_create_project_creates_internal_team(self):
+    def test_create_project_creates_leader_member_and_url_only_repository(self):
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -104,7 +112,6 @@ class ProjectApiTests(TestCase):
                 "presentationUrl": "",
                 "techStack": ["React", "Django"],
                 "usedOpenSource": ["Django REST framework"],
-                "visibility": "PUBLIC",
             },
             content_type="application/json",
         )
@@ -114,15 +121,49 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(body["data"]["name"], "New Project")
         self.assertNotIn("teamName", body["data"])
-        self.assertTrue(Team.objects.filter(name="New Project").exists())
-        created_project = Project.objects.get(name="New Project")
-        self.assertEqual(created_project.team.name, "New Project")
-        self.assertEqual(created_project.team.leader_name, self.user.name)
+        self.assertNotIn("teamId", body["data"])
+        self.assertNotIn("leaderId", body["data"])
+        self.assertNotIn("repositoryId", body["data"])
+        self.assertNotIn("repositoryUrl", body["data"])
+        self.assertEqual(body["data"]["status"], "ACTIVE")
+        self.assertEqual(body["data"]["maxMembers"], 5)
         self.assertEqual(
-            created_project.repository_url,
+            body["data"]["repository"]["htmlUrl"],
             "https://github.com/example/new-project",
         )
-        self.assertIsNone(created_project.repository_id)
+        created_project = Project.objects.get(name="New Project")
+        leader_member = created_project.members.get()
+        self.assertEqual(leader_member.user, self.user)
+        self.assertEqual(leader_member.status, Member.Status.JOINED)
+        self.assertTrue(leader_member.is_leader)
+        repository = created_project.repository
+        self.assertEqual(repository.name, "new-project")
+        self.assertEqual(repository.full_name, "example/new-project")
+        self.assertEqual(
+            repository.html_url,
+            "https://github.com/example/new-project",
+        )
+        self.assertIsNone(repository.github_id)
+        self.assertIsNone(repository.fetched_at)
+
+    def test_create_project_without_repository_url_keeps_repository_empty(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Project Without Repository",
+                "description": "Repository URL은 선택 입력값입니다.",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertIsNone(body["data"]["repository"])
+        project = Project.objects.get(name="Project Without Repository")
+        self.assertFalse(Repository.objects.filter(project=project).exists())
+        self.assertTrue(project.members.get().is_leader)
 
     def test_create_project_requires_login(self):
         response = self.client.post(
@@ -140,6 +181,8 @@ class ProjectApiTests(TestCase):
 
     def test_create_project_rejects_duplicate_name(self):
         self.client.force_login(self.user)
+        member_count = Member.objects.count()
+        repository_count = Repository.objects.count()
 
         response = self.client.post(
             "/api/v1/projects/",
@@ -155,6 +198,54 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["status"], "INVALID_PROJECT_INPUT")
         self.assertEqual(body["detail"]["message"], "이미 등록된 프로젝트명입니다.")
         self.assertEqual(Project.objects.filter(name="SOSP").count(), 1)
+        self.assertEqual(Member.objects.count(), member_count)
+        self.assertEqual(Repository.objects.count(), repository_count)
+
+    def test_create_project_rolls_back_when_leader_member_creation_fails(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "projects.views.Member.objects.create",
+            side_effect=IntegrityError,
+        ):
+            response = self.client.post(
+                "/api/v1/projects/",
+                data={
+                    "name": "Rollback Project",
+                    "description": "멤버 생성 실패 시 프로젝트도 저장되지 않습니다.",
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Project.objects.filter(name="Rollback Project").exists())
+
+    def test_create_project_rolls_back_when_repository_creation_fails(self):
+        self.client.force_login(self.user)
+
+        with patch(
+            "projects.views.Repository.objects.create",
+            side_effect=IntegrityError,
+        ):
+            response = self.client.post(
+                "/api/v1/projects/",
+                data={
+                    "name": "Repository Rollback Project",
+                    "description": "Repository 생성 실패도 전체 등록을 롤백합니다.",
+                    "repositoryUrl": "https://github.com/example/rollback",
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            Project.objects.filter(name="Repository Rollback Project").exists()
+        )
+        self.assertFalse(
+            Member.objects.filter(
+                project__name="Repository Rollback Project"
+            ).exists()
+        )
 
     def test_create_project_rejects_html_tag_input(self):
         self.client.force_login(self.user)
@@ -272,18 +363,12 @@ class ProjectApiTests(TestCase):
         created_projects = []
 
         for index in range(1, total + 1):
-            team = Team.objects.create(
-                name=f"Project {index}",
-                description=f"Project {index} description",
-            )
             project = Project.objects.create(
-                team=team,
                 name=f"Project {index}",
                 description=f"Project {index} description",
-                repository_url=f"https://github.com/example/project-{index}",
                 tech_stack=["React"],
                 used_open_source=["Django REST framework"],
-                visibility=Project.Visibility.PUBLIC,
+                status=Project.Status.ACTIVE,
             )
             created_projects.append(project)
 
