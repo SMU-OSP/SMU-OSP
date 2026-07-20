@@ -39,6 +39,7 @@ export interface Project {
   status: ProjectStatus;
   maxMembers: number;
   repository?: Repository | null;
+  membershipRole?: "OWNER" | "MEMBER" | null;
   createdAt: string;
   updatedAt: string;
 }

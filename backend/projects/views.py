@@ -138,9 +138,25 @@ class Projects(APIView):
                 )
             projects = projects.filter(membership_filter).distinct()
 
+        if request.user.is_authenticated:
+            projects = projects.prefetch_related(
+                Prefetch(
+                    "members",
+                    queryset=Member.objects.filter(
+                        user=request.user,
+                        status=Member.Status.JOINED,
+                    ).order_by("-is_leader"),
+                    to_attr="request_user_memberships",
+                )
+            )
+
         count = projects.count()
         projects = projects[start : start + limit]
-        serializer = ProjectSerializer(projects, many=True)
+        serializer = ProjectSerializer(
+            projects,
+            many=True,
+            context={"request": request},
+        )
         return Response(
             success(serializer.data, pagination_detail(start, limit, count)),
             status=status.HTTP_200_OK,
@@ -208,7 +224,7 @@ class Projects(APIView):
             )
 
         return Response(
-            success(ProjectSerializer(project).data),
+            success(ProjectSerializer(project, context={"request": request}).data),
             status=status.HTTP_201_CREATED,
         )
 
@@ -256,6 +272,7 @@ class ProjectDetail(APIView):
         serializer = ProjectDetailSerializer(
             project,
             context={
+                "request": request,
                 "can_view_members": can_view_members,
                 "can_edit": can_edit,
             },

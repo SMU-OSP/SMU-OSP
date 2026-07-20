@@ -16,6 +16,8 @@ import {
 export interface ListParams {
   start?: number;
   limit?: number;
+  joined?: boolean;
+  owned?: boolean;
 }
 
 function toApiResponse<T>(
@@ -42,6 +44,8 @@ export async function listProjects(
     return (await getProjects({
       start: params.start ?? 0,
       limit: params.limit ?? 10,
+      joined: params.joined ?? null,
+      owned: params.owned ?? null,
     })) as ApiResponse<Project[], PaginationDetail>;
   } catch (e) {
     return toApiResponse<Project[]>(

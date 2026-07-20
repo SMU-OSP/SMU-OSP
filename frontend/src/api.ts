@@ -65,15 +65,21 @@ export const getCarouselPosts = () =>
 export const getProjects = ({
   start = null,
   limit = null,
+  joined = null,
+  owned = null,
 }: {
   start?: number | null;
   limit?: number | null;
+  joined?: boolean | null;
+  owned?: boolean | null;
 } = {}) =>
   instance
     .get("projects/", {
       params: {
         ...(start !== null && { start }),
         ...(limit !== null && { limit }),
+        ...(joined !== null && { joined }),
+        ...(owned !== null && { owned }),
       },
     })
     .then((response) => response.data);

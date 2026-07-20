@@ -5,6 +5,7 @@ import { formatDateKST } from "../utils/date";
 
 interface Props {
   project: Project;
+  showMembershipRole?: boolean;
 }
 
 function Pill({
@@ -31,7 +32,24 @@ function Pill({
   );
 }
 
-export default function ProjectCard({ project }: Props) {
+export function MembershipRolePill({
+  role,
+}: {
+  role?: "OWNER" | "MEMBER" | null;
+}) {
+  if (!role) return null;
+
+  return (
+    <Pill
+      bg={role === "OWNER" ? "smu.blue" : "smu.gray"}
+      color={role === "OWNER" ? "white" : "smu.darkGray"}
+    >
+      {role === "OWNER" ? "팀장" : "팀원"}
+    </Pill>
+  );
+}
+
+export default function ProjectCard({ project, showMembershipRole }: Props) {
   const repository = project.repository;
   const repositoryName = repository?.fullName;
   const repositoryUrl = repository?.htmlUrl;
@@ -52,9 +70,14 @@ export default function ProjectCard({ project }: Props) {
           <Text fontWeight={"bold"} color={"smu.blue"} fontSize={"md"}>
             {project.name}
           </Text>
-          <Pill bg={"smu.lightBlue"} color={"white"}>
-            {PROJECT_STATUS_LABEL[project.status]}
-          </Pill>
+          <HStack gap={1} flexWrap={"wrap"} justifyContent={"flex-end"}>
+            {showMembershipRole && (
+              <MembershipRolePill role={project.membershipRole} />
+            )}
+            <Pill bg={"smu.lightBlue"} color={"white"}>
+              {PROJECT_STATUS_LABEL[project.status]}
+            </Pill>
+          </HStack>
         </HStack>
 
         <Text fontSize={"sm"} color={"smu.darkGray"} lineClamp={2} minH={"3em"}>
@@ -164,7 +187,7 @@ export default function ProjectCard({ project }: Props) {
               _hover={{ bg: "smu.blue", color: "white" }}
               cursor={"pointer"}
             >
-              결과물 보기 →
+              프로젝트 보기 →
             </Box>
           </RouterLink>
         </HStack>
