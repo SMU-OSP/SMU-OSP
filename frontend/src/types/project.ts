@@ -1,4 +1,15 @@
 export type ProjectStatus = "ACTIVE" | "FINISHED" | "INACTIVE" | "DELETED";
+export type ProjectMemberRole = "LEADER" | "MEMBER";
+
+export interface ProjectDetailMember {
+  id: number;
+  userId?: number | null;
+  name: string;
+  role: ProjectMemberRole;
+  status: "JOINED";
+  description?: string | null;
+  joinedAt: string;
+}
 
 export interface Repository {
   id: number;
@@ -32,6 +43,12 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface ProjectDetail extends Project {
+  memberCount: number;
+  canViewMembers: boolean;
+  members: ProjectDetailMember[] | null;
+}
+
 export interface ProjectInput {
   name: string;
   description: string;
@@ -47,4 +64,9 @@ export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
   FINISHED: "완료",
   INACTIVE: "비활성",
   DELETED: "삭제",
+};
+
+export const PROJECT_MEMBER_ROLE_LABEL: Record<ProjectMemberRole, string> = {
+  LEADER: "팀장",
+  MEMBER: "팀원",
 };

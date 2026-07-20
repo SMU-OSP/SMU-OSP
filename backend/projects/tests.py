@@ -118,6 +118,62 @@ class ProjectApiTests(TestCase):
             body["data"]["repository"]["htmlUrl"],
             "https://github.com/Jiyeon125/SMU-OSP",
         )
+        self.assertEqual(body["data"]["memberCount"], 1)
+        self.assertFalse(body["data"]["canViewMembers"])
+        self.assertIsNone(body["data"]["members"])
+
+    def test_project_member_can_view_joined_member_details(self):
+        teammate = get_user_model().objects.create_user(
+            username="teammate",
+            password="password",
+            github_email="teammate@sookmyung.ac.kr",
+            name="임꺽정",
+            student_id=216,
+            major="컴퓨터과학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=teammate,
+            status=Member.Status.JOINED,
+            description="프론트엔드",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertEqual(data["memberCount"], 2)
+        self.assertTrue(data["canViewMembers"])
+        self.assertEqual(
+            [(member["name"], member["role"]) for member in data["members"]],
+            [("권지연", "LEADER"), ("임꺽정", "MEMBER")],
+        )
+        self.assertEqual(data["members"][1]["description"], "프론트엔드")
+
+    def test_applicant_can_only_view_joined_member_count(self):
+        applicant = get_user_model().objects.create_user(
+            username="applicant",
+            password="password",
+            github_email="applicant@sookmyung.ac.kr",
+            name="신청자",
+            student_id=217,
+            major="소프트웨어학부",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.APPLIED,
+        )
+        self.client.force_login(applicant)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertEqual(data["memberCount"], 1)
+        self.assertFalse(data["canViewMembers"])
+        self.assertIsNone(data["members"])
 
     def test_project_detail_not_found(self):
         response = self.client.get("/api/v1/projects/999")

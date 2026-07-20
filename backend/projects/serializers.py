@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 
 from rest_framework import serializers
 
-from .models import Project, Repository
+from .models import Member, Project, Repository
 
 ALLOWED_URL_SCHEMES = {"http", "https"}
 HTML_TAG_PATTERN = re.compile(r"</?[a-zA-Z][^>]*>")
@@ -277,4 +277,65 @@ class ProjectSerializer(serializers.ModelSerializer):
             "repository",
             "createdAt",
             "updatedAt",
+        )
+
+
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    userId = serializers.IntegerField(source="user_id", allow_null=True)
+    name = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    joinedAt = serializers.DateTimeField(source="created_at")
+
+    class Meta:
+        model = Member
+        fields = (
+            "id",
+            "userId",
+            "name",
+            "role",
+            "status",
+            "description",
+            "joinedAt",
+        )
+
+    def get_name(self, obj):
+        if not obj.user:
+            return "탈퇴한 사용자"
+        return obj.user.name or obj.user.username
+
+    def get_role(self, obj):
+        return "LEADER" if obj.is_leader else "MEMBER"
+
+
+class ProjectDetailSerializer(ProjectSerializer):
+    memberCount = serializers.SerializerMethodField()
+    canViewMembers = serializers.SerializerMethodField()
+    members = serializers.SerializerMethodField()
+
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + (
+            "memberCount",
+            "canViewMembers",
+            "members",
+        )
+
+    def get_memberCount(self, obj):
+        return len(self._joined_members(obj))
+
+    def get_canViewMembers(self, obj):
+        return bool(self.context.get("can_view_members", False))
+
+    def get_members(self, obj):
+        if not self.get_canViewMembers(obj):
+            return None
+        return ProjectMemberSerializer(self._joined_members(obj), many=True).data
+
+    def _joined_members(self, obj):
+        joined_members = getattr(obj, "joined_members", None)
+        if joined_members is not None:
+            return joined_members
+        return list(
+            obj.members.filter(status=Member.Status.JOINED)
+            .select_related("user")
+            .order_by("-is_leader", "created_at", "pk")
         )

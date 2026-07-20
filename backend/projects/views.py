@@ -1,13 +1,18 @@
 from urllib.parse import urlparse
 
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
 from .models import Member, Project, Repository
-from .serializers import ProjectCreateSerializer, ProjectSerializer
+from .serializers import (
+    ProjectCreateSerializer,
+    ProjectDetailSerializer,
+    ProjectSerializer,
+)
 
 DEFAULT_PAGE_SIZE = 10
 
@@ -153,8 +158,23 @@ class Projects(APIView):
 
 class ProjectDetail(APIView):
     def get(self, request, pk):
+        joined_members = (
+            Member.objects.filter(status=Member.Status.JOINED)
+            .select_related("user")
+            .order_by("-is_leader", "created_at", "pk")
+        )
         try:
-            project = Project.objects.select_related("repository").get(pk=pk)
+            project = (
+                Project.objects.select_related("repository")
+                .prefetch_related(
+                    Prefetch(
+                        "members",
+                        queryset=joined_members,
+                        to_attr="joined_members",
+                    )
+                )
+                .get(pk=pk)
+            )
         except Project.DoesNotExist:
             return Response(
                 fail(
@@ -165,7 +185,13 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        serializer = ProjectSerializer(project)
+        can_view_members = request.user.is_authenticated and any(
+            member.user_id == request.user.pk for member in project.joined_members
+        )
+        serializer = ProjectDetailSerializer(
+            project,
+            context={"can_view_members": can_view_members},
+        )
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
 

@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { getProject } from "../services/projectService";
-import { PROJECT_STATUS_LABEL } from "../types/project";
+import {
+  PROJECT_MEMBER_ROLE_LABEL,
+  PROJECT_STATUS_LABEL,
+} from "../types/project";
+import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 function Section({
@@ -63,6 +67,43 @@ function Stat({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </Box>
+  );
+}
+
+function MemberRow({ member }: { member: ProjectDetailMember }) {
+  return (
+    <HStack
+      p={3}
+      borderWidth={1}
+      borderColor={"smu.gray"}
+      borderRadius={"md"}
+      justifyContent={"space-between"}
+      alignItems={"flex-start"}
+      flexWrap={"wrap"}
+      gap={3}
+    >
+      <Box>
+        <Text fontWeight={"bold"} color={"smu.blue"}>
+          {member.name}
+        </Text>
+        {member.description && (
+          <Text fontSize={"sm"} color={"smu.darkGray"} mt={1}>
+            {member.description}
+          </Text>
+        )}
+      </Box>
+      <VStack alignItems={"flex-end"} gap={1}>
+        <Pill
+          bg={member.role === "LEADER" ? "smu.lightBlue" : "smu.gray"}
+          color={member.role === "LEADER" ? "white" : "smu.darkGray"}
+        >
+          {PROJECT_MEMBER_ROLE_LABEL[member.role]}
+        </Pill>
+        <Text fontSize={"xs"} color={"smu.darkGray"}>
+          {formatDateTimeKST(member.joinedAt)} 참여
+        </Text>
+      </VStack>
+    </HStack>
   );
 }
 
@@ -174,7 +215,10 @@ export default function ProjectDetailPage() {
 
           <SimpleGrid columns={{ base: 1, md: 4 }} gap={3} mb={5}>
             <Stat label="프로젝트 ID" value={`${project.id}`} />
-            <Stat label="최대 팀원" value={`${project.maxMembers}명`} />
+            <Stat
+              label="팀원"
+              value={`${project.memberCount}/${project.maxMembers}명`}
+            />
             <Stat
               label="생성일"
               value={formatDateTimeKST(project.createdAt)}
@@ -206,6 +250,57 @@ export default function ProjectDetailPage() {
               </HStack>
             </Section>
           </VStack>
+        </Box>
+
+        <Box
+          p={5}
+          borderWidth={1}
+          borderColor={"smu.gray"}
+          borderRadius={"lg"}
+          bg={"white"}
+        >
+          <HStack
+            justifyContent={"space-between"}
+            alignItems={"flex-start"}
+            mb={3}
+            gap={3}
+            flexWrap={"wrap"}
+          >
+            <Box>
+              <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
+                팀원 현황
+              </Text>
+              <Text fontSize={"sm"} color={"smu.darkGray"}>
+                현재 {project.memberCount}/{project.maxMembers}명이 참여 중입니다.
+              </Text>
+            </Box>
+          </HStack>
+
+          {project.canViewMembers && project.members ? (
+            project.members.length ? (
+              <VStack alignItems={"stretch"} gap={2}>
+                {project.members.map((member) => (
+                  <MemberRow key={member.id} member={member} />
+                ))}
+              </VStack>
+            ) : (
+              <Text fontSize={"sm"} color={"smu.darkGray"}>
+                참여 중인 팀원이 없습니다.
+              </Text>
+            )
+          ) : (
+            <Box
+              p={4}
+              borderWidth={1}
+              borderColor={"smu.gray"}
+              borderRadius={"md"}
+              bg={"#f7f7f7"}
+            >
+              <Text fontSize={"sm"} color={"smu.darkGray"}>
+                프로젝트 구성원만 팀원 이름과 역할을 확인할 수 있습니다.
+              </Text>
+            </Box>
+          )}
         </Box>
 
         <Box

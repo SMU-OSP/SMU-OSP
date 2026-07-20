@@ -5,7 +5,7 @@ import {
   getProjects,
 } from "../api";
 import { ApiResponse, ERROR_CODES, PaginationDetail } from "../types/response";
-import { Project, ProjectInput } from "../types/project";
+import { Project, ProjectDetail, ProjectInput } from "../types/project";
 
 export interface ListParams {
   start?: number;
@@ -45,11 +45,14 @@ export async function listProjects(
   }
 }
 
-export async function getProject(id: string): Promise<ApiResponse<Project>> {
+export async function getProject(id: string): Promise<ApiResponse<ProjectDetail>> {
   try {
     return await getProjectApi(id);
   } catch (e) {
-    return toApiResponse<Project>(e, "프로젝트 조회 중 오류가 발생했습니다.");
+    return toApiResponse<ProjectDetail>(
+      e,
+      "프로젝트 조회 중 오류가 발생했습니다."
+    );
   }
 }
 
