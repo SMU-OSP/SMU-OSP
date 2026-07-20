@@ -186,6 +186,14 @@ export default function ProjectDetailPage() {
           <Button variant={"outline"} onClick={() => navigate("/projects")}>
             목록으로
           </Button>
+          {project.canEdit && (
+            <Button
+              bg={"smu.blue"}
+              onClick={() => navigate(`/projects/${project.id}/edit`)}
+            >
+              프로젝트 수정
+            </Button>
+          )}
         </HStack>
 
         <Box

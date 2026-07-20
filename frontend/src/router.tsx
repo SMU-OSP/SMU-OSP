@@ -11,6 +11,7 @@ import RankBoard from "./routes/RankBoard";
 import ProjectListPage from "./routes/ProjectListPage";
 import ProjectDetailPage from "./routes/ProjectDetailPage";
 import ProjectCreatePage from "./routes/ProjectCreatePage";
+import ProjectEditPage from "./routes/ProjectEditPage";
 
 const router = createBrowserRouter([
   {
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
       {
         path: "projects/:id",
         element: <ProjectDetailPage />,
+      },
+      {
+        path: "projects/:id/edit",
+        element: <ProjectEditPage />,
       },
     ],
   },

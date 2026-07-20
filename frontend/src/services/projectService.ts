@@ -3,9 +3,15 @@ import {
   createProject as createProjectApi,
   getProject as getProjectApi,
   getProjects,
+  updateProject as updateProjectApi,
 } from "../api";
 import { ApiResponse, ERROR_CODES, PaginationDetail } from "../types/response";
-import { Project, ProjectDetail, ProjectInput } from "../types/project";
+import {
+  Project,
+  ProjectDetail,
+  ProjectInput,
+  ProjectUpdateInput,
+} from "../types/project";
 
 export interface ListParams {
   start?: number;
@@ -63,5 +69,16 @@ export async function createProject(
     return await createProjectApi(input);
   } catch (e) {
     return toApiResponse<Project>(e, "프로젝트 등록 중 오류가 발생했습니다.");
+  }
+}
+
+export async function updateProject(
+  id: string,
+  input: ProjectUpdateInput
+): Promise<ApiResponse<Project>> {
+  try {
+    return await updateProjectApi(id, input);
+  } catch (e) {
+    return toApiResponse<Project>(e, "프로젝트 수정 중 오류가 발생했습니다.");
   }
 }

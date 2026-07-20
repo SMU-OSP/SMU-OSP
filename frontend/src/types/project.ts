@@ -46,6 +46,7 @@ export interface Project {
 export interface ProjectDetail extends Project {
   memberCount: number;
   canViewMembers: boolean;
+  canEdit: boolean;
   members: ProjectDetailMember[] | null;
 }
 
@@ -57,6 +58,11 @@ export interface ProjectInput {
   presentationUrl?: string | null;
   techStack: string[];
   usedOpenSource: string[];
+}
+
+export interface ProjectUpdateInput extends ProjectInput {
+  status: ProjectStatus;
+  maxMembers: number;
 }
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {

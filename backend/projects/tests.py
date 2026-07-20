@@ -120,6 +120,7 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(body["data"]["memberCount"], 1)
         self.assertFalse(body["data"]["canViewMembers"])
+        self.assertFalse(body["data"]["canEdit"])
         self.assertIsNone(body["data"]["members"])
 
     def test_project_member_can_view_joined_member_details(self):
@@ -145,6 +146,7 @@ class ProjectApiTests(TestCase):
         data = response.json()["data"]
         self.assertEqual(data["memberCount"], 2)
         self.assertTrue(data["canViewMembers"])
+        self.assertTrue(data["canEdit"])
         self.assertEqual(
             [(member["name"], member["role"]) for member in data["members"]],
             [("권지연", "LEADER"), ("임꺽정", "MEMBER")],
@@ -173,7 +175,153 @@ class ProjectApiTests(TestCase):
         data = response.json()["data"]
         self.assertEqual(data["memberCount"], 1)
         self.assertFalse(data["canViewMembers"])
+        self.assertFalse(data["canEdit"])
         self.assertIsNone(data["members"])
+
+    def test_project_leader_can_update_all_project_fields(self):
+        repository_id = self.repository.pk
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(
+                name="Updated SOSP",
+                description="수정된 프로젝트 설명",
+                repositoryUrl="https://github.com/example/updated-project",
+                demoUrl="https://updated.example.com",
+                presentationUrl="https://updated.example.com/slides",
+                techStack=["React", "Django", "MySQL"],
+                usedOpenSource=["Django REST framework", "Chakra UI"],
+                status=Project.Status.FINISHED,
+                maxMembers=8,
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
+        self.assertEqual(body["data"]["name"], "Updated SOSP")
+        self.assertEqual(body["data"]["status"], "FINISHED")
+        self.assertEqual(body["data"]["maxMembers"], 8)
+        self.assertEqual(
+            body["data"]["repository"]["fullName"],
+            "example/updated-project",
+        )
+
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.description, "수정된 프로젝트 설명")
+        self.assertEqual(self.project.demo_url, "https://updated.example.com")
+        self.assertEqual(
+            self.project.presentation_url,
+            "https://updated.example.com/slides",
+        )
+        self.assertEqual(self.project.tech_stack, ["React", "Django", "MySQL"])
+        self.assertEqual(
+            self.project.used_open_source,
+            ["Django REST framework", "Chakra UI"],
+        )
+
+        repository = Repository.objects.get(pk=repository_id)
+        self.assertEqual(
+            repository.html_url,
+            "https://github.com/example/updated-project",
+        )
+        self.assertIsNone(repository.github_id)
+        self.assertIsNone(repository.description)
+        self.assertEqual(repository.stars, 0)
+        self.assertEqual(repository.forks, 0)
+        self.assertIsNone(repository.language)
+        self.assertEqual(repository.topics, [])
+        self.assertIsNone(repository.github_updated_at)
+        self.assertIsNone(repository.fetched_at)
+        self.assertIsNone(repository.refresh_status)
+
+    def test_project_leader_can_remove_repository_connection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(repositoryUrl=""),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["data"]["repository"])
+        self.assertFalse(Repository.objects.filter(project=self.project).exists())
+
+    def test_non_leader_cannot_update_project(self):
+        teammate = get_user_model().objects.create_user(
+            username="nonleader",
+            password="password",
+            github_email="nonleader@sookmyung.ac.kr",
+            name="팀원",
+            student_id=218,
+            major="컴퓨터과학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=teammate,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(teammate)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(name="권한 없는 수정"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, "SOSP")
+
+    def test_project_update_rejects_max_members_below_joined_count(self):
+        teammate = get_user_model().objects.create_user(
+            username="joined-member",
+            password="password",
+            github_email="joined@sookmyung.ac.kr",
+            name="참여자",
+            student_id=219,
+            major="컴퓨터과학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=teammate,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(maxMembers=1),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "최대 인원은 현재 참여 인원보다 적게 설정할 수 없습니다.",
+        )
+
+    def test_project_update_rejects_another_project_name(self):
+        Project.objects.create(name="Existing Project", description="기존 프로젝트")
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(name="Existing Project"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 등록된 프로젝트명입니다.",
+        )
 
     def test_project_detail_not_found(self):
         response = self.client.get("/api/v1/projects/999")
@@ -451,6 +599,21 @@ class ProjectApiTests(TestCase):
         body = response.json()
         self.assertEqual(body["status"], "INVALID_PAGINATION_PARAMETER")
         self.assertEqual(body["detail"]["httpStatus"], 400)
+
+    def project_update_payload(self, **overrides):
+        payload = {
+            "name": self.project.name,
+            "description": self.project.description,
+            "repositoryUrl": self.repository.html_url,
+            "demoUrl": self.project.demo_url,
+            "presentationUrl": self.project.presentation_url,
+            "techStack": self.project.tech_stack,
+            "usedOpenSource": self.project.used_open_source,
+            "status": self.project.status,
+            "maxMembers": self.project.max_members,
+        }
+        payload.update(overrides)
+        return payload
 
     def create_projects_for_pagination(self, total):
         self.project.delete()

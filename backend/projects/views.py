@@ -12,6 +12,7 @@ from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
     ProjectSerializer,
+    ProjectUpdateSerializer,
 )
 
 DEFAULT_PAGE_SIZE = 10
@@ -185,14 +186,136 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        can_view_members = request.user.is_authenticated and any(
-            member.user_id == request.user.pk for member in project.joined_members
+        current_member = next(
+            (
+                member
+                for member in project.joined_members
+                if request.user.is_authenticated
+                and member.user_id == request.user.pk
+            ),
+            None,
         )
+        can_view_members = current_member is not None
+        can_edit = can_view_members and current_member.is_leader
         serializer = ProjectDetailSerializer(
             project,
-            context={"can_view_members": can_view_members},
+            context={
+                "can_view_members": can_view_members,
+                "can_edit": can_edit,
+            },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)
+
+    def put(self, request, pk):
+        try:
+            project = Project.objects.select_related("repository").get(pk=pk)
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        is_leader = request.user.is_authenticated and project.members.filter(
+            user=request.user,
+            status=Member.Status.JOINED,
+            is_leader=True,
+        ).exists()
+        if not is_leader:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 팀장만 수정할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = ProjectUpdateSerializer(
+            project,
+            data=request.data,
+        )
+        if not serializer.is_valid():
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    first_serializer_error(serializer.errors),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = serializer.validated_data
+        try:
+            with transaction.atomic():
+                for field in (
+                    "name",
+                    "description",
+                    "demo_url",
+                    "presentation_url",
+                    "tech_stack",
+                    "used_open_source",
+                    "status",
+                    "max_members",
+                ):
+                    setattr(project, field, data[field])
+                project.save()
+                update_project_repository(project, data.get("repository_url"))
+        except IntegrityError:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    "프로젝트 정보를 수정하지 못했습니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        project = Project.objects.select_related("repository").get(pk=project.pk)
+        return Response(
+            success(ProjectSerializer(project).data),
+            status=status.HTTP_200_OK,
+        )
+
+
+def update_project_repository(project, repository_url):
+    repository = Repository.objects.filter(project=project).first()
+
+    if not repository_url:
+        if repository:
+            repository.delete()
+        return
+
+    if repository and repository.html_url == repository_url:
+        return
+
+    repository_name, full_name = parse_repository_identity(repository_url)
+    if not repository:
+        Repository.objects.create(
+            project=project,
+            name=repository_name,
+            full_name=full_name,
+            html_url=repository_url,
+        )
+        return
+
+    repository.github_id = None
+    repository.name = repository_name
+    repository.full_name = full_name
+    repository.description = None
+    repository.stars = 0
+    repository.forks = 0
+    repository.language = None
+    repository.topics = []
+    repository.html_url = repository_url
+    repository.github_updated_at = None
+    repository.fetched_at = None
+    repository.refresh_status = None
+    repository.last_error_code = None
+    repository.save()
 
 
 def first_serializer_error(errors):

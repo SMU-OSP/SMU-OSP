@@ -161,7 +161,12 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             "프로젝트명",
             allow_newlines=False,
         )
-        if Project.objects.filter(name=name).exists():
+        projects_with_same_name = Project.objects.filter(name=name)
+        if self.instance:
+            projects_with_same_name = projects_with_same_name.exclude(
+                pk=self.instance.pk
+            )
+        if projects_with_same_name.exists():
             raise serializers.ValidationError(
                 {"name": "이미 등록된 프로젝트명입니다."}
             )
@@ -246,6 +251,42 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         return value
 
 
+class ProjectUpdateSerializer(ProjectCreateSerializer):
+    status = serializers.ChoiceField(
+        choices=Project.Status.choices,
+        error_messages={"invalid_choice": "프로젝트 상태를 확인해주세요."},
+    )
+    maxMembers = serializers.IntegerField(
+        source="max_members",
+        min_value=1,
+        error_messages={
+            "invalid": "최대 인원은 숫자로 입력해주세요.",
+            "min_value": "최대 인원은 1명 이상이어야 합니다.",
+        },
+    )
+
+    class Meta(ProjectCreateSerializer.Meta):
+        fields = ProjectCreateSerializer.Meta.fields + (
+            "status",
+            "maxMembers",
+        )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        joined_member_count = self.instance.members.filter(
+            status=Member.Status.JOINED
+        ).count()
+        if attrs["max_members"] < joined_member_count:
+            raise serializers.ValidationError(
+                {
+                    "maxMembers": (
+                        "최대 인원은 현재 참여 인원보다 적게 설정할 수 없습니다."
+                    )
+                }
+            )
+        return attrs
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     demoUrl = serializers.URLField(source="demo_url", allow_null=True)
     presentationUrl = serializers.URLField(
@@ -310,12 +351,14 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 class ProjectDetailSerializer(ProjectSerializer):
     memberCount = serializers.SerializerMethodField()
     canViewMembers = serializers.SerializerMethodField()
+    canEdit = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
 
     class Meta(ProjectSerializer.Meta):
         fields = ProjectSerializer.Meta.fields + (
             "memberCount",
             "canViewMembers",
+            "canEdit",
             "members",
         )
 
@@ -324,6 +367,9 @@ class ProjectDetailSerializer(ProjectSerializer):
 
     def get_canViewMembers(self, obj):
         return bool(self.context.get("can_view_members", False))
+
+    def get_canEdit(self, obj):
+        return bool(self.context.get("can_edit", False))
 
     def get_members(self, obj):
         if not self.get_canViewMembers(obj):
