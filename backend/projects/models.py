@@ -97,8 +97,8 @@ class Member(CommonModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=("id",),
-                name="project_member_id_uniq",
+                fields=("project", "id"),
+                name="project_member_project_id_uniq",
             ),
         ]
         indexes = [

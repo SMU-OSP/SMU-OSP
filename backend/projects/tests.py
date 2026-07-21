@@ -49,7 +49,9 @@ class ProjectApiTests(TestCase):
             status=Member.Status.JOINED,
         )
 
-    def test_member_table_uses_project_local_composite_primary_key(self):
+    def test_member_table_uses_id_primary_key_with_project_id_unique_constraint(
+        self,
+    ):
         with connection.cursor() as cursor:
             constraints = connection.introspection.get_constraints(
                 cursor,
@@ -61,11 +63,11 @@ class ProjectApiTests(TestCase):
             for constraint in constraints.values()
             if constraint["primary_key"]
         )
-        self.assertEqual(primary_key["columns"], ["project_id", "id"])
+        self.assertEqual(primary_key["columns"], ["id"])
 
-        id_unique = constraints["project_member_id_uniq"]
-        self.assertTrue(id_unique["unique"])
-        self.assertEqual(id_unique["columns"], ["id"])
+        project_id_unique = constraints["project_member_project_id_uniq"]
+        self.assertTrue(project_id_unique["unique"])
+        self.assertEqual(project_id_unique["columns"], ["project_id", "id"])
 
     def test_member_canceled_status_is_persisted(self):
         canceled_member = Member.objects.create(
