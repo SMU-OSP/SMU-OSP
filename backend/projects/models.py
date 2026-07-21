@@ -68,6 +68,7 @@ class Member(CommonModel):
         JOINED = "JOINED", "Joined"
         LEFT = "LEFT", "Left"
 
+    id = models.BigAutoField(primary_key=True)
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
@@ -89,6 +90,12 @@ class Member(CommonModel):
     description = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("id",),
+                name="project_member_id_uniq",
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=("project", "status"),

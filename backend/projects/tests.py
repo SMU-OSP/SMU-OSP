@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.test import TestCase
 from django.utils import timezone
 
@@ -48,6 +48,24 @@ class ProjectApiTests(TestCase):
             is_leader=True,
             status=Member.Status.JOINED,
         )
+
+    def test_member_table_uses_project_local_composite_primary_key(self):
+        with connection.cursor() as cursor:
+            constraints = connection.introspection.get_constraints(
+                cursor,
+                Member._meta.db_table,
+            )
+
+        primary_key = next(
+            constraint
+            for constraint in constraints.values()
+            if constraint["primary_key"]
+        )
+        self.assertEqual(primary_key["columns"], ["project_id", "id"])
+
+        id_unique = constraints["project_member_id_uniq"]
+        self.assertTrue(id_unique["unique"])
+        self.assertEqual(id_unique["columns"], ["id"])
 
     def test_project_list_response_shape(self):
         response = self.client.get("/api/v1/projects/")
