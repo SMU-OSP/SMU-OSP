@@ -67,6 +67,16 @@ class ProjectApiTests(TestCase):
         self.assertTrue(id_unique["unique"])
         self.assertEqual(id_unique["columns"], ["id"])
 
+    def test_member_cancelled_status_is_persisted(self):
+        cancelled_member = Member.objects.create(
+            project=self.project,
+            user=self.user,
+            status=Member.Status.CANCELLED,
+        )
+
+        cancelled_member.refresh_from_db()
+        self.assertEqual(cancelled_member.status, Member.Status.CANCELLED)
+
     def test_project_list_response_shape(self):
         response = self.client.get("/api/v1/projects/")
 
