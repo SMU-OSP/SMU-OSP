@@ -149,12 +149,12 @@ class Migration(migrations.Migration):
                     "status",
                     models.CharField(
                         choices=[
-                            ("APPLIED", "Applied"),
+                            ("PENDING", "Pending"),
                             ("DECLINED", "Declined"),
                             ("JOINED", "Joined"),
                             ("LEFT", "Left"),
                         ],
-                        default="APPLIED",
+                        default="PENDING",
                         max_length=30,
                     ),
                 ),

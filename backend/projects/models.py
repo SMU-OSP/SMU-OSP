@@ -63,7 +63,7 @@ class Project(CommonModel):
 
 class Member(CommonModel):
     class Status(models.TextChoices):
-        APPLIED = "APPLIED", "Applied"
+        PENDING = "PENDING", "Pending"
         DECLINED = "DECLINED", "Declined"
         JOINED = "JOINED", "Joined"
         LEFT = "LEFT", "Left"
@@ -84,7 +84,7 @@ class Member(CommonModel):
     status = models.CharField(
         max_length=30,
         choices=Status.choices,
-        default=Status.APPLIED,
+        default=Status.PENDING,
     )
     description = models.CharField(max_length=255, null=True, blank=True)
 
