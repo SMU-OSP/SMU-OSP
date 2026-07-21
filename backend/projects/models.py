@@ -68,7 +68,7 @@ class Project(CommonModel):
 class Member(CommonModel):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
-        CANCELLED = "CANCELLED", "Cancelled"
+        CANCELED = "CANCELED", "Canceled"
         DECLINED = "DECLINED", "Declined"
         JOINED = "JOINED", "Joined"
         LEFT = "LEFT", "Left"

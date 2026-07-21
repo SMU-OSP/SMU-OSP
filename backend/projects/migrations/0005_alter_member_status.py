@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             field=models.CharField(
                 choices=[
                     ("PENDING", "Pending"),
-                    ("CANCELLED", "Cancelled"),
+                    ("CANCELED", "Canceled"),
                     ("DECLINED", "Declined"),
                     ("JOINED", "Joined"),
                     ("LEFT", "Left"),

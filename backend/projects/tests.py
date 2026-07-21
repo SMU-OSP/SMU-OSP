@@ -67,15 +67,15 @@ class ProjectApiTests(TestCase):
         self.assertTrue(id_unique["unique"])
         self.assertEqual(id_unique["columns"], ["id"])
 
-    def test_member_cancelled_status_is_persisted(self):
-        cancelled_member = Member.objects.create(
+    def test_member_canceled_status_is_persisted(self):
+        canceled_member = Member.objects.create(
             project=self.project,
             user=self.user,
-            status=Member.Status.CANCELLED,
+            status=Member.Status.CANCELED,
         )
 
-        cancelled_member.refresh_from_db()
-        self.assertEqual(cancelled_member.status, Member.Status.CANCELLED)
+        canceled_member.refresh_from_db()
+        self.assertEqual(canceled_member.status, Member.Status.CANCELED)
 
     @override_settings(PROJECT_DEFAULT_MAX_MEMBERS=7)
     def test_project_default_max_members_uses_setting(self):
