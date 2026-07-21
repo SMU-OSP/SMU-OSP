@@ -155,6 +155,7 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+PROJECT_DEFAULT_MAX_MEMBERS = env.int("PROJECT_DEFAULT_MAX_MEMBERS", default=5)
 
 # Auth
 

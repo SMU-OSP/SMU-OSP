@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from .models import Member, Project, Repository
@@ -76,6 +76,15 @@ class ProjectApiTests(TestCase):
 
         cancelled_member.refresh_from_db()
         self.assertEqual(cancelled_member.status, Member.Status.CANCELLED)
+
+    @override_settings(PROJECT_DEFAULT_MAX_MEMBERS=7)
+    def test_project_default_max_members_uses_setting(self):
+        project = Project.objects.create(
+            name="Configured Capacity Project",
+            description="환경변수 기반 기본 최대 인원을 확인합니다.",
+        )
+
+        self.assertEqual(project.max_members, 7)
 
     def test_project_list_response_shape(self):
         response = self.client.get("/api/v1/projects/")

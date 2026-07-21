@@ -4,6 +4,10 @@ from django.db import models
 from common.models import CommonModel
 
 
+def get_default_max_members():
+    return settings.PROJECT_DEFAULT_MAX_MEMBERS
+
+
 class Repository(CommonModel):
     class RefreshStatus(models.TextChoices):
         SUCCESS = "SUCCESS", "Success"
@@ -55,7 +59,7 @@ class Project(CommonModel):
         choices=Status.choices,
         default=Status.ACTIVE,
     )
-    max_members = models.PositiveIntegerField(default=5)
+    max_members = models.PositiveIntegerField(default=get_default_max_members)
 
     def __str__(self):
         return self.name
