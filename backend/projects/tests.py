@@ -163,7 +163,7 @@ class ProjectApiTests(TestCase):
         Member.objects.create(
             project=self.project,
             user=applicant,
-            status=Member.Status.APPLIED,
+            status=Member.Status.PENDING,
         )
         self.client.force_login(applicant)
 
