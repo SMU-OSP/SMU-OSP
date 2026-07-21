@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import ProjectLeaveDialog from "../components/ProjectLeaveDialog";
 import { Button } from "../components/ui/button";
-import { getProject, leaveProject } from "../services/projectService";
+import {
+  applyToProject,
+  getProject,
+  leaveProject,
+} from "../services/projectService";
 import {
   PROJECT_MEMBER_ROLE_LABEL,
   PROJECT_STATUS_LABEL,
@@ -140,6 +144,7 @@ export default function ProjectDetailPage() {
   const queryClient = useQueryClient();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveMessage, setLeaveMessage] = useState("");
+  const [applicationMessage, setApplicationMessage] = useState("");
 
   const projectQuery = useQuery({
     queryKey: ["project", id],
@@ -159,6 +164,23 @@ export default function ProjectDetailPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["project", id] }),
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-application-history"],
+        }),
+      ]);
+    },
+  });
+
+  const applicationMutation = useMutation({
+    mutationFn: (projectId: number) => applyToProject(projectId),
+    onSuccess: async (response) => {
+      if (response.status !== "SUCCESS") {
+        setApplicationMessage(response.detail.message);
+        return;
+      }
+      setApplicationMessage("참가 신청이 완료되어 승인 대기 중입니다.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["project", id] }),
         queryClient.invalidateQueries({
           queryKey: ["project-application-history"],
         }),
@@ -207,6 +229,13 @@ export default function ProjectDetailPage() {
     leaveMutation.mutate(project.id);
   };
 
+  const apply = () => {
+    setApplicationMessage("");
+    if (window.confirm("이 프로젝트에 참가 신청하시겠습니까?")) {
+      applicationMutation.mutate(project.id);
+    }
+  };
+
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1000px"} mx={"auto"}>
       <VStack alignItems={"stretch"} gap={5}>
@@ -223,6 +252,15 @@ export default function ProjectDetailPage() {
                 onClick={() => setLeaveDialogOpen(true)}
               >
                 {leaveMutation.isPending ? "탈퇴 중..." : "프로젝트 탈퇴"}
+              </Button>
+            )}
+            {project.canApply && (
+              <Button
+                bg={"smu.blue"}
+                disabled={applicationMutation.isPending}
+                onClick={apply}
+              >
+                {applicationMutation.isPending ? "신청 중..." : "참가 신청"}
               </Button>
             )}
             {project.canEdit && (
@@ -259,6 +297,31 @@ export default function ProjectDetailPage() {
           onConfirm={leave}
           isPending={leaveMutation.isPending}
         />
+
+        {(applicationMessage || project.applicationStatus === "PENDING") && (
+          <Box
+            role={
+              applicationMessage &&
+              applicationMutation.data?.status !== "SUCCESS"
+                ? "alert"
+                : "status"
+            }
+            p={3}
+            borderWidth={1}
+            borderColor={
+              applicationMessage &&
+              applicationMutation.data?.status !== "SUCCESS"
+                ? "smu.orange"
+                : "smu.lightBlue"
+            }
+            borderRadius={"md"}
+            bg={"white"}
+          >
+            <Text fontSize={"sm"}>
+              {applicationMessage || "참가 신청 승인 대기 중입니다."}
+            </Text>
+          </Box>
+        )}
 
         <Box
           p={6}

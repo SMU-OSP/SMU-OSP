@@ -358,6 +358,8 @@ class ProjectDetailSerializer(ProjectSerializer):
     memberCount = serializers.SerializerMethodField()
     canViewMembers = serializers.SerializerMethodField()
     canEdit = serializers.SerializerMethodField()
+    canApply = serializers.SerializerMethodField()
+    applicationStatus = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
 
     class Meta(ProjectSerializer.Meta):
@@ -365,6 +367,8 @@ class ProjectDetailSerializer(ProjectSerializer):
             "memberCount",
             "canViewMembers",
             "canEdit",
+            "canApply",
+            "applicationStatus",
             "members",
         )
 
@@ -376,6 +380,12 @@ class ProjectDetailSerializer(ProjectSerializer):
 
     def get_canEdit(self, obj):
         return bool(self.context.get("can_edit", False))
+
+    def get_canApply(self, obj):
+        return bool(self.context.get("can_apply", False))
+
+    def get_applicationStatus(self, obj):
+        return self.context.get("application_status")
 
     def get_members(self, obj):
         if not self.get_canViewMembers(obj):

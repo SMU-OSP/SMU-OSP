@@ -256,6 +256,20 @@ class ProjectDetail(APIView):
             ),
             None,
         )
+        application_memberships = (
+            list(
+                project.members.filter(
+                    user=request.user,
+                    is_leader=False,
+                ).order_by("-created_at", "-pk")
+            )
+            if request.user.is_authenticated
+            else []
+        )
+        has_active_application = any(
+            membership.status in (Member.Status.PENDING, Member.Status.JOINED)
+            for membership in application_memberships
+        )
         can_view_members = current_member is not None
         can_edit = can_view_members and current_member.is_leader
         project.request_user_memberships = (
@@ -266,6 +280,17 @@ class ProjectDetail(APIView):
             context={
                 "can_view_members": can_view_members,
                 "can_edit": can_edit,
+                "can_apply": (
+                    request.user.is_authenticated
+                    and project.status == Project.Status.ACTIVE
+                    and not has_active_application
+                    and len(application_memberships) < 6
+                ),
+                "application_status": (
+                    application_memberships[0].status
+                    if application_memberships
+                    else None
+                ),
             },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)
@@ -379,6 +404,76 @@ class ProjectMemberships(APIView):
 
 
 class ProjectMembers(APIView):
+    def post(self, request, pk):
+        if not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            project = Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if project.status != Project.Status.ACTIVE:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_STATUS",
+                    "진행 중인 프로젝트에만 참가 신청할 수 있습니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        memberships = Member.objects.filter(
+            project=project,
+            user=request.user,
+            is_leader=False,
+        )
+        if memberships.filter(
+            status__in=(Member.Status.PENDING, Member.Status.JOINED)
+        ).exists():
+            return Response(
+                fail(
+                    "MEMBERSHIP_ALREADY_EXISTS",
+                    "이미 참가 신청 중이거나 참여 중인 프로젝트입니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if memberships.count() >= 6:
+            return Response(
+                fail(
+                    "MEMBERSHIP_REAPPLICATION_LIMIT",
+                    "재신청 가능 횟수 5회를 모두 사용했습니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        membership = Member.objects.create(
+            project=project,
+            user=request.user,
+            status=Member.Status.PENDING,
+        )
+        return Response(
+            success(ProjectMembershipHistorySerializer(membership).data),
+            status=status.HTTP_201_CREATED,
+        )
+
     def delete(self, request, pk):
         if not request.user.is_authenticated:
             return Response(
