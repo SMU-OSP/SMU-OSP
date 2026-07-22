@@ -25,6 +25,9 @@ from .tasks import enqueue_repository_refresh
 DEFAULT_PAGE_SIZE = 10
 TRUE_QUERY_VALUES = {"1", "true"}
 FALSE_QUERY_VALUES = {"0", "false"}
+REPOSITORY_ALREADY_LINKED_MESSAGE = (
+    "이미 다른 프로젝트에 연결된 Repository입니다."
+)
 
 
 def parse_repository_identity(repository_url):
@@ -41,6 +44,14 @@ def parse_repository_identity(repository_url):
         else repository_name
     )
     return repository_name[:150], full_name[:300]
+
+
+def validate_repository_availability(full_name, repository=None):
+    repositories = Repository.objects.filter(full_name__iexact=full_name)
+    if repository:
+        repositories = repositories.exclude(pk=repository.pk)
+    if repositories.exists():
+        raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
 
 
 def parse_pagination(query_params):
@@ -201,6 +212,7 @@ class Projects(APIView):
                     repository_name, full_name = parse_repository_identity(
                         repository_url
                     )
+                    validate_repository_availability(full_name)
                     repository = Repository.objects.create(
                         project=project,
                         name=repository_name,
@@ -208,6 +220,15 @@ class Projects(APIView):
                         html_url=repository_url,
                     )
                     enqueue_repository_refresh(repository.pk)
+        except ValueError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    str(error),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError:
             return Response(
                 fail(
@@ -736,6 +757,7 @@ def update_project_repository(project, repository_url):
         return
 
     repository_name, full_name = parse_repository_identity(repository_url)
+    validate_repository_availability(full_name, repository)
     if not repository:
         repository = Repository.objects.create(
             project=project,

@@ -531,6 +531,29 @@ class ProjectApiTests(TestCase):
         )
         refresh_delay.assert_called_once_with(repository.pk)
 
+    def test_create_project_rejects_repository_linked_to_another_project(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Duplicate Repository Project",
+                "description": "이미 연결된 Repository를 사용할 수 없습니다.",
+                "repositoryUrl": "https://github.com/jiyeon125/smu-osp",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 다른 프로젝트에 연결된 Repository입니다.",
+        )
+        self.assertFalse(
+            Project.objects.filter(name="Duplicate Repository Project").exists()
+        )
+
     @patch("projects.tasks.refresh_repository.delay")
     def test_project_repository_url_change_enqueues_refresh_after_commit(
         self,
@@ -549,6 +572,79 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         refresh_delay.assert_called_once_with(self.repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_adding_repository_url_enqueues_refresh_after_commit(
+        self,
+        refresh_delay,
+    ):
+        self.repository.delete()
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(
+                    repositoryUrl="https://github.com/example/new-project"
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        repository = Repository.objects.get(project=self.project)
+        self.assertEqual(
+            repository.html_url,
+            "https://github.com/example/new-project",
+        )
+        refresh_delay.assert_called_once_with(repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_update_project_rejects_repository_linked_to_another_project(
+        self,
+        refresh_delay,
+    ):
+        other_project = Project.objects.create(
+            name="Other Project",
+            description="다른 프로젝트",
+        )
+        Member.objects.create(
+            project=other_project,
+            user=self.user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        )
+        other_repository = Repository.objects.create(
+            project=other_project,
+            name="other",
+            full_name="example/other",
+            html_url="https://github.com/example/other",
+        )
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{other_project.pk}",
+                data={
+                    "name": other_project.name,
+                    "description": other_project.description,
+                    "repositoryUrl": self.repository.html_url,
+                    "demoUrl": "",
+                    "presentationUrl": "",
+                    "techStack": [],
+                    "usedOpenSource": [],
+                    "status": Project.Status.ACTIVE,
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 다른 프로젝트에 연결된 Repository입니다.",
+        )
+        other_repository.refresh_from_db()
+        self.assertEqual(other_repository.full_name, "example/other")
+        refresh_delay.assert_not_called()
 
     @patch("projects.tasks.refresh_repository.delay")
     def test_unchanged_project_repository_url_does_not_enqueue_refresh(
@@ -619,6 +715,45 @@ class ProjectApiTests(TestCase):
             Repository.RefreshStatus.FAILED,
         )
         self.assertEqual(self.repository.last_error_code, "GITHUB_API_FAILED")
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_task_handles_duplicate_github_id(
+        self,
+        request_get,
+    ):
+        project = Project.objects.create(
+            name="Duplicate GitHub Repository",
+            description="동일 GitHub Repository 연결을 확인합니다.",
+        )
+        repository = Repository.objects.create(
+            project=project,
+            name="duplicate",
+            full_name="example/duplicate",
+            html_url="https://github.com/example/duplicate",
+        )
+        response = request_get.return_value
+        response.status_code = 200
+        response.json.return_value = {
+            "id": self.repository.github_id,
+            "name": "SMU-OSP",
+            "full_name": "Jiyeon125/SMU-OSP",
+            "html_url": self.repository.html_url,
+            "private": False,
+        }
+
+        result = refresh_repository(repository.pk)
+
+        self.assertFalse(result)
+        repository.refresh_from_db()
+        self.assertIsNone(repository.github_id)
+        self.assertEqual(
+            repository.refresh_status,
+            Repository.RefreshStatus.FAILED,
+        )
+        self.assertEqual(
+            repository.last_error_code,
+            "REPOSITORY_ALREADY_LINKED",
+        )
 
     def test_create_project_requires_login(self):
         response = self.client.post(

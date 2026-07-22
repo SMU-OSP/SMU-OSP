@@ -1,7 +1,7 @@
 import requests
 from celery import shared_task
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -90,5 +90,10 @@ def refresh_repository(repository_id):
     repository.fetched_at = timezone.now()
     repository.refresh_status = Repository.RefreshStatus.SUCCESS
     repository.last_error_code = None
-    repository.save()
+    try:
+        with transaction.atomic():
+            repository.save()
+    except IntegrityError:
+        mark_refresh_failed(repository, "REPOSITORY_ALREADY_LINKED")
+        return False
     return True
