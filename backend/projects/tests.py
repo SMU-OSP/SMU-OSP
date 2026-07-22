@@ -146,6 +146,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()["data"]
         self.assertEqual(data["memberCount"], 2)
+        self.assertEqual(data["membershipRole"], "OWNER")
         self.assertTrue(data["canViewMembers"])
         self.assertTrue(data["canEdit"])
         self.assertEqual(
@@ -362,6 +363,7 @@ class ProjectApiTests(TestCase):
         self.assertNotIn("repositoryUrl", body["data"])
         self.assertEqual(body["data"]["status"], "ACTIVE")
         self.assertEqual(body["data"]["maxMembers"], 5)
+        self.assertEqual(body["data"]["membershipRole"], "OWNER")
         self.assertEqual(
             body["data"]["repository"]["htmlUrl"],
             "https://github.com/example/new-project",

@@ -279,20 +279,11 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_membershipRole(self, project):
         memberships = getattr(project, "request_user_memberships", None)
-        if memberships is None:
-            request = self.context.get("request")
-            if not request or not request.user.is_authenticated:
-                return None
-            memberships = project.members.filter(
-                user=request.user,
-                status=Member.Status.JOINED,
-            )
-
+        if not memberships:
+            return None
         if any(membership.is_leader for membership in memberships):
             return "OWNER"
-        if memberships:
-            return "MEMBER"
-        return None
+        return "MEMBER"
 
     class Meta:
         model = Project

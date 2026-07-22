@@ -155,7 +155,6 @@ class Projects(APIView):
         serializer = ProjectSerializer(
             projects,
             many=True,
-            context={"request": request},
         )
         return Response(
             success(serializer.data, pagination_detail(start, limit, count)),
@@ -197,12 +196,13 @@ class Projects(APIView):
                     tech_stack=data.get("tech_stack", []),
                     used_open_source=data.get("used_open_source", []),
                 )
-                Member.objects.create(
+                leader_member = Member.objects.create(
                     project=project,
                     user=request.user,
                     is_leader=True,
                     status=Member.Status.JOINED,
                 )
+                project.request_user_memberships = [leader_member]
                 if repository_url:
                     repository_name, full_name = parse_repository_identity(
                         repository_url
@@ -224,7 +224,7 @@ class Projects(APIView):
             )
 
         return Response(
-            success(ProjectSerializer(project, context={"request": request}).data),
+            success(ProjectSerializer(project).data),
             status=status.HTTP_201_CREATED,
         )
 
@@ -269,10 +269,12 @@ class ProjectDetail(APIView):
         )
         can_view_members = current_member is not None
         can_edit = can_view_members and current_member.is_leader
+        project.request_user_memberships = (
+            [current_member] if current_member is not None else []
+        )
         serializer = ProjectDetailSerializer(
             project,
             context={
-                "request": request,
                 "can_view_members": can_view_members,
                 "can_edit": can_edit,
             },
