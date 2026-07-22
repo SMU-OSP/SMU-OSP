@@ -193,7 +193,6 @@ class ProjectApiTests(TestCase):
                 techStack=["React", "Django", "MySQL"],
                 usedOpenSource=["Django REST framework", "Chakra UI"],
                 status=Project.Status.FINISHED,
-                maxMembers=8,
             ),
             content_type="application/json",
         )
@@ -201,15 +200,12 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["status"], "SUCCESS")
-        self.assertEqual(body["data"]["name"], "Updated SOSP")
-        self.assertEqual(body["data"]["status"], "FINISHED")
-        self.assertEqual(body["data"]["maxMembers"], 8)
-        self.assertEqual(
-            body["data"]["repository"]["fullName"],
-            "example/updated-project",
-        )
+        self.assertIsNone(body["data"])
 
         self.project.refresh_from_db()
+        self.assertEqual(self.project.name, "Updated SOSP")
+        self.assertEqual(self.project.status, Project.Status.FINISHED)
+        self.assertEqual(self.project.max_members, 5)
         self.assertEqual(self.project.description, "수정된 프로젝트 설명")
         self.assertEqual(self.project.demo_url, "https://updated.example.com")
         self.assertEqual(
@@ -247,7 +243,7 @@ class ProjectApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()["data"]["repository"])
+        self.assertIsNone(response.json()["data"])
         self.assertFalse(Repository.objects.filter(project=self.project).exists())
 
     def test_non_leader_cannot_update_project(self):
@@ -277,25 +273,17 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.name, "SOSP")
 
-    def test_project_update_rejects_max_members_below_joined_count(self):
-        teammate = get_user_model().objects.create_user(
-            username="joined-member",
-            password="password",
-            github_email="joined@sookmyung.ac.kr",
-            name="참여자",
-            student_id=219,
-            major="컴퓨터과학",
-        )
-        Member.objects.create(
-            project=self.project,
-            user=teammate,
-            status=Member.Status.JOINED,
-        )
+    def test_finished_project_cannot_be_updated(self):
+        self.project.status = Project.Status.FINISHED
+        self.project.save(update_fields=["status"])
         self.client.force_login(self.user)
 
         response = self.client.put(
             f"/api/v1/projects/{self.project.pk}",
-            data=self.project_update_payload(maxMembers=1),
+            data=self.project_update_payload(
+                name="변경되면 안 되는 이름",
+                status=Project.Status.FINISHED,
+            ),
             content_type="application/json",
         )
 
@@ -303,8 +291,11 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
         self.assertEqual(
             response.json()["detail"]["message"],
-            "최대 인원은 현재 참여 인원보다 적게 설정할 수 없습니다.",
+            "현재 프로젝트 상태에서는 수정할 수 없습니다.",
         )
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, "SOSP")
+        self.assertEqual(self.project.status, Project.Status.FINISHED)
 
     def test_project_update_rejects_another_project_name(self):
         Project.objects.create(name="Existing Project", description="기존 프로젝트")
@@ -355,7 +346,6 @@ class ProjectApiTests(TestCase):
                 "presentationUrl": "",
                 "techStack": ["React", "Django"],
                 "usedOpenSource": ["Django REST framework"],
-                "maxMembers": 7,
             },
             content_type="application/json",
         )
@@ -370,13 +360,13 @@ class ProjectApiTests(TestCase):
         self.assertNotIn("repositoryId", body["data"])
         self.assertNotIn("repositoryUrl", body["data"])
         self.assertEqual(body["data"]["status"], "ACTIVE")
-        self.assertEqual(body["data"]["maxMembers"], 7)
+        self.assertEqual(body["data"]["maxMembers"], 5)
         self.assertEqual(
             body["data"]["repository"]["htmlUrl"],
             "https://github.com/example/new-project",
         )
         created_project = Project.objects.get(name="New Project")
-        self.assertEqual(created_project.max_members, 7)
+        self.assertEqual(created_project.max_members, 5)
         leader_member = created_project.members.get()
         self.assertEqual(leader_member.user, self.user)
         self.assertEqual(leader_member.status, Member.Status.JOINED)
@@ -614,7 +604,6 @@ class ProjectApiTests(TestCase):
             "techStack": self.project.tech_stack,
             "usedOpenSource": self.project.used_open_source,
             "status": self.project.status,
-            "maxMembers": self.project.max_members,
         }
         payload.update(overrides)
         return payload

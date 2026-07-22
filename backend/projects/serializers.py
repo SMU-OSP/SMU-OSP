@@ -138,17 +138,6 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             "max_length": "최대 20개까지 입력할 수 있습니다.",
         },
     )
-    maxMembers = serializers.IntegerField(
-        source="max_members",
-        required=False,
-        default=5,
-        min_value=1,
-        error_messages={
-            "invalid": "최대 인원은 숫자로 입력해주세요.",
-            "min_value": "최대 인원은 1명 이상이어야 합니다.",
-        },
-    )
-
     class Meta:
         model = Project
         fields = (
@@ -159,7 +148,6 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             "presentationUrl",
             "techStack",
             "usedOpenSource",
-            "maxMembers",
         )
 
     def validate(self, attrs):
@@ -268,32 +256,8 @@ class ProjectUpdateSerializer(ProjectCreateSerializer):
         choices=Project.Status.choices,
         error_messages={"invalid_choice": "프로젝트 상태를 확인해주세요."},
     )
-    maxMembers = serializers.IntegerField(
-        source="max_members",
-        min_value=1,
-        error_messages={
-            "invalid": "최대 인원은 숫자로 입력해주세요.",
-            "min_value": "최대 인원은 1명 이상이어야 합니다.",
-        },
-    )
-
     class Meta(ProjectCreateSerializer.Meta):
         fields = ProjectCreateSerializer.Meta.fields + ("status",)
-
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        joined_member_count = self.instance.members.filter(
-            status=Member.Status.JOINED
-        ).count()
-        if attrs["max_members"] < joined_member_count:
-            raise serializers.ValidationError(
-                {
-                    "maxMembers": (
-                        "최대 인원은 현재 참여 인원보다 적게 설정할 수 없습니다."
-                    )
-                }
-            )
-        return attrs
 
 
 class ProjectSerializer(serializers.ModelSerializer):

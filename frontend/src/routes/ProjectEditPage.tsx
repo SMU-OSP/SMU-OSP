@@ -53,7 +53,6 @@ export default function ProjectEditPage() {
   const [techStack, setTechStack] = useState("");
   const [usedOpenSource, setUsedOpenSource] = useState("");
   const [status, setStatus] = useState<ProjectStatus>("ACTIVE");
-  const [maxMembers, setMaxMembers] = useState("1");
   const [initializedProjectId, setInitializedProjectId] = useState<number>();
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -81,7 +80,6 @@ export default function ProjectEditPage() {
     setTechStack(project.techStack.join(", "));
     setUsedOpenSource(project.usedOpenSource.join(", "));
     setStatus(project.status);
-    setMaxMembers(`${project.maxMembers}`);
     setInitializedProjectId(project.id);
   }, [initializedProjectId, projectResponse]);
 
@@ -160,16 +158,6 @@ export default function ProjectEditPage() {
       return;
     }
 
-    const parsedMaxMembers = Number(maxMembers);
-    if (!Number.isInteger(parsedMaxMembers) || parsedMaxMembers < 1) {
-      setErrorMessage("최대 인원은 1명 이상의 정수로 입력해주세요.");
-      return;
-    }
-    if (parsedMaxMembers < project.memberCount) {
-      setErrorMessage("최대 인원은 현재 참여 인원보다 적을 수 없습니다.");
-      return;
-    }
-
     setErrorMessage("");
     mutation.mutate({
       name: name.trim(),
@@ -180,7 +168,6 @@ export default function ProjectEditPage() {
       techStack: parseCommaList(techStack),
       usedOpenSource: parseCommaList(usedOpenSource),
       status,
-      maxMembers: parsedMaxMembers,
     });
   };
 
@@ -278,32 +265,21 @@ export default function ProjectEditPage() {
               </Field>
             </SimpleGrid>
 
-            <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-              <Field label="프로젝트 상태" required>
-                <NativeSelect.Root disabled={mutation.isPending}>
-                  <NativeSelect.Field
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-                  >
-                    {Object.entries(PROJECT_STATUS_LABEL).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              </Field>
-              <Field label="최대 인원" required>
-                <Input
-                  type="number"
-                  min={Math.max(1, project.memberCount)}
-                  value={maxMembers}
-                  onChange={(e) => setMaxMembers(e.target.value)}
-                  disabled={mutation.isPending}
-                />
-              </Field>
-            </SimpleGrid>
+            <Field label="프로젝트 상태" required>
+              <NativeSelect.Root disabled={mutation.isPending}>
+                <NativeSelect.Field
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+                >
+                  {Object.entries(PROJECT_STATUS_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+            </Field>
 
             {errorMessage && (
               <Box

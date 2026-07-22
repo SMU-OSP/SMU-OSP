@@ -1,7 +1,7 @@
 from urllib.parse import urlparse
 
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -124,7 +124,6 @@ class Projects(APIView):
                     presentation_url=data.get("presentation_url"),
                     tech_stack=data.get("tech_stack", []),
                     used_open_source=data.get("used_open_source", []),
-                    max_members=data["max_members"],
                 )
                 Member.objects.create(
                     project=project,
@@ -208,8 +207,18 @@ class ProjectDetail(APIView):
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
     def put(self, request, pk):
+        leader_members = Member.objects.filter(
+            project=OuterRef("pk"),
+            user_id=request.user.pk if request.user.is_authenticated else -1,
+            status=Member.Status.JOINED,
+            is_leader=True,
+        )
         try:
-            project = Project.objects.select_related("repository").get(pk=pk)
+            project = (
+                Project.objects.select_related("repository")
+                .annotate(is_leader=Exists(leader_members))
+                .get(pk=pk)
+            )
         except Project.DoesNotExist:
             return Response(
                 fail(
@@ -220,12 +229,7 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        is_leader = request.user.is_authenticated and project.members.filter(
-            user=request.user,
-            status=Member.Status.JOINED,
-            is_leader=True,
-        ).exists()
-        if not is_leader:
+        if not project.is_leader:
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -259,12 +263,20 @@ class ProjectDetail(APIView):
                     "presentation_url",
                     "tech_stack",
                     "used_open_source",
-                    "status",
-                    "max_members",
                 ):
                     setattr(project, field, data[field])
+                project.set_status(data["status"])
                 project.save()
                 update_project_repository(project, data.get("repository_url"))
+        except ValueError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    str(error),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError:
             return Response(
                 fail(
@@ -275,15 +287,14 @@ class ProjectDetail(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        project = Project.objects.select_related("repository").get(pk=project.pk)
         return Response(
-            success(ProjectSerializer(project).data),
+            success(None),
             status=status.HTTP_200_OK,
         )
 
 
 def update_project_repository(project, repository_url):
-    repository = Repository.objects.filter(project=project).first()
+    repository = getattr(project, "repository", None)
 
     if not repository_url:
         if repository:

@@ -58,7 +58,6 @@ export interface ProjectInput {
   presentationUrl?: string | null;
   techStack: string[];
   usedOpenSource: string[];
-  maxMembers: number;
 }
 
 export interface ProjectUpdateInput extends ProjectInput {

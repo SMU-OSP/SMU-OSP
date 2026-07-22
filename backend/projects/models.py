@@ -61,6 +61,25 @@ class Project(CommonModel):
     )
     max_members = models.PositiveIntegerField(default=get_default_max_members)
 
+    def set_status(self, status):
+        allowed_transitions = {
+            self.Status.ACTIVE: {
+                self.Status.ACTIVE,
+                self.Status.FINISHED,
+                self.Status.INACTIVE,
+                self.Status.DELETED,
+            },
+            self.Status.INACTIVE: {
+                self.Status.INACTIVE,
+                self.Status.DELETED,
+            },
+            self.Status.FINISHED: set(),
+            self.Status.DELETED: set(),
+        }
+        if status not in allowed_transitions[self.status]:
+            raise ValueError("현재 프로젝트 상태에서는 수정할 수 없습니다.")
+        self.status = status
+
     def __str__(self):
         return self.name
 

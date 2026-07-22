@@ -75,10 +75,10 @@ export async function createProject(
 export async function updateProject(
   id: string,
   input: ProjectUpdateInput
-): Promise<ApiResponse<Project>> {
+): Promise<ApiResponse<null>> {
   try {
     return await updateProjectApi(id, input);
   } catch (e) {
-    return toApiResponse<Project>(e, "프로젝트 수정 중 오류가 발생했습니다.");
+    return toApiResponse<null>(e, "프로젝트 수정 중 오류가 발생했습니다.");
   }
 }
