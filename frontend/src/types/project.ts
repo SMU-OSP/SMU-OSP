@@ -12,9 +12,14 @@ export interface ProjectDetailMember {
   userId?: number | null;
   name: string;
   role: ProjectMemberRole;
-  status: "JOINED";
+  status: ProjectApplicationStatus;
   description?: string | null;
   joinedAt: string;
+}
+
+export interface ProjectMemberUpdateInput {
+  status: "DECLINED" | "JOINED" | "LEFT";
+  description?: string | null;
 }
 
 export interface Repository {
@@ -93,4 +98,15 @@ export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
 export const PROJECT_MEMBER_ROLE_LABEL: Record<ProjectMemberRole, string> = {
   LEADER: "팀장",
   MEMBER: "팀원",
+};
+
+export const PROJECT_APPLICATION_STATUS_LABEL: Record<
+  ProjectApplicationStatus,
+  string
+> = {
+  PENDING: "승인 대기",
+  CANCELED: "신청 취소",
+  DECLINED: "반려",
+  JOINED: "참여 중",
+  LEFT: "참여 종료",
 };

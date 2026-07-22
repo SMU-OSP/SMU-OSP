@@ -1,4 +1,5 @@
-import { Text } from "@chakra-ui/react";
+import { Text, Textarea } from "@chakra-ui/react";
+import { useState } from "react";
 import { Button } from "./ui/button";
 import {
   DialogActionTrigger,
@@ -15,7 +16,7 @@ import {
 interface ProjectLeaveDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: (description: string) => void;
   isPending: boolean;
 }
 
@@ -25,10 +26,15 @@ export default function ProjectLeaveDialog({
   onConfirm,
   isPending,
 }: ProjectLeaveDialogProps) {
+  const [description, setDescription] = useState("");
+
   return (
     <DialogRoot
       open={open}
-      onOpenChange={(event) => setOpen(event.open)}
+      onOpenChange={(event) => {
+        setOpen(event.open);
+        if (!event.open) setDescription("");
+      }}
       placement="center"
       role="alertdialog"
     >
@@ -43,21 +49,30 @@ export default function ProjectLeaveDialog({
           <Text mt={2} fontSize="sm" color="smu.darkGray">
             탈퇴 후 다시 참여하려면 참가 신청과 승인이 필요합니다.
           </Text>
+          <Textarea
+            mt={4}
+            value={description}
+            maxLength={255}
+            placeholder="탈퇴 사유 (선택, 255자 이내)"
+            aria-label="탈퇴 사유"
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          <Text mt={1} fontSize="xs" color="smu.darkGray" textAlign="right">
+            {description.length}/255
+          </Text>
         </DialogBody>
         <DialogFooter>
           <DialogActionTrigger asChild>
             <Button variant="outline">취소</Button>
           </DialogActionTrigger>
-          <DialogActionTrigger asChild>
-            <Button
-              colorPalette="red"
-              loading={isPending}
-              loadingText="탈퇴 중"
-              onClick={onConfirm}
-            >
-              탈퇴
-            </Button>
-          </DialogActionTrigger>
+          <Button
+            colorPalette="red"
+            loading={isPending}
+            loadingText="탈퇴 중"
+            onClick={() => onConfirm(description.trim())}
+          >
+            탈퇴
+          </Button>
         </DialogFooter>
         <DialogCloseTrigger />
       </DialogContent>

@@ -4,8 +4,10 @@ import {
   createProject as createProjectApi,
   deleteProjectMembership,
   getProject as getProjectApi,
+  getProjectMembers,
   getProjectMemberships,
   getProjects,
+  updateProjectMember,
   updateProject as updateProjectApi,
 } from "../api";
 import { ApiResponse, ERROR_CODES, PaginationDetail } from "../types/response";
@@ -13,7 +15,9 @@ import {
   Project,
   ProjectApplicationHistory,
   ProjectDetail,
+  ProjectDetailMember,
   ProjectInput,
+  ProjectMemberUpdateInput,
   ProjectUpdateInput,
 } from "../types/project";
 
@@ -83,6 +87,35 @@ export async function listProjectApplications(): Promise<
   }
 }
 
+export async function listProjectMembers(
+  projectId: number,
+  manage = false
+): Promise<ApiResponse<ProjectDetailMember[]>> {
+  try {
+    return await getProjectMembers(projectId, manage);
+  } catch (e) {
+    return toApiResponse<ProjectDetailMember[]>(
+      e,
+      "프로젝트 멤버 조회 중 오류가 발생했습니다."
+    );
+  }
+}
+
+export async function changeProjectMember(
+  projectId: number,
+  memberId: number,
+  input: ProjectMemberUpdateInput
+): Promise<ApiResponse<ProjectDetailMember>> {
+  try {
+    return await updateProjectMember(projectId, memberId, input);
+  } catch (e) {
+    return toApiResponse<ProjectDetailMember>(
+      e,
+      "프로젝트 멤버 변경 중 오류가 발생했습니다."
+    );
+  }
+}
+
 export async function cancelProjectApplication(
   projectId: number
 ): Promise<ApiResponse<null>> {
@@ -94,10 +127,11 @@ export async function cancelProjectApplication(
 }
 
 export async function leaveProject(
-  projectId: number
+  projectId: number,
+  description?: string
 ): Promise<ApiResponse<null>> {
   try {
-    return await deleteProjectMembership(projectId);
+    return await deleteProjectMembership(projectId, description);
   } catch (e) {
     return toApiResponse<null>(e, "프로젝트 탈퇴 중 오류가 발생했습니다.");
   }
