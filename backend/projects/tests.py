@@ -689,38 +689,6 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["data"][0]["membershipRole"], "MEMBER")
         self.assertEqual(body["detail"]["pagination"]["count"], 1)
 
-    def test_project_list_joined_and_owned_filters_return_all_my_projects(self):
-        joined_project = Project.objects.create(
-            name="Joined Project",
-            description="Joined as a member",
-        )
-        Member.objects.create(
-            project=joined_project,
-            user=self.user,
-            is_leader=False,
-            status=Member.Status.JOINED,
-        )
-        self.client.force_login(self.user)
-
-        response = self.client.get(
-            "/api/v1/projects/?joined=true&owned=true&start=0&limit=10"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
-        roles_by_project_id = {
-            project["id"]: project["membershipRole"] for project in body["data"]
-        }
-        self.assertEqual(
-            roles_by_project_id,
-            {
-                self.project.pk: "OWNER",
-                joined_project.pk: "MEMBER",
-            },
-        )
-        self.assertEqual(body["detail"]["pagination"]["count"], 2)
-        self.assertEqual(body["detail"]["pagination"]["totalPages"], 1)
-
     def test_project_list_rejects_invalid_boolean_filter(self):
         response = self.client.get("/api/v1/projects/?joined=yes")
 

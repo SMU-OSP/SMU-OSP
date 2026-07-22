@@ -1,7 +1,7 @@
 from urllib.parse import urlparse
 
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -119,20 +119,11 @@ class Projects(APIView):
         )
 
         if joined or owned:
-            membership_filter = Q()
-            if joined:
-                membership_filter |= Q(
-                    members__user=request.user,
-                    members__status=Member.Status.JOINED,
-                    members__is_leader=False,
-                )
-            if owned:
-                membership_filter |= Q(
-                    members__user=request.user,
-                    members__status=Member.Status.JOINED,
-                    members__is_leader=True,
-                )
-            projects = projects.filter(membership_filter).distinct()
+            projects = projects.filter(
+                members__user=request.user,
+                members__status=Member.Status.JOINED,
+                members__is_leader=owned,
+            ).distinct()
 
         if request.user.is_authenticated:
             projects = projects.prefetch_related(
