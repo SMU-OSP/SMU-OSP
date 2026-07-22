@@ -94,9 +94,21 @@ function MemberRow({ member }: { member: ProjectDetailMember }) {
       gap={3}
     >
       <Box>
-        <Text fontWeight={"bold"} color={"smu.blue"}>
-          {member.name}
-        </Text>
+        {member.username ? (
+          <RouterLink to={`/@${member.username}`}>
+            <Text
+              fontWeight={"bold"}
+              color={"smu.blue"}
+              textDecoration="underline"
+            >
+              {member.name}
+            </Text>
+          </RouterLink>
+        ) : (
+          <Text fontWeight={"bold"} color={"smu.blue"}>
+            {member.name}
+          </Text>
+        )}
         {member.description && (
           <Text fontSize={"sm"} color={"smu.darkGray"} mt={1}>
             {member.description}
@@ -308,7 +320,7 @@ export default function ProjectDetailPage() {
                   variant="outline"
                   onClick={() => setMemberManagementOpen(true)}
                 >
-                  신청 현황 관리
+                  멤버 관리
                 </Button>
                 <Button
                   bg={"smu.blue"}
@@ -438,32 +450,32 @@ export default function ProjectDetailPage() {
           </VStack>
         </Box>
 
-        <Box
-          p={5}
-          borderWidth={1}
-          borderColor={"smu.gray"}
-          borderRadius={"lg"}
-          bg={"white"}
-        >
-          <HStack
-            justifyContent={"space-between"}
-            alignItems={"flex-start"}
-            mb={3}
-            gap={3}
-            flexWrap={"wrap"}
+        {project.canViewMembers && project.members && (
+          <Box
+            p={5}
+            borderWidth={1}
+            borderColor={"smu.gray"}
+            borderRadius={"lg"}
+            bg={"white"}
           >
-            <Box>
-              <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
-                팀원 현황
-              </Text>
-              <Text fontSize={"sm"} color={"smu.darkGray"}>
-                현재 {project.memberCount}명이 참여 중입니다.
-              </Text>
-            </Box>
-          </HStack>
+            <HStack
+              justifyContent={"space-between"}
+              alignItems={"flex-start"}
+              mb={3}
+              gap={3}
+              flexWrap={"wrap"}
+            >
+              <Box>
+                <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
+                  팀원 현황
+                </Text>
+                <Text fontSize={"sm"} color={"smu.darkGray"}>
+                  현재 {project.memberCount}명이 참여 중입니다.
+                </Text>
+              </Box>
+            </HStack>
 
-          {project.canViewMembers && project.members ? (
-            project.members.length ? (
+            {project.members.length ? (
               <VStack alignItems={"stretch"} gap={2}>
                 {project.members.map((member) => (
                   <MemberRow key={member.id} member={member} />
@@ -473,21 +485,9 @@ export default function ProjectDetailPage() {
               <Text fontSize={"sm"} color={"smu.darkGray"}>
                 참여 중인 팀원이 없습니다.
               </Text>
-            )
-          ) : (
-            <Box
-              p={4}
-              borderWidth={1}
-              borderColor={"smu.gray"}
-              borderRadius={"md"}
-              bg={"#f7f7f7"}
-            >
-              <Text fontSize={"sm"} color={"smu.darkGray"}>
-                프로젝트 구성원만 팀원 이름과 역할을 확인할 수 있습니다.
-              </Text>
-            </Box>
-          )}
-        </Box>
+            )}
+          </Box>
+        )}
 
         <Box
           p={5}

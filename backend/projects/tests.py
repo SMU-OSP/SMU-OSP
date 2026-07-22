@@ -1117,6 +1117,7 @@ class ProjectApiTests(TestCase):
         managed_members = {
             member["id"]: member for member in managed.json()["data"]
         }
+        self.assertEqual(managed_members[joined.pk]["username"], "joined-user")
         self.assertIn(pending.pk, managed_members)
         self.assertIn("description", managed_members[pending.pk])
         self.assertIsNone(managed_members[pending.pk]["description"])

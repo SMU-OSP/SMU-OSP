@@ -30,6 +30,12 @@ interface ProjectMemberManagementDialogProps {
 
 type ManagementTab = Extract<ProjectApplicationStatus, "PENDING" | "JOINED">;
 
+const STATUS_MESSAGE: Partial<Record<ProjectApplicationStatus, string>> = {
+  JOINED: "참가 신청을 승인했습니다.",
+  DECLINED: "참가 신청을 반려했습니다.",
+  LEFT: "멤버를 프로젝트에서 내보냈습니다.",
+};
+
 export default function ProjectMemberManagementDialog({
   open,
   setOpen,
@@ -54,7 +60,7 @@ export default function ProjectMemberManagementDialog({
       description,
     }: {
       memberId: number;
-      status: "DECLINED" | "JOINED";
+      status: "DECLINED" | "JOINED" | "LEFT";
       description?: string;
     }) => changeProjectMember(projectId, memberId, { status, description }),
     onSuccess: async (response, { memberId, status }) => {
@@ -94,15 +100,19 @@ export default function ProjectMemberManagementDialog({
     (member) => member.status === "JOINED"
   ).length;
 
-  const changeStatus = (memberId: number, status: "DECLINED" | "JOINED") => {
-    const action = status === "JOINED" ? "승인" : "반려";
+  const changeStatus = (
+    memberId: number,
+    status: "DECLINED" | "JOINED" | "LEFT"
+  ) => {
+    const action = { JOINED: "승인", DECLINED: "반려", LEFT: "추방" }[status];
     setMessage("");
-    if (window.confirm(`이 참가 신청을 ${action}하시겠습니까?`)) {
+    if (window.confirm(`${status === "LEFT" ? "이 멤버를" : "이 참가 신청을"} ${action}하시겠습니까?`)) {
       const description = descriptions[memberId]?.trim();
       updateMutation.mutate({
         memberId,
         status,
-        description: status === "DECLINED" && description ? description : undefined,
+        description:
+          status !== "JOINED" && description ? description : undefined,
       });
     }
   };
@@ -121,7 +131,7 @@ export default function ProjectMemberManagementDialog({
         borderRadius={{ base: 0, md: "lg" }}
       >
         <DialogHeader>
-          <DialogTitle>신청 현황 관리</DialogTitle>
+          <DialogTitle>멤버 관리</DialogTitle>
           <DialogDescription>
             {projectName}의 참가 신청과 현재 멤버를 확인합니다.
           </DialogDescription>
@@ -221,6 +231,35 @@ export default function ProjectMemberManagementDialog({
                           승인
                         </Button>
                       </HStack>
+                    </VStack>
+                  )}
+                  {member.status === "JOINED" && member.role !== "LEADER" && (
+                    <VStack
+                      alignItems="stretch"
+                      w={{ base: "full", md: "320px" }}
+                      gap={2}
+                    >
+                      <Input
+                        value={descriptions[member.id] || ""}
+                        maxLength={255}
+                        placeholder="추방 사유 (선택, 255자 이내)"
+                        aria-label={`${member.name} 추방 사유`}
+                        onChange={(event) =>
+                          setDescriptions((current) => ({
+                            ...current,
+                            [member.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <Button
+                        alignSelf="flex-end"
+                        variant="outline"
+                        colorPalette="red"
+                        disabled={updateMutation.isPending}
+                        onClick={() => changeStatus(member.id, "LEFT")}
+                      >
+                        추방
+                      </Button>
                     </VStack>
                   )}
                 </HStack>

@@ -10,6 +10,7 @@ export type ProjectApplicationStatus =
 export interface ProjectDetailMember {
   id: number;
   userId?: number | null;
+  username?: string | null;
   name: string;
   role: ProjectMemberRole;
   status: ProjectApplicationStatus;

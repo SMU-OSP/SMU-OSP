@@ -306,6 +306,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source="user_id", allow_null=True)
+    username = serializers.CharField(source="user.username", allow_null=True)
     name = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at")
@@ -315,6 +316,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "userId",
+            "username",
             "name",
             "role",
             "status",
