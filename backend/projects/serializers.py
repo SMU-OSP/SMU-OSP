@@ -348,6 +348,13 @@ class ProjectMemberUpdateSerializer(serializers.Serializer):
         required=False,
     )
 
+    def validate(self, attrs):
+        if attrs["status"] == Member.Status.LEFT and not attrs.get("description"):
+            raise serializers.ValidationError(
+                {"description": "멤버를 내보내려면 사유를 입력해주세요."}
+            )
+        return attrs
+
 
 class ProjectMemberDescriptionSerializer(serializers.Serializer):
     description = serializers.CharField(
