@@ -1,7 +1,11 @@
 import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser } from "./types";
-import { ProjectInput, ProjectUpdateInput } from "./types/project";
+import {
+  ProjectInput,
+  ProjectMemberUpdateInput,
+  ProjectUpdateInput,
+} from "./types/project";
 
 const instance = axios.create({
   baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
@@ -90,6 +94,29 @@ export const getProject = (id: string | number) =>
 export const getProjectMemberships = () =>
   instance.get("projects/members").then((response) => response.data);
 
+export const getProjectMembers = (
+  projectId: string | number,
+  manage = false
+) =>
+  instance
+    .get(`projects/${projectId}/members`, {
+      params: manage ? { manage: true } : undefined,
+    })
+    .then((response) => response.data);
+
+export const updateProjectMember = (
+  projectId: string | number,
+  memberId: number,
+  data: ProjectMemberUpdateInput
+) =>
+  instance
+    .put(`projects/${projectId}/members/${memberId}`, data, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
+
 export const createProjectMembership = (projectId: string | number) =>
   instance
     .post(`projects/${projectId}/members`, null, {
@@ -99,12 +126,16 @@ export const createProjectMembership = (projectId: string | number) =>
     })
     .then((response) => response.data);
 
-export const deleteProjectMembership = (projectId: string | number) =>
+export const deleteProjectMembership = (
+  projectId: string | number,
+  description?: string
+) =>
   instance
     .delete(`projects/${projectId}/members`, {
       headers: {
         "X-CSRFToken": Cookie.get("csrftoken") || "",
       },
+      data: description ? { description } : undefined,
     })
     .then((response) => response.data);
 

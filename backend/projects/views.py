@@ -12,7 +12,10 @@ from .models import Member, Project, Repository
 from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
+    ProjectMemberDescriptionSerializer,
     ProjectMembershipHistorySerializer,
+    ProjectMemberSerializer,
+    ProjectMemberUpdateSerializer,
     ProjectSerializer,
     ProjectUpdateSerializer,
 )
@@ -379,6 +382,57 @@ class ProjectMemberships(APIView):
 
 
 class ProjectMembers(APIView):
+    def get(self, request, pk):
+        if not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            manage = parse_boolean_filter(request.query_params, "manage")
+        except ValueError:
+            return Response(
+                fail(
+                    "INVALID_MEMBER_FILTER",
+                    "manage는 true 또는 false여야 합니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        requester = (
+            Member.objects.filter(
+                project_id=pk,
+                user=request.user,
+                status=Member.Status.JOINED,
+            )
+            .order_by("-is_leader", "-created_at", "-pk")
+            .first()
+        )
+        if not requester or (manage and not requester.is_leader):
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 멤버 조회 권한이 없습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        members = Member.objects.filter(project_id=pk).select_related("user")
+        if not manage:
+            members = members.filter(status=Member.Status.JOINED)
+        members = members.order_by("-is_leader", "-created_at", "-pk")
+        return Response(
+            success(ProjectMemberSerializer(members, many=True).data),
+            status=status.HTTP_200_OK,
+        )
+
     def post(self, request, pk):
         if not request.user.is_authenticated:
             return Response(
@@ -451,6 +505,17 @@ class ProjectMembers(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        serializer = ProjectMemberDescriptionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                fail(
+                    "INVALID_MEMBER_INPUT",
+                    first_serializer_error(serializer.errors),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         with transaction.atomic():
             membership = (
                 Member.objects.select_for_update()
@@ -491,7 +556,97 @@ class ProjectMembers(APIView):
                 )
             membership.save(update_fields=("status", "updated_at"))
 
+            if "description" in serializer.validated_data:
+                membership.description = serializer.validated_data["description"]
+                membership.save(update_fields=("description", "updated_at"))
         return Response(success(None), status=status.HTTP_200_OK)
+
+
+class ProjectMemberDetail(APIView):
+    def put(self, request, pk, member_id):
+        if not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        leader_exists = Member.objects.filter(
+            project_id=pk,
+            user=request.user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        ).exists()
+        if not leader_exists:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = ProjectMemberUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                fail(
+                    "INVALID_MEMBER_INPUT",
+                    first_serializer_error(serializer.errors),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            try:
+                member = (
+                    Member.objects.select_for_update()
+                    .select_related("user")
+                    .get(project_id=pk, pk=member_id, is_leader=False)
+                )
+            except Member.DoesNotExist:
+                return Response(
+                    fail(
+                        "MEMBER_NOT_FOUND",
+                        "해당 프로젝트의 멤버를 찾을 수 없습니다.",
+                        status.HTTP_404_NOT_FOUND,
+                    ),
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            next_status = serializer.validated_data["status"]
+            allowed_transitions = {
+                Member.Status.PENDING: {
+                    Member.Status.DECLINED,
+                    Member.Status.JOINED,
+                },
+                Member.Status.JOINED: {Member.Status.LEFT},
+            }
+            if next_status not in allowed_transitions.get(member.status, set()):
+                return Response(
+                    fail(
+                        "INVALID_MEMBER_STATUS",
+                        f"{member.status} 상태에서는 {next_status}(으)로 변경할 수 없습니다.",
+                        status.HTTP_400_BAD_REQUEST,
+                    ),
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            member.status = next_status
+            update_fields = ["status", "updated_at"]
+            if "description" in serializer.validated_data:
+                member.description = serializer.validated_data["description"]
+                update_fields.append("description")
+            member.save(update_fields=update_fields)
+
+        return Response(
+            success(ProjectMemberSerializer(member).data),
+            status=status.HTTP_200_OK,
+        )
 
 
 def update_project_repository(project, repository_url):

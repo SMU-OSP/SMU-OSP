@@ -331,6 +331,31 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         return "LEADER" if obj.is_leader else "MEMBER"
 
 
+class ProjectMemberUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=(
+            Member.Status.DECLINED,
+            Member.Status.JOINED,
+            Member.Status.LEFT,
+        )
+    )
+    description = serializers.CharField(
+        max_length=255,
+        allow_blank=True,
+        allow_null=True,
+        required=False,
+    )
+
+
+class ProjectMemberDescriptionSerializer(serializers.Serializer):
+    description = serializers.CharField(
+        max_length=255,
+        allow_blank=True,
+        allow_null=True,
+        required=False,
+    )
+
+
 class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
     projectId = serializers.IntegerField(source="project_id")
     projectName = serializers.CharField(source="project.name")

@@ -983,12 +983,15 @@ class ProjectApiTests(TestCase):
         self.client.force_login(self.user)
 
         response = self.client.delete(
-            f"/api/v1/projects/{joined_project.pk}/members"
+            f"/api/v1/projects/{joined_project.pk}/members",
+            data={"description": "개인 일정으로 탈퇴"},
+            content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)
         joined_member.refresh_from_db()
         self.assertEqual(joined_member.status, Member.Status.LEFT)
+        self.assertEqual(joined_member.description, "개인 일정으로 탈퇴")
 
     def test_project_leader_cannot_leave(self):
         self.client.force_login(self.user)
@@ -1057,6 +1060,185 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["status"], "MEMBERSHIP_NOT_FOUND")
+
+    def test_project_members_can_list_joined_members_and_leader_can_manage(self):
+        joined_user = get_user_model().objects.create_user(
+            username="joined-user",
+            password="password",
+            github_email="joined-user@sookmyung.ac.kr",
+            name="참여자",
+            student_id=230,
+            major="컴퓨터과학",
+        )
+        pending_user = get_user_model().objects.create_user(
+            username="pending-user",
+            password="password",
+            github_email="pending-user@sookmyung.ac.kr",
+            name="신청자",
+            student_id=231,
+            major="컴퓨터과학",
+        )
+        joined = Member.objects.create(
+            project=self.project,
+            user=joined_user,
+            status=Member.Status.JOINED,
+        )
+        pending = Member.objects.create(
+            project=self.project,
+            user=pending_user,
+            status=Member.Status.PENDING,
+        )
+
+        self.client.force_login(joined_user)
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}/members")
+        denied = self.client.get(
+            f"/api/v1/projects/{self.project.pk}/members?manage=true"
+        )
+        update_denied = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{pending.pk}",
+            data={"status": Member.Status.JOINED},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {member["id"] for member in response.json()["data"]},
+            {self.member.pk, joined.pk},
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(update_denied.status_code, 403)
+
+        self.client.force_login(self.user)
+        managed = self.client.get(
+            f"/api/v1/projects/{self.project.pk}/members?manage=true"
+        )
+
+        self.assertEqual(managed.status_code, 200)
+        managed_members = {
+            member["id"]: member for member in managed.json()["data"]
+        }
+        self.assertIn(pending.pk, managed_members)
+        self.assertIn("description", managed_members[pending.pk])
+        self.assertIsNone(managed_members[pending.pk]["description"])
+
+    def test_non_member_cannot_list_project_members(self):
+        outsider = get_user_model().objects.create_user(
+            username="outsider",
+            password="password",
+            github_email="outsider@sookmyung.ac.kr",
+            name="외부인",
+            student_id=232,
+            major="컴퓨터과학",
+        )
+        self.client.force_login(outsider)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}/members")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+
+    def test_project_leader_can_apply_confirmed_member_transitions(self):
+        applicant = get_user_model().objects.create_user(
+            username="managed-applicant",
+            password="password",
+            github_email="managed-applicant@sookmyung.ac.kr",
+            name="관리 대상",
+            student_id=233,
+            major="컴퓨터과학",
+        )
+        pending = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        pending_to_decline = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        joined = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(self.user)
+
+        approved = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{pending.pk}",
+            data={"status": Member.Status.JOINED},
+            content_type="application/json",
+        )
+        declined = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{pending_to_decline.pk}",
+            data={
+                "status": Member.Status.DECLINED,
+                "description": "모집 역할 불일치",
+            },
+            content_type="application/json",
+        )
+        left = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{joined.pk}",
+            data={"status": Member.Status.LEFT, "description": "프로젝트 종료"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(approved.status_code, 200)
+        self.assertEqual(approved.json()["data"]["status"], Member.Status.JOINED)
+        self.assertIn("description", approved.json()["data"])
+        self.assertIsNone(approved.json()["data"]["description"])
+        self.assertEqual(declined.status_code, 200)
+        self.assertEqual(
+            declined.json()["data"]["status"], Member.Status.DECLINED
+        )
+        self.assertEqual(
+            declined.json()["data"]["description"],
+            "모집 역할 불일치",
+        )
+        self.assertEqual(left.status_code, 200)
+        joined.refresh_from_db()
+        self.assertEqual(joined.status, Member.Status.LEFT)
+        self.assertEqual(joined.description, "프로젝트 종료")
+
+    def test_project_member_update_rejects_invalid_transition_and_target(self):
+        applicant = get_user_model().objects.create_user(
+            username="declined-applicant",
+            password="password",
+            github_email="declined-applicant@sookmyung.ac.kr",
+            name="반려 대상",
+            student_id=234,
+            major="컴퓨터과학",
+        )
+        declined = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.DECLINED,
+        )
+        other_project = Project.objects.create(
+            name="Other Project",
+            description="다른 프로젝트",
+        )
+        other_member = Member.objects.create(
+            project=other_project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        self.client.force_login(self.user)
+
+        invalid = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{declined.pk}",
+            data={"status": Member.Status.JOINED},
+            content_type="application/json",
+        )
+        missing = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{other_member.pk}",
+            data={"status": Member.Status.JOINED},
+            content_type="application/json",
+        )
+
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(invalid.json()["status"], "INVALID_MEMBER_STATUS")
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.json()["status"], "MEMBER_NOT_FOUND")
 
     def create_projects_for_pagination(self, total):
         self.project.delete()
