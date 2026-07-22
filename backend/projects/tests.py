@@ -590,12 +590,23 @@ class ProjectApiTests(TestCase):
         self.assertTrue(body["detail"]["pagination"]["hasPrevious"])
 
     def test_project_list_invalid_pagination_parameter(self):
-        response = self.client.get("/api/v1/projects/?start=-1&limit=10")
+        invalid_queries = (
+            "start=-1&limit=10",
+            "start=abc&limit=10",
+            "start=0&limit=0",
+        )
+        for query in invalid_queries:
+            with self.subTest(query=query):
+                response = self.client.get(f"/api/v1/projects/?{query}")
 
-        self.assertEqual(response.status_code, 400)
-        body = response.json()
-        self.assertEqual(body["status"], "INVALID_PAGINATION_PARAMETER")
-        self.assertEqual(body["detail"]["httpStatus"], 400)
+                self.assertEqual(response.status_code, 400)
+                body = response.json()
+                self.assertEqual(body["status"], "INVALID_PAGINATION_PARAMETER")
+                self.assertEqual(
+                    body["detail"]["message"],
+                    "start는 0 이상, limit은 1 이상이어야 합니다.",
+                )
+                self.assertEqual(body["detail"]["httpStatus"], 400)
 
     def project_update_payload(self, **overrides):
         payload = {
@@ -716,6 +727,10 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         body = response.json()
         self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
+        self.assertEqual(
+            body["detail"]["message"],
+            "joined는 true 또는 false여야 합니다.",
+        )
         self.assertEqual(body["detail"]["httpStatus"], 400)
 
     def create_projects_for_pagination(self, total):

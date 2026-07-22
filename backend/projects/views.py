@@ -40,11 +40,13 @@ def parse_pagination(query_params):
     try:
         start = int(query_params.get("start", 0))
         limit = int(query_params.get("limit", DEFAULT_PAGE_SIZE))
+        if start < 0 or limit <= 0:
+            raise ValueError
     except ValueError:
-        return None, None
-
-    if start < 0 or limit <= 0:
-        return None, None
+        raise ValueError(
+            "INVALID_PAGINATION_PARAMETER",
+            "start는 0 이상, limit은 1 이상이어야 합니다.",
+        ) from None
 
     return start, limit
 
@@ -77,30 +79,24 @@ def parse_boolean_filter(query_params, name):
     if normalized in FALSE_QUERY_VALUES:
         return False
 
-    raise ValueError(name)
+    raise ValueError(
+        "INVALID_PROJECT_FILTER",
+        f"{name}는 true 또는 false여야 합니다.",
+    )
 
 
 class Projects(APIView):
     def get(self, request):
-        start, limit = parse_pagination(request.query_params)
-        if start is None:
-            return Response(
-                fail(
-                    "INVALID_PAGINATION_PARAMETER",
-                    "start는 0 이상, limit은 1 이상이어야 합니다.",
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
+            start, limit = parse_pagination(request.query_params)
             joined = parse_boolean_filter(request.query_params, "joined")
             owned = parse_boolean_filter(request.query_params, "owned")
         except ValueError as error:
+            error_code, message = error.args
             return Response(
                 fail(
-                    "INVALID_PROJECT_FILTER",
-                    f"{error.args[0]}는 true 또는 false여야 합니다.",
+                    error_code,
+                    message,
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
