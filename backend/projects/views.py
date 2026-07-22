@@ -260,7 +260,6 @@ class ProjectDetail(APIView):
             list(
                 project.members.filter(
                     user=request.user,
-                    is_leader=False,
                 ).order_by("-created_at", "-pk")
             )
             if request.user.is_authenticated
@@ -440,7 +439,6 @@ class ProjectMembers(APIView):
         memberships = Member.objects.filter(
             project=project,
             user=request.user,
-            is_leader=False,
         )
         if memberships.filter(
             status__in=(Member.Status.PENDING, Member.Status.JOINED)

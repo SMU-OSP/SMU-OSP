@@ -152,6 +152,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(data["membershipRole"], "OWNER")
         self.assertTrue(data["canViewMembers"])
         self.assertTrue(data["canEdit"])
+        self.assertFalse(data["canApply"])
         self.assertEqual(
             [(member["name"], member["role"]) for member in data["members"]],
             [("권지연", "LEADER"), ("임꺽정", "MEMBER")],
@@ -756,6 +757,18 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.json()["status"], "MEMBERSHIP_ALREADY_EXISTS")
         self.assertEqual(
             Member.objects.filter(project=self.project, user=applicant).count(),
+            1,
+        )
+
+    def test_project_leader_cannot_apply_to_own_project(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(f"/api/v1/projects/{self.project.pk}/members")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "MEMBERSHIP_ALREADY_EXISTS")
+        self.assertEqual(
+            Member.objects.filter(project=self.project, user=self.user).count(),
             1,
         )
 
