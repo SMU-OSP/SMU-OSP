@@ -20,6 +20,7 @@ from .serializers import (
     ProjectSerializer,
     ProjectUpdateSerializer,
 )
+from .tasks import enqueue_repository_refresh
 
 DEFAULT_PAGE_SIZE = 10
 TRUE_QUERY_VALUES = {"1", "true"}
@@ -200,12 +201,13 @@ class Projects(APIView):
                     repository_name, full_name = parse_repository_identity(
                         repository_url
                     )
-                    Repository.objects.create(
+                    repository = Repository.objects.create(
                         project=project,
                         name=repository_name,
                         full_name=full_name,
                         html_url=repository_url,
                     )
+                    enqueue_repository_refresh(repository.pk)
         except IntegrityError:
             return Response(
                 fail(
@@ -735,12 +737,13 @@ def update_project_repository(project, repository_url):
 
     repository_name, full_name = parse_repository_identity(repository_url)
     if not repository:
-        Repository.objects.create(
+        repository = Repository.objects.create(
             project=project,
             name=repository_name,
             full_name=full_name,
             html_url=repository_url,
         )
+        enqueue_repository_refresh(repository.pk)
         return
 
     repository.github_id = None
@@ -757,6 +760,7 @@ def update_project_repository(project, repository_url):
     repository.refresh_status = None
     repository.last_error_code = None
     repository.save()
+    enqueue_repository_refresh(repository.pk)
 
 
 def first_serializer_error(errors):

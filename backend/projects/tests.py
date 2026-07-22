@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection
@@ -8,6 +9,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from .models import Member, Project, Repository
+from .tasks import refresh_repository
 
 
 class ProjectApiTests(TestCase):
@@ -504,6 +506,119 @@ class ProjectApiTests(TestCase):
         self.assertEqual(project.max_members, 5)
         self.assertFalse(Repository.objects.filter(project=project).exists())
         self.assertTrue(project.members.get().is_leader)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_create_project_with_repository_enqueues_refresh_after_commit(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/projects/",
+                data={
+                    "name": "Repository Refresh Project",
+                    "description": "Repository 갱신 작업을 예약합니다.",
+                    "repositoryUrl": "https://github.com/example/refresh-project",
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        repository = Repository.objects.get(
+            project__name="Repository Refresh Project"
+        )
+        refresh_delay.assert_called_once_with(repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_project_repository_url_change_enqueues_refresh_after_commit(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(
+                    repositoryUrl="https://github.com/example/changed-project"
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        refresh_delay.assert_called_once_with(self.repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_unchanged_project_repository_url_does_not_enqueue_refresh(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        refresh_delay.assert_not_called()
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_task_updates_cached_metadata(self, request_get):
+        response = request_get.return_value
+        response.status_code = 200
+        response.json.return_value = {
+            "id": 2026,
+            "name": "SMU-OSP",
+            "full_name": "SMU-OSP/SMU-OSP",
+            "description": "🚀 최신 설명 ✨",
+            "stargazers_count": 12,
+            "forks_count": 3,
+            "language": "Python",
+            "topics": ["django", "celery"],
+            "html_url": "https://github.com/SMU-OSP/SMU-OSP",
+            "updated_at": "2026-07-22T00:00:00Z",
+            "private": False,
+        }
+
+        result = refresh_repository(self.repository.pk)
+
+        self.assertTrue(result)
+        self.repository.refresh_from_db()
+        self.assertEqual(self.repository.github_id, 2026)
+        self.assertEqual(self.repository.full_name, "SMU-OSP/SMU-OSP")
+        self.assertEqual(self.repository.description, "최신 설명 ✨")
+        self.assertEqual(self.repository.stars, 12)
+        self.assertEqual(self.repository.forks, 3)
+        self.assertEqual(self.repository.topics, ["django", "celery"])
+        self.assertIsNotNone(self.repository.fetched_at)
+        self.assertEqual(
+            self.repository.refresh_status,
+            Repository.RefreshStatus.SUCCESS,
+        )
+        self.assertIsNone(self.repository.last_error_code)
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_task_preserves_cache_on_failure(self, request_get):
+        request_get.side_effect = requests.RequestException
+        original_stars = self.repository.stars
+        original_fetched_at = self.repository.fetched_at
+
+        result = refresh_repository(self.repository.pk)
+
+        self.assertFalse(result)
+        self.repository.refresh_from_db()
+        self.assertEqual(self.repository.stars, original_stars)
+        self.assertEqual(self.repository.fetched_at, original_fetched_at)
+        self.assertEqual(
+            self.repository.refresh_status,
+            Repository.RefreshStatus.FAILED,
+        )
+        self.assertEqual(self.repository.last_error_code, "GITHUB_API_FAILED")
 
     def test_create_project_requires_login(self):
         response = self.client.post(
