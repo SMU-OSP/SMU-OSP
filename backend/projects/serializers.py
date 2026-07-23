@@ -370,6 +370,7 @@ class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
     projectName = serializers.CharField(source="project.name")
     projectStatus = serializers.CharField(source="project.status")
     userId = serializers.IntegerField(source="user_id", allow_null=True)
+    joinedAt = serializers.DateTimeField(source="joined_at", allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at")
     updatedAt = serializers.DateTimeField(source="updated_at")
 
@@ -383,6 +384,7 @@ class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
             "userId",
             "status",
             "description",
+            "joinedAt",
             "createdAt",
             "updatedAt",
         )

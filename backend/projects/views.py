@@ -535,7 +535,10 @@ class ProjectMembers(APIView):
                 )
 
             try:
-                membership.transition_to()
+                membership.transition_to(
+                    description=serializer.validated_data.get("description"),
+                    update_description="description" in serializer.validated_data,
+                )
             except ValidationError as error:
                 response_status = (
                     "PERMISSION_DENIED"
@@ -556,9 +559,6 @@ class ProjectMembers(APIView):
                 )
             membership.save(update_fields=("status", "updated_at"))
 
-            if "description" in serializer.validated_data:
-                membership.description = serializer.validated_data["description"]
-                membership.save(update_fields=("description", "updated_at"))
         return Response(success(None), status=status.HTTP_200_OK)
 
 
@@ -604,6 +604,7 @@ class ProjectMemberDetail(APIView):
         next_status = serializer.validated_data["status"]
         try:
             with transaction.atomic():
+                project = Project.objects.select_for_update().get(pk=pk)
                 member = (
                     Member.objects.select_for_update()
                     .select_related("user")

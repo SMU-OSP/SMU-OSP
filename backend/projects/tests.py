@@ -1211,6 +1211,39 @@ class ProjectApiTests(TestCase):
         self.assertEqual(joined.description, "프로젝트 종료")
         self.assertEqual(joined_without_reason.status, Member.Status.JOINED)
 
+    def test_project_member_approval_rejects_full_project(self):
+        applicant = get_user_model().objects.create_user(
+            username="capacity-managed-applicant",
+            password="password",
+            github_email="capacity-managed-applicant@sookmyung.ac.kr",
+            name="정원 초과 승인 대상",
+            student_id=235,
+            major="컴퓨터과학",
+        )
+        pending = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        for _ in range(self.project.max_members - 1):
+            Member.objects.create(
+                project=self.project,
+                status=Member.Status.JOINED,
+            )
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{pending.pk}",
+            data={"status": Member.Status.JOINED},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "PROJECT_CAPACITY_REACHED")
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, Member.Status.PENDING)
+        self.assertIsNone(pending.joined_at)
+
     def test_project_member_update_rejects_invalid_transition_and_target(self):
         applicant = get_user_model().objects.create_user(
             username="declined-applicant",
@@ -1246,11 +1279,21 @@ class ProjectApiTests(TestCase):
             data={"status": Member.Status.JOINED},
             content_type="application/json",
         )
+        leader = self.client.put(
+            f"/api/v1/projects/{self.project.pk}/members/{self.member.pk}",
+            data={
+                "status": Member.Status.LEFT,
+                "description": "팀장 내보내기 시도",
+            },
+            content_type="application/json",
+        )
 
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(invalid.json()["status"], "INVALID_MEMBER_STATUS")
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(missing.json()["status"], "MEMBER_NOT_FOUND")
+        self.assertEqual(leader.status_code, 404)
+        self.assertEqual(leader.json()["status"], "MEMBER_NOT_FOUND")
 
     def create_projects_for_pagination(self, total):
         self.project.delete()

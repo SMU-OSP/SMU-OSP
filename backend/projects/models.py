@@ -2,7 +2,9 @@ from typing import Final
 
 from django.core.exceptions import ValidationError
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from common.models import CommonModel
 
@@ -151,6 +153,56 @@ class Member(CommonModel):
         default=Status.PENDING,
     )
     description = models.CharField(max_length=255, null=True, blank=True)
+    joined_at = models.DateTimeField(null=True, blank=True)
+
+    def transition_to(
+        self,
+        next_status=None,
+        *,
+        description=None,
+        update_description=False,
+    ):
+        allowed_transitions = {
+            self.Status.PENDING: {
+                self.Status.CANCELED,
+                self.Status.DECLINED,
+                self.Status.JOINED,
+            },
+            self.Status.JOINED: {self.Status.LEFT},
+        }
+        if next_status is None:
+            next_status = {
+                self.Status.PENDING: self.Status.CANCELED,
+                self.Status.JOINED: self.Status.LEFT,
+            }.get(self.status)
+        if next_status not in allowed_transitions.get(self.status, set()):
+            raise ValidationError(
+                f"{self.status} 상태에서는 {next_status}(으)로 변경할 수 없습니다.",
+                code="invalid_member_status",
+            )
+        if self.is_leader and next_status == self.Status.LEFT:
+            raise ValidationError(
+                "프로젝트 팀장은 탈퇴하거나 내보낼 수 없습니다.",
+                code="leader_protected",
+            )
+        if (
+            next_status == self.Status.JOINED
+            and not self.project.has_available_member_slot()
+        ):
+            raise ValidationError(
+                "프로젝트 정원이 가득 차 신청을 승인할 수 없습니다.",
+                code="project_capacity_reached",
+            )
+
+        self.status = next_status
+        update_fields = ["status", "updated_at"]
+        if next_status == self.Status.JOINED:
+            self.joined_at = timezone.now()
+            update_fields.append("joined_at")
+        if update_description:
+            self.description = description
+            update_fields.append("description")
+        self.save(update_fields=update_fields)
 
     class Meta:
         constraints = [
