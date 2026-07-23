@@ -401,13 +401,14 @@ class ProjectMembers(APIView):
             )
 
         with transaction.atomic():
-            memberships = list(
+            membership = (
                 Member.objects.select_for_update()
                 .filter(project_id=pk, user=request.user)
-                .order_by("-created_at", "-pk")
+                .order_by("-is_leader", "-created_at", "-pk")
+                .first()
             )
 
-            if not memberships:
+            if membership is None:
                 return Response(
                     fail(
                         "MEMBERSHIP_NOT_FOUND",
@@ -417,21 +418,6 @@ class ProjectMembers(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            if any(
-                membership.is_leader
-                and membership.status == Member.Status.JOINED
-                for membership in memberships
-            ):
-                return Response(
-                    fail(
-                        "PERMISSION_DENIED",
-                        "프로젝트 팀장은 탈퇴할 수 없습니다.",
-                        status.HTTP_403_FORBIDDEN,
-                    ),
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            membership = memberships[0]
             try:
                 membership.transition_to()
             except ValidationError as error:
@@ -452,6 +438,7 @@ class ProjectMembers(APIView):
                     if response_status == "PERMISSION_DENIED"
                     else status.HTTP_400_BAD_REQUEST,
                 )
+            membership.save(update_fields=("status", "updated_at"))
 
         return Response(success(None), status=status.HTTP_200_OK)
 

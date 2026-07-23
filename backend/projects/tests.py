@@ -770,7 +770,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"], [])
 
-    def test_member_transition_to_canceled_is_managed_by_model(self):
+    def test_member_transition_to_changes_status_without_saving(self):
         membership = Member.objects.create(
             project=self.project,
             user=self.user,
@@ -779,8 +779,9 @@ class ProjectApiTests(TestCase):
 
         membership.transition_to(Member.Status.CANCELED)
 
-        membership.refresh_from_db()
         self.assertEqual(membership.status, Member.Status.CANCELED)
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Member.Status.PENDING)
 
     def test_member_transition_to_rejects_invalid_status(self):
         membership = Member.objects.create(

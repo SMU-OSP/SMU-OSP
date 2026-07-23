@@ -152,7 +152,6 @@ class Member(CommonModel):
             )
 
         self.status = next_status
-        self.save(update_fields=("status", "updated_at"))
 
     def __str__(self):
         return f"{self.project} - {self.user_id or 'unknown'}"
