@@ -160,6 +160,15 @@ export const updateProject = (
     })
     .then((response) => response.data);
 
+export const deleteProject = (id: string | number) =>
+  instance
+    .delete(`projects/${id}`, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
+
 export const checkUserExist = (code: string) =>
   instance
     .post(

@@ -2,6 +2,7 @@ import axios from "axios";
 import {
   createProjectMembership,
   createProject as createProjectApi,
+  deleteProject as deleteProjectApi,
   deleteProjectMembership,
   getProject as getProjectApi,
   getProjectMembers,
@@ -191,5 +192,28 @@ export async function updateProject(
     return await updateProjectApi(id, input);
   } catch (e) {
     return toApiResponse<null>(e, "프로젝트 수정 중 오류가 발생했습니다.");
+  }
+}
+
+export async function finishProject(
+  project: ProjectDetail
+): Promise<ApiResponse<null>> {
+  return updateProject(String(project.id), {
+    name: project.name,
+    description: project.description,
+    repositoryUrl: project.repository?.htmlUrl || null,
+    demoUrl: project.demoUrl || null,
+    presentationUrl: project.presentationUrl || null,
+    techStack: project.techStack,
+    usedOpenSource: project.usedOpenSource,
+    status: "FINISHED",
+  });
+}
+
+export async function deleteProject(id: number): Promise<ApiResponse<null>> {
+  try {
+    return await deleteProjectApi(id);
+  } catch (e) {
+    return toApiResponse<null>(e, "프로젝트 삭제 중 오류가 발생했습니다.");
   }
 }

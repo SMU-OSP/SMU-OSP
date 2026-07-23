@@ -253,9 +253,10 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
 class ProjectUpdateSerializer(ProjectCreateSerializer):
     status = serializers.ChoiceField(
-        choices=Project.Status.choices,
+        choices=(Project.Status.ACTIVE, Project.Status.FINISHED),
         error_messages={"invalid_choice": "프로젝트 상태를 확인해주세요."},
     )
+
     class Meta(ProjectCreateSerializer.Meta):
         fields = ProjectCreateSerializer.Meta.fields + ("status",)
 

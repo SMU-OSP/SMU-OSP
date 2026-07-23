@@ -278,6 +278,87 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.name, "SOSP")
 
+    def test_project_completion_cancels_pending_memberships(self):
+        pending = Member.objects.create(
+            project=self.project,
+            status=Member.Status.PENDING,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(status=Project.Status.FINISHED),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, Member.Status.CANCELED)
+
+    def test_project_leader_can_soft_delete_project(self):
+        pending = Member.objects.create(
+            project=self.project,
+            status=Member.Status.PENDING,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.delete(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["data"])
+        self.project.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.DELETED)
+        self.assertEqual(pending.status, Member.Status.CANCELED)
+        self.assertTrue(Repository.objects.filter(project=self.project).exists())
+        self.assertTrue(Member.objects.filter(project=self.project).exists())
+
+        restore_response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(status=Project.Status.ACTIVE),
+            content_type="application/json",
+        )
+        self.assertEqual(restore_response.status_code, 400)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.DELETED)
+
+    def test_non_leader_cannot_delete_project(self):
+        teammate = get_user_model().objects.create_user(
+            username="delete-nonleader",
+            password="password",
+            github_email="delete-nonleader@sookmyung.ac.kr",
+            name="삭제 권한 없는 팀원",
+            student_id=219,
+            major="컴퓨터과학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=teammate,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(teammate)
+
+        response = self.client.delete(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.ACTIVE)
+
+    def test_project_update_rejects_deleted_status(self):
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(status=Project.Status.DELETED),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.ACTIVE)
+
     def test_finished_project_cannot_be_updated(self):
         self.project.status = Project.Status.FINISHED
         self.project.save(update_fields=["status"])

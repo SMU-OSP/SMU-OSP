@@ -88,7 +88,7 @@ export interface ProjectInput {
 }
 
 export interface ProjectUpdateInput extends ProjectInput {
-  status: ProjectStatus;
+  status: "ACTIVE" | "FINISHED";
 }
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
