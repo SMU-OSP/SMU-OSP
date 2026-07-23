@@ -293,6 +293,7 @@ export default function ProjectDetailPage() {
   );
   const [leaveMessage, setLeaveMessage] = useState("");
   const [applicationMessage, setApplicationMessage] = useState("");
+  const [projectActionMessage, setProjectActionMessage] = useState("");
 
   const projectQuery = useQuery({
     queryKey: ["project", id],
@@ -378,6 +379,41 @@ export default function ProjectDetailPage() {
         }),
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
       ]);
+    },
+  });
+
+  const finishProjectMutation = useMutation({
+    mutationFn: () => finishProject(managedProject!),
+    onSuccess: async (response) => {
+      if (response.status !== "SUCCESS") {
+        setProjectActionMessage(response.detail.message);
+        return;
+      }
+      setProjectActionMessage("프로젝트를 완료했습니다.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["project", id] }),
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-application-history"],
+        }),
+      ]);
+    },
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: () => deleteProject(managedProject!.id),
+    onSuccess: async (response) => {
+      if (response.status !== "SUCCESS") {
+        setProjectActionMessage(response.detail.message);
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-application-history"],
+        }),
+      ]);
+      navigate("/projects");
     },
   });
 
@@ -496,15 +532,67 @@ export default function ProjectDetailPage() {
               </Button>
             )}
             {project.canEdit && (
-              <Button
-                bg={"smu.blue"}
-                onClick={() => navigate(`/projects/${project.id}/edit`)}
-              >
-                프로젝트 수정
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  disabled={finishProjectMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("프로젝트를 완료하시겠습니까?")) {
+                      setProjectActionMessage("");
+                      finishProjectMutation.mutate();
+                    }
+                  }}
+                >
+                  프로젝트 완료
+                </Button>
+                <Button
+                  colorPalette="red"
+                  variant="outline"
+                  disabled={deleteProjectMutation.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "프로젝트를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
+                      )
+                    ) {
+                      setProjectActionMessage("");
+                      deleteProjectMutation.mutate();
+                    }
+                  }}
+                >
+                  프로젝트 삭제
+                </Button>
+                <Button
+                  bg={"smu.blue"}
+                  onClick={() => navigate(`/projects/${project.id}/edit`)}
+                >
+                  프로젝트 수정
+                </Button>
+              </>
             )}
           </HStack>
         </HStack>
+
+        {projectActionMessage && (
+          <Box
+            role={
+              finishProjectMutation.data?.status === "SUCCESS"
+                ? "status"
+                : "alert"
+            }
+            p={3}
+            borderWidth={1}
+            borderColor={
+              finishProjectMutation.data?.status === "SUCCESS"
+                ? "smu.lightBlue"
+                : "smu.orange"
+            }
+            borderRadius="md"
+            bg="white"
+          >
+            <Text fontSize="sm">{projectActionMessage}</Text>
+          </Box>
+        )}
 
         {leaveMessage && (
           <Box

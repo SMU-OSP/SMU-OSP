@@ -106,11 +106,9 @@ class Project(CommonModel):
             self.Status.ACTIVE: {
                 self.Status.ACTIVE,
                 self.Status.FINISHED,
-                self.Status.INACTIVE,
                 self.Status.DELETED,
             },
             self.Status.INACTIVE: {
-                self.Status.INACTIVE,
                 self.Status.DELETED,
             },
             self.Status.FINISHED: set(),
@@ -119,6 +117,11 @@ class Project(CommonModel):
         if status not in allowed_transitions[self.status]:
             raise ValueError("현재 프로젝트 상태에서는 수정할 수 없습니다.")
         self.status = status
+        if status in {self.Status.FINISHED, self.Status.DELETED}:
+            self.members.filter(status=Member.Status.PENDING).update(
+                status=Member.Status.CANCELED,
+                updated_at=timezone.now(),
+            )
 
     def __str__(self):
         return self.name

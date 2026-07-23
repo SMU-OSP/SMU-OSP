@@ -260,7 +260,11 @@ class ProjectDetail(APIView):
             None,
         )
         can_view_members = current_member is not None
-        can_edit = can_view_members and current_member.is_leader
+        can_edit = (
+            can_view_members
+            and current_member.is_leader
+            and project.status == Project.Status.ACTIVE
+        )
         project.request_user_memberships = (
             [current_member] if current_member is not None else []
         )
@@ -323,6 +327,11 @@ class ProjectDetail(APIView):
         data = serializer.validated_data
         try:
             with transaction.atomic():
+                project = (
+                    Project.objects.select_for_update()
+                    .select_related("repository")
+                    .get(pk=pk)
+                )
                 for field in (
                     "name",
                     "description",
@@ -358,6 +367,55 @@ class ProjectDetail(APIView):
             success(None),
             status=status.HTTP_200_OK,
         )
+
+    def delete(self, request, pk):
+        leader_members = Member.objects.filter(
+            project=OuterRef("pk"),
+            user_id=request.user.pk if request.user.is_authenticated else -1,
+            status=Member.Status.JOINED,
+            is_leader=True,
+        )
+        try:
+            project = (
+                Project.objects.annotate(is_leader=Exists(leader_members))
+                .get(pk=pk)
+            )
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not project.is_leader:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 팀장만 삭제할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            with transaction.atomic():
+                project = Project.objects.select_for_update().get(pk=pk)
+                project.set_status(Project.Status.DELETED)
+                project.save(update_fields=("status", "updated_at"))
+        except ValueError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_STATUS",
+                    str(error),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(success(None), status=status.HTTP_200_OK)
 
 
 class ProjectMemberships(APIView):
