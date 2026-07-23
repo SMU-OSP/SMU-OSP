@@ -1,6 +1,5 @@
 from typing import Final
 
-from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -195,14 +194,10 @@ class Member(CommonModel):
             )
 
         self.status = next_status
-        update_fields = ["status", "updated_at"]
         if next_status == self.Status.JOINED:
             self.joined_at = timezone.now()
-            update_fields.append("joined_at")
         if update_description:
             self.description = description
-            update_fields.append("description")
-        self.save(update_fields=update_fields)
 
     class Meta:
         constraints = [

@@ -557,7 +557,9 @@ class ProjectMembers(APIView):
                     if response_status == "PERMISSION_DENIED"
                     else status.HTTP_400_BAD_REQUEST,
                 )
-            membership.save(update_fields=("status", "updated_at"))
+            membership.save(
+                update_fields=("status", "description", "joined_at", "updated_at")
+            )
 
         return Response(success(None), status=status.HTTP_200_OK)
 
@@ -611,12 +613,11 @@ class ProjectMemberDetail(APIView):
                     .get(project_id=pk, pk=member_id, is_leader=False)
                 )
                 member.transition_to(next_status)
-
-                update_fields = ["status", "updated_at"]
                 if "description" in serializer.validated_data:
                     member.description = serializer.validated_data["description"]
-                    update_fields.append("description")
-                member.save(update_fields=update_fields)
+                member.save(
+                    update_fields=("status", "description", "joined_at", "updated_at")
+                )
         except Member.DoesNotExist:
             return Response(
                 fail(
