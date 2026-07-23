@@ -283,6 +283,7 @@ class ProjectDetail(APIView):
                     request.user.is_authenticated
                     and project.status == Project.Status.ACTIVE
                     and not has_active_application
+                    and project.has_available_member_slot()
                     and len(application_memberships) < 6
                 ),
                 "application_status": (
@@ -457,6 +458,16 @@ class ProjectMembers(APIView):
                 fail(
                     "MEMBERSHIP_REAPPLICATION_LIMIT",
                     "재신청 가능 횟수 5회를 모두 사용했습니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not project.has_available_member_slot():
+            return Response(
+                fail(
+                    "PROJECT_CAPACITY_REACHED",
+                    "프로젝트 정원이 가득 차 참가 신청할 수 없습니다.",
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
