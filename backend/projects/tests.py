@@ -760,6 +760,37 @@ class ProjectApiTests(TestCase):
             1,
         )
 
+    def test_project_membership_application_rejects_full_project(self):
+        applicant = get_user_model().objects.create_user(
+            username="capacity-applicant",
+            password="password",
+            github_email="capacity-applicant@sookmyung.ac.kr",
+            name="정원 초과 신청자",
+            student_id=225,
+            major="컴퓨터과학",
+        )
+        for _ in range(self.project.max_members - 1):
+            Member.objects.create(
+                project=self.project,
+                status=Member.Status.JOINED,
+            )
+        self.client.force_login(applicant)
+
+        detail_response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+        application_response = self.client.post(
+            f"/api/v1/projects/{self.project.pk}/members"
+        )
+
+        self.assertFalse(detail_response.json()["data"]["canApply"])
+        self.assertEqual(application_response.status_code, 400)
+        self.assertEqual(
+            application_response.json()["status"],
+            "PROJECT_CAPACITY_REACHED",
+        )
+        self.assertFalse(
+            Member.objects.filter(project=self.project, user=applicant).exists()
+        )
+
     def test_project_leader_cannot_apply_to_own_project(self):
         self.client.force_login(self.user)
 

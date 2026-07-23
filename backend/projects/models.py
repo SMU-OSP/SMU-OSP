@@ -62,6 +62,15 @@ class Project(CommonModel):
     )
     max_members = models.PositiveIntegerField(default=get_default_max_members)
 
+    def has_available_member_slot(self):
+        joined_members = getattr(self, "joined_members", None)
+        joined_count = (
+            len(joined_members)
+            if joined_members is not None
+            else self.members.filter(status=Member.Status.JOINED).count()
+        )
+        return joined_count < self.max_members
+
     def set_status(self, status):
         allowed_transitions = {
             self.Status.ACTIVE: {
