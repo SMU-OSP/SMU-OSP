@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -768,6 +769,28 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"], [])
+
+    def test_member_transition_to_canceled_is_managed_by_model(self):
+        membership = Member.objects.create(
+            project=self.project,
+            user=self.user,
+            status=Member.Status.PENDING,
+        )
+
+        membership.transition_to(Member.Status.CANCELED)
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.status, Member.Status.CANCELED)
+
+    def test_member_transition_to_rejects_invalid_status(self):
+        membership = Member.objects.create(
+            project=self.project,
+            user=self.user,
+            status=Member.Status.DECLINED,
+        )
+
+        with self.assertRaises(ValidationError):
+            membership.transition_to(Member.Status.LEFT)
 
     def test_pending_project_membership_can_be_canceled(self):
         application_project = Project.objects.create(

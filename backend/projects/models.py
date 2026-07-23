@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db import models
 
@@ -130,6 +131,28 @@ class Member(CommonModel):
                 name="user_member_status_idx",
             ),
         ]
+
+    def transition_to(self, next_status=None):
+        allowed_transitions = {
+            self.Status.PENDING: self.Status.CANCELED,
+            self.Status.JOINED: self.Status.LEFT,
+        }
+        expected_status = allowed_transitions.get(self.status)
+        if next_status is None:
+            next_status = expected_status
+        if expected_status is None or expected_status != next_status:
+            raise ValidationError(
+                "현재 상태에서는 신청 취소 또는 프로젝트 탈퇴를 할 수 없습니다.",
+                code="invalid_member_status",
+            )
+        if self.is_leader and self.status == self.Status.JOINED:
+            raise ValidationError(
+                "프로젝트 팀장은 탈퇴할 수 없습니다.",
+                code="leader_protected",
+            )
+
+        self.status = next_status
+        self.save(update_fields=("status", "updated_at"))
 
     def __str__(self):
         return f"{self.project} - {self.user_id or 'unknown'}"

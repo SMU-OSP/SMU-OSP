@@ -1,5 +1,6 @@
 from urllib.parse import urlparse
 
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import status
@@ -431,22 +432,26 @@ class ProjectMembers(APIView):
                 )
 
             membership = memberships[0]
-            next_status = {
-                Member.Status.PENDING: Member.Status.CANCELED,
-                Member.Status.JOINED: Member.Status.LEFT,
-            }.get(membership.status)
-            if next_status is None:
+            try:
+                membership.transition_to()
+            except ValidationError as error:
+                response_status = (
+                    "PERMISSION_DENIED"
+                    if error.code == "leader_protected"
+                    else "INVALID_MEMBER_STATUS"
+                )
                 return Response(
                     fail(
-                        "INVALID_MEMBER_STATUS",
-                        "현재 상태에서는 신청 취소 또는 프로젝트 탈퇴를 할 수 없습니다.",
-                        status.HTTP_400_BAD_REQUEST,
+                        response_status,
+                        error.message,
+                        status.HTTP_403_FORBIDDEN
+                        if response_status == "PERMISSION_DENIED"
+                        else status.HTTP_400_BAD_REQUEST,
                     ),
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_403_FORBIDDEN
+                    if response_status == "PERMISSION_DENIED"
+                    else status.HTTP_400_BAD_REQUEST,
                 )
-
-            membership.status = next_status
-            membership.save(update_fields=("status", "updated_at"))
 
         return Response(success(None), status=status.HTTP_200_OK)
 
