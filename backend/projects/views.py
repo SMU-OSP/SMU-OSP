@@ -601,41 +601,39 @@ class ProjectMemberDetail(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        with transaction.atomic():
-            try:
+        next_status = serializer.validated_data["status"]
+        try:
+            with transaction.atomic():
                 member = (
                     Member.objects.select_for_update()
                     .select_related("user")
                     .get(project_id=pk, pk=member_id, is_leader=False)
                 )
-            except Member.DoesNotExist:
-                return Response(
-                    fail(
-                        "MEMBER_NOT_FOUND",
-                        "해당 프로젝트의 멤버를 찾을 수 없습니다.",
-                        status.HTTP_404_NOT_FOUND,
-                    ),
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            next_status = serializer.validated_data["status"]
-            try:
                 member.transition_to(next_status)
-            except ValidationError as error:
-                return Response(
-                    fail(
-                        "INVALID_MEMBER_STATUS",
-                        error.message,
-                        status.HTTP_400_BAD_REQUEST,
-                    ),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
-            update_fields = ["status", "updated_at"]
-            if "description" in serializer.validated_data:
-                member.description = serializer.validated_data["description"]
-                update_fields.append("description")
-            member.save(update_fields=update_fields)
+                update_fields = ["status", "updated_at"]
+                if "description" in serializer.validated_data:
+                    member.description = serializer.validated_data["description"]
+                    update_fields.append("description")
+                member.save(update_fields=update_fields)
+        except Member.DoesNotExist:
+            return Response(
+                fail(
+                    "MEMBER_NOT_FOUND",
+                    "해당 프로젝트의 멤버를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except ValidationError as error:
+            return Response(
+                fail(
+                    "INVALID_MEMBER_STATUS",
+                    error.message,
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(success(None), status=status.HTTP_200_OK)
 
