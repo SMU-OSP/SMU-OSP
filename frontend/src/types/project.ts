@@ -14,7 +14,7 @@ export interface ProjectDetailMember {
   role: ProjectMemberRole;
   status: ProjectApplicationStatus;
   description?: string | null;
-  joinedAt: string;
+  createdAt: string;
 }
 
 export interface ProjectMemberUpdateInput {

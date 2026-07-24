@@ -57,19 +57,19 @@ export default function ProjectMemberManagementDialog({
       status: "DECLINED" | "JOINED";
       description?: string;
     }) => changeProjectMember(projectId, memberId, { status, description }),
-    onSuccess: async (response) => {
+    onSuccess: async (response, { memberId, status }) => {
       if (response.status !== "SUCCESS") {
         setMessage(response.detail.message);
         return;
       }
       setMessage(
-        response.data.status === "JOINED"
+        status === "JOINED"
           ? "참가 신청을 승인했습니다."
           : "참가 신청을 반려했습니다."
       );
       setDescriptions((current) => {
         const next = { ...current };
-        delete next[response.data.id];
+        delete next[memberId];
         return next;
       });
       await Promise.all([
@@ -178,7 +178,7 @@ export default function ProjectMemberManagementDialog({
                     </Text>
                     <Text fontSize="sm" color="smu.darkGray">
                       {PROJECT_APPLICATION_STATUS_LABEL[member.status]} · 신청일 {" "}
-                      {formatDateTimeKST(member.joinedAt)}
+                      {formatDateTimeKST(member.createdAt)}
                     </Text>
                     {member.description && (
                       <Text fontSize="sm" mt={1}>

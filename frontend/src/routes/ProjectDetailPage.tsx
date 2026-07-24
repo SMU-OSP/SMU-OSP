@@ -110,9 +110,6 @@ function MemberRow({ member }: { member: ProjectDetailMember }) {
         >
           {PROJECT_MEMBER_ROLE_LABEL[member.role]}
         </Pill>
-        <Text fontSize={"xs"} color={"smu.darkGray"}>
-          {formatDateTimeKST(member.joinedAt)} 참여
-        </Text>
       </VStack>
     </HStack>
   );

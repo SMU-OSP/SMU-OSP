@@ -105,11 +105,11 @@ export async function changeProjectMember(
   projectId: number,
   memberId: number,
   input: ProjectMemberUpdateInput
-): Promise<ApiResponse<ProjectDetailMember>> {
+): Promise<ApiResponse<null>> {
   try {
     return await updateProjectMember(projectId, memberId, input);
   } catch (e) {
-    return toApiResponse<ProjectDetailMember>(
+    return toApiResponse<null>(
       e,
       "프로젝트 멤버 변경 중 오류가 발생했습니다."
     );

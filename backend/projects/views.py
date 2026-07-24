@@ -619,34 +619,25 @@ class ProjectMemberDetail(APIView):
                 )
 
             next_status = serializer.validated_data["status"]
-            allowed_transitions = {
-                Member.Status.PENDING: {
-                    Member.Status.DECLINED,
-                    Member.Status.JOINED,
-                },
-                Member.Status.JOINED: {Member.Status.LEFT},
-            }
-            if next_status not in allowed_transitions.get(member.status, set()):
+            try:
+                member.transition_to(next_status)
+            except ValidationError as error:
                 return Response(
                     fail(
                         "INVALID_MEMBER_STATUS",
-                        f"{member.status} 상태에서는 {next_status}(으)로 변경할 수 없습니다.",
+                        error.message,
                         status.HTTP_400_BAD_REQUEST,
                     ),
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            member.status = next_status
             update_fields = ["status", "updated_at"]
             if "description" in serializer.validated_data:
                 member.description = serializer.validated_data["description"]
                 update_fields.append("description")
             member.save(update_fields=update_fields)
 
-        return Response(
-            success(ProjectMemberSerializer(member).data),
-            status=status.HTTP_200_OK,
-        )
+        return Response(success(None), status=status.HTTP_200_OK)
 
 
 def update_project_repository(project, repository_url):

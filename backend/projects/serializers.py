@@ -308,7 +308,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     userId = serializers.IntegerField(source="user_id", allow_null=True)
     name = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
-    joinedAt = serializers.DateTimeField(source="created_at")
+    createdAt = serializers.DateTimeField(source="created_at")
 
     class Meta:
         model = Member
@@ -319,7 +319,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "role",
             "status",
             "description",
-            "joinedAt",
+            "createdAt",
         )
 
     def get_name(self, obj):
