@@ -123,8 +123,8 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["data"]["memberCount"], 1)
         self.assertFalse(body["data"]["canViewMembers"])
         self.assertFalse(body["data"]["canEdit"])
-        self.assertFalse(body["data"]["canApply"])
-        self.assertIsNone(body["data"]["applicationStatus"])
+        self.assertNotIn("canApply", body["data"])
+        self.assertNotIn("applicationStatus", body["data"])
         self.assertIsNone(body["data"]["members"])
 
     def test_project_member_can_view_joined_member_details(self):
@@ -152,7 +152,6 @@ class ProjectApiTests(TestCase):
         self.assertEqual(data["membershipRole"], "OWNER")
         self.assertTrue(data["canViewMembers"])
         self.assertTrue(data["canEdit"])
-        self.assertFalse(data["canApply"])
         self.assertEqual(
             [(member["name"], member["role"]) for member in data["members"]],
             [("권지연", "LEADER"), ("임꺽정", "MEMBER")],
@@ -182,8 +181,6 @@ class ProjectApiTests(TestCase):
         self.assertEqual(data["memberCount"], 1)
         self.assertFalse(data["canViewMembers"])
         self.assertFalse(data["canEdit"])
-        self.assertFalse(data["canApply"])
-        self.assertEqual(data["applicationStatus"], Member.Status.PENDING)
         self.assertIsNone(data["members"])
 
     def test_project_leader_can_update_all_project_fields(self):
@@ -776,12 +773,10 @@ class ProjectApiTests(TestCase):
             )
         self.client.force_login(applicant)
 
-        detail_response = self.client.get(f"/api/v1/projects/{self.project.pk}")
         application_response = self.client.post(
             f"/api/v1/projects/{self.project.pk}/members"
         )
 
-        self.assertFalse(detail_response.json()["data"]["canApply"])
         self.assertEqual(application_response.status_code, 400)
         self.assertEqual(
             application_response.json()["status"],

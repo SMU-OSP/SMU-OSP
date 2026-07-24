@@ -256,23 +256,6 @@ class ProjectDetail(APIView):
             ),
             None,
         )
-        application_memberships = (
-            list(
-                project.members.filter(
-                    user=request.user,
-                ).order_by("-created_at", "-pk")
-            )
-            if request.user.is_authenticated
-            else []
-        )
-        can_apply = False
-        if request.user.is_authenticated:
-            try:
-                project.validate_membership_application(application_memberships)
-            except ValidationError:
-                pass
-            else:
-                can_apply = True
         can_view_members = current_member is not None
         can_edit = can_view_members and current_member.is_leader
         project.request_user_memberships = (
@@ -283,12 +266,6 @@ class ProjectDetail(APIView):
             context={
                 "can_view_members": can_view_members,
                 "can_edit": can_edit,
-                "can_apply": can_apply,
-                "application_status": (
-                    application_memberships[0].status
-                    if application_memberships
-                    else None
-                ),
             },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)

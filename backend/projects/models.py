@@ -1,3 +1,5 @@
+from typing import Final
+
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db import models
@@ -43,6 +45,8 @@ class Repository(CommonModel):
 
 
 class Project(CommonModel):
+    MAX_REAPPLICATIONS: Final[int] = 5
+
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         FINISHED = "FINISHED", "Finished"
@@ -85,9 +89,9 @@ class Project(CommonModel):
                 "이미 참가 신청 중이거나 참여 중인 프로젝트입니다.",
                 code="membership_already_exists",
             )
-        if len(memberships) >= 6:
+        if len(memberships) > self.MAX_REAPPLICATIONS:
             raise ValidationError(
-                "재신청 가능 횟수 5회를 모두 사용했습니다.",
+                f"재신청 가능 횟수 {self.MAX_REAPPLICATIONS}회를 모두 사용했습니다.",
                 code="membership_reapplication_limit",
             )
         if not self.has_available_member_slot():

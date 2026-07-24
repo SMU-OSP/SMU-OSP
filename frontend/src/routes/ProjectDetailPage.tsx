@@ -4,10 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import ProjectLeaveDialog from "../components/ProjectLeaveDialog";
 import { Button } from "../components/ui/button";
+import useUser from "../lib/useUser";
 import {
   applyToProject,
   getProject,
   leaveProject,
+  listProjectApplications,
 } from "../services/projectService";
 import {
   PROJECT_MEMBER_ROLE_LABEL,
@@ -15,6 +17,8 @@ import {
 } from "../types/project";
 import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
+
+const MAX_REAPPLICATIONS = 5;
 
 function Section({
   title,
@@ -142,6 +146,7 @@ export default function ProjectDetailPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { isLoggedIn, userLoading } = useUser();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveMessage, setLeaveMessage] = useState("");
   const [applicationMessage, setApplicationMessage] = useState("");
@@ -150,6 +155,12 @@ export default function ProjectDetailPage() {
     queryKey: ["project", id],
     queryFn: () => getProject(id),
     enabled: !!id,
+  });
+  const applicationHistoryQuery = useQuery({
+    queryKey: ["project-application-history"],
+    queryFn: listProjectApplications,
+    enabled: !userLoading && isLoggedIn,
+    retry: false,
   });
 
   const leaveMutation = useMutation({
@@ -222,6 +233,26 @@ export default function ProjectDetailPage() {
   }
 
   const project = resp.data;
+  const applicationHistory =
+    applicationHistoryQuery.data?.status === "SUCCESS"
+      ? applicationHistoryQuery.data.data.filter(
+          (application) => application.projectId === project.id
+        )
+      : [];
+  const hasLoadedApplicationHistory =
+    applicationHistoryQuery.data?.status === "SUCCESS";
+  const latestApplication = applicationHistory[0];
+  const hasActiveApplication =
+    latestApplication?.status === "PENDING" ||
+    latestApplication?.status === "JOINED";
+  const canApply =
+    isLoggedIn &&
+    hasLoadedApplicationHistory &&
+    project.status === "ACTIVE" &&
+    project.membershipRole == null &&
+    !hasActiveApplication &&
+    applicationHistory.length <= MAX_REAPPLICATIONS &&
+    project.memberCount < project.maxMembers;
   const repositoryName = project.repository?.fullName;
   const repositoryUrl = project.repository?.htmlUrl;
   const leave = () => {
@@ -254,7 +285,7 @@ export default function ProjectDetailPage() {
                 {leaveMutation.isPending ? "탈퇴 중..." : "프로젝트 탈퇴"}
               </Button>
             )}
-            {project.canApply && (
+            {canApply && (
               <Button
                 bg={"smu.blue"}
                 disabled={applicationMutation.isPending}
@@ -298,7 +329,7 @@ export default function ProjectDetailPage() {
           isPending={leaveMutation.isPending}
         />
 
-        {(applicationMessage || project.applicationStatus === "PENDING") && (
+        {(applicationMessage || latestApplication?.status === "PENDING") && (
           <Box
             role={
               applicationMessage &&
