@@ -1,9 +1,10 @@
 from urllib.parse import urlparse
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import status
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -286,46 +287,21 @@ class ProjectDetail(APIView):
         )
         try:
             with transaction.atomic():
-                try:
-                    project = (
-                        Project.objects.select_for_update()
-                        .select_related("repository")
-                        .annotate(is_leader=Exists(leader_members))
-                        .get(pk=pk)
-                    )
-                except Project.DoesNotExist:
-                    return Response(
-                        fail(
-                            "PROJECT_NOT_FOUND",
-                            f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
-                            status.HTTP_404_NOT_FOUND,
-                        ),
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+                project = (
+                    Project.objects.select_for_update()
+                    .select_related("repository")
+                    .annotate(is_leader=Exists(leader_members))
+                    .get(pk=pk)
+                )
 
                 if not project.is_leader:
-                    return Response(
-                        fail(
-                            "PERMISSION_DENIED",
-                            "프로젝트 팀장만 수정할 수 있습니다.",
-                            status.HTTP_403_FORBIDDEN,
-                        ),
-                        status=status.HTTP_403_FORBIDDEN,
-                    )
+                    raise PermissionDenied
 
                 serializer = ProjectUpdateSerializer(
                     project,
                     data=request.data,
                 )
-                if not serializer.is_valid():
-                    return Response(
-                        fail(
-                            "INVALID_PROJECT_INPUT",
-                            first_serializer_error(serializer.errors),
-                            status.HTTP_400_BAD_REQUEST,
-                        ),
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                serializer.is_valid(raise_exception=True)
 
                 data = serializer.validated_data
                 for field in (
@@ -340,6 +316,33 @@ class ProjectDetail(APIView):
                 project.set_status(data["status"])
                 project.save()
                 update_project_repository(project, data.get("repository_url"))
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except PermissionDenied:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 팀장만 수정할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except DRFValidationError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    first_serializer_error(error.detail),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValueError as error:
             return Response(
                 fail(
@@ -373,34 +376,35 @@ class ProjectDetail(APIView):
         )
         try:
             with transaction.atomic():
-                try:
-                    project = (
-                        Project.objects.select_for_update()
-                        .annotate(is_leader=Exists(leader_members))
-                        .get(pk=pk)
-                    )
-                except Project.DoesNotExist:
-                    return Response(
-                        fail(
-                            "PROJECT_NOT_FOUND",
-                            f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
-                            status.HTTP_404_NOT_FOUND,
-                        ),
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+                project = (
+                    Project.objects.select_for_update()
+                    .annotate(is_leader=Exists(leader_members))
+                    .get(pk=pk)
+                )
 
                 if not project.is_leader:
-                    return Response(
-                        fail(
-                            "PERMISSION_DENIED",
-                            "프로젝트 팀장만 삭제할 수 있습니다.",
-                            status.HTTP_403_FORBIDDEN,
-                        ),
-                        status=status.HTTP_403_FORBIDDEN,
-                    )
+                    raise PermissionDenied
 
                 project.set_status(Project.Status.DELETED)
                 project.save(update_fields=("status", "updated_at"))
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except PermissionDenied:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 팀장만 삭제할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except ValueError as error:
             return Response(
                 fail(
