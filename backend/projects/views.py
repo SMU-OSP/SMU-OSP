@@ -285,53 +285,49 @@ class ProjectDetail(APIView):
             is_leader=True,
         )
         try:
-            project = (
-                Project.objects.select_related("repository")
-                .annotate(is_leader=Exists(leader_members))
-                .get(pk=pk)
-            )
-        except Project.DoesNotExist:
-            return Response(
-                fail(
-                    "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
-                    status.HTTP_404_NOT_FOUND,
-                ),
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        if not project.is_leader:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 팀장만 수정할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        serializer = ProjectUpdateSerializer(
-            project,
-            data=request.data,
-        )
-        if not serializer.is_valid():
-            return Response(
-                fail(
-                    "INVALID_PROJECT_INPUT",
-                    first_serializer_error(serializer.errors),
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        data = serializer.validated_data
-        try:
             with transaction.atomic():
-                project = (
-                    Project.objects.select_for_update()
-                    .select_related("repository")
-                    .get(pk=pk)
+                try:
+                    project = (
+                        Project.objects.select_for_update()
+                        .select_related("repository")
+                        .annotate(is_leader=Exists(leader_members))
+                        .get(pk=pk)
+                    )
+                except Project.DoesNotExist:
+                    return Response(
+                        fail(
+                            "PROJECT_NOT_FOUND",
+                            f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                            status.HTTP_404_NOT_FOUND,
+                        ),
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                if not project.is_leader:
+                    return Response(
+                        fail(
+                            "PERMISSION_DENIED",
+                            "프로젝트 팀장만 수정할 수 있습니다.",
+                            status.HTTP_403_FORBIDDEN,
+                        ),
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                serializer = ProjectUpdateSerializer(
+                    project,
+                    data=request.data,
                 )
+                if not serializer.is_valid():
+                    return Response(
+                        fail(
+                            "INVALID_PROJECT_INPUT",
+                            first_serializer_error(serializer.errors),
+                            status.HTTP_400_BAD_REQUEST,
+                        ),
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                data = serializer.validated_data
                 for field in (
                     "name",
                     "description",
@@ -376,33 +372,33 @@ class ProjectDetail(APIView):
             is_leader=True,
         )
         try:
-            project = (
-                Project.objects.annotate(is_leader=Exists(leader_members))
-                .get(pk=pk)
-            )
-        except Project.DoesNotExist:
-            return Response(
-                fail(
-                    "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
-                    status.HTTP_404_NOT_FOUND,
-                ),
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        if not project.is_leader:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 팀장만 삭제할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        try:
             with transaction.atomic():
-                project = Project.objects.select_for_update().get(pk=pk)
+                try:
+                    project = (
+                        Project.objects.select_for_update()
+                        .annotate(is_leader=Exists(leader_members))
+                        .get(pk=pk)
+                    )
+                except Project.DoesNotExist:
+                    return Response(
+                        fail(
+                            "PROJECT_NOT_FOUND",
+                            f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                            status.HTTP_404_NOT_FOUND,
+                        ),
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                if not project.is_leader:
+                    return Response(
+                        fail(
+                            "PERMISSION_DENIED",
+                            "프로젝트 팀장만 삭제할 수 있습니다.",
+                            status.HTTP_403_FORBIDDEN,
+                        ),
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
                 project.set_status(Project.Status.DELETED)
                 project.save(update_fields=("status", "updated_at"))
         except ValueError as error:
