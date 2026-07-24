@@ -733,7 +733,7 @@ class ProjectApiTests(TestCase):
             is_leader=False,
         )
         self.assertEqual(membership.status, Member.Status.PENDING)
-        self.assertEqual(response.json()["data"]["id"], membership.pk)
+        self.assertIsNone(response.json()["data"])
 
     def test_project_membership_application_rejects_active_membership(self):
         applicant = get_user_model().objects.create_user(

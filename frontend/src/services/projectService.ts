@@ -105,11 +105,11 @@ export async function leaveProject(
 
 export async function applyToProject(
   projectId: number
-): Promise<ApiResponse<ProjectApplicationHistory>> {
+): Promise<ApiResponse<null>> {
   try {
     return await createProjectMembership(projectId);
   } catch (e) {
-    return toApiResponse<ProjectApplicationHistory>(
+    return toApiResponse<null>(
       e,
       "프로젝트 참가 신청 중 오류가 발생했습니다."
     );

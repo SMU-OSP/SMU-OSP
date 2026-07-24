@@ -71,6 +71,31 @@ class Project(CommonModel):
         )
         return joined_count < self.max_members
 
+    def validate_membership_application(self, memberships):
+        if self.status != self.Status.ACTIVE:
+            raise ValidationError(
+                "진행 중인 프로젝트에만 참가 신청할 수 있습니다.",
+                code="invalid_project_status",
+            )
+        if any(
+            membership.status in (Member.Status.PENDING, Member.Status.JOINED)
+            for membership in memberships
+        ):
+            raise ValidationError(
+                "이미 참가 신청 중이거나 참여 중인 프로젝트입니다.",
+                code="membership_already_exists",
+            )
+        if len(memberships) >= 6:
+            raise ValidationError(
+                "재신청 가능 횟수 5회를 모두 사용했습니다.",
+                code="membership_reapplication_limit",
+            )
+        if not self.has_available_member_slot():
+            raise ValidationError(
+                "프로젝트 정원이 가득 차 참가 신청할 수 없습니다.",
+                code="project_capacity_reached",
+            )
+
     def set_status(self, status):
         allowed_transitions = {
             self.Status.ACTIVE: {
