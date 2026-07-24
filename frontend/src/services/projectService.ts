@@ -101,7 +101,7 @@ export async function listProjectMembers(
   }
 }
 
-export async function changeProjectMember(
+async function changeProjectMember(
   projectId: number,
   memberId: number,
   input: ProjectMemberUpdateInput
@@ -115,6 +115,29 @@ export async function changeProjectMember(
     );
   }
 }
+
+export const approveProjectMember = (projectId: number, memberId: number) =>
+  changeProjectMember(projectId, memberId, { status: "JOINED" });
+
+export const declineProjectMember = (
+  projectId: number,
+  memberId: number,
+  description?: string
+) =>
+  changeProjectMember(projectId, memberId, {
+    status: "DECLINED",
+    description,
+  });
+
+export const removeProjectMember = (
+  projectId: number,
+  memberId: number,
+  description: string
+) =>
+  changeProjectMember(projectId, memberId, {
+    status: "LEFT",
+    description,
+  });
 
 export async function cancelProjectApplication(
   projectId: number

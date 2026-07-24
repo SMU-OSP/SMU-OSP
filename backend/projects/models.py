@@ -217,32 +217,5 @@ class Member(CommonModel):
             ),
         ]
 
-    def transition_to(self, next_status=None):
-        allowed_transitions = {
-            self.Status.PENDING: {
-                self.Status.CANCELED,
-                self.Status.DECLINED,
-                self.Status.JOINED,
-            },
-            self.Status.JOINED: {self.Status.LEFT},
-        }
-        if next_status is None:
-            next_status = {
-                self.Status.PENDING: self.Status.CANCELED,
-                self.Status.JOINED: self.Status.LEFT,
-            }.get(self.status)
-        if next_status not in allowed_transitions.get(self.status, set()):
-            raise ValidationError(
-                f"{self.status} 상태에서는 {next_status}(으)로 변경할 수 없습니다.",
-                code="invalid_member_status",
-            )
-        if self.is_leader and next_status == self.Status.LEFT:
-            raise ValidationError(
-                "프로젝트 팀장은 탈퇴하거나 내보낼 수 없습니다.",
-                code="leader_protected",
-            )
-
-        self.status = next_status
-
     def __str__(self):
         return f"{self.project} - {self.user_id or 'unknown'}"

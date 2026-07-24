@@ -1122,7 +1122,7 @@ class ProjectApiTests(TestCase):
         self.assertIn("description", managed_members[pending.pk])
         self.assertIsNone(managed_members[pending.pk]["description"])
         self.assertIn("createdAt", managed_members[pending.pk])
-        self.assertNotIn("joinedAt", managed_members[pending.pk])
+        self.assertIsNone(managed_members[pending.pk]["joinedAt"])
 
     def test_non_member_cannot_list_project_members(self):
         outsider = get_user_model().objects.create_user(
@@ -1200,10 +1200,18 @@ class ProjectApiTests(TestCase):
         self.assertEqual(declined.status_code, 200)
         self.assertIsNone(declined.json()["data"])
         self.assertEqual(left.status_code, 200)
+        self.assertIsNone(left.json()["data"])
+        self.assertEqual(missing_reason.status_code, 400)
+        self.assertEqual(
+            missing_reason.json()["status"],
+            "INVALID_MEMBER_INPUT",
+        )
         pending.refresh_from_db()
         pending_to_decline.refresh_from_db()
         joined.refresh_from_db()
+        joined_without_reason.refresh_from_db()
         self.assertEqual(pending.status, Member.Status.JOINED)
+        self.assertIsNotNone(pending.joined_at)
         self.assertIsNone(pending.description)
         self.assertEqual(pending_to_decline.status, Member.Status.DECLINED)
         self.assertEqual(pending_to_decline.description, "모집 역할 불일치")

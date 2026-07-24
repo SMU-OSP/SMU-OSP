@@ -576,21 +576,12 @@ class ProjectMemberDetail(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        leader_exists = Member.objects.filter(
-            project_id=pk,
+        leader_members = Member.objects.filter(
+            project=OuterRef("pk"),
             user=request.user,
             is_leader=True,
             status=Member.Status.JOINED,
-        ).exists()
-        if not leader_exists:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        )
 
         serializer = ProjectMemberUpdateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -606,18 +597,40 @@ class ProjectMemberDetail(APIView):
         next_status = serializer.validated_data["status"]
         try:
             with transaction.atomic():
-                project = Project.objects.select_for_update().get(pk=pk)
+                project = (
+                    Project.objects.select_for_update()
+                    .annotate(is_leader=Exists(leader_members))
+                    .get(pk=pk)
+                )
+                if not project.is_leader:
+                    raise ValidationError(
+                        "프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
+                        code="leader_required",
+                    )
+
                 member = (
                     Member.objects.select_for_update()
                     .select_related("user")
                     .get(project_id=pk, pk=member_id, is_leader=False)
                 )
-                member.transition_to(next_status)
-                if "description" in serializer.validated_data:
-                    member.description = serializer.validated_data["description"]
+                member.project = project
+                member.transition_to(
+                    next_status,
+                    description=serializer.validated_data.get("description"),
+                    update_description="description" in serializer.validated_data,
+                )
                 member.save(
                     update_fields=("status", "description", "joined_at", "updated_at")
                 )
+        except Project.DoesNotExist:
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Member.DoesNotExist:
             return Response(
                 fail(
@@ -628,13 +641,22 @@ class ProjectMemberDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         except ValidationError as error:
+            response_status = {
+                "leader_required": "PERMISSION_DENIED",
+                "project_capacity_reached": "PROJECT_CAPACITY_REACHED",
+            }.get(error.code, "INVALID_MEMBER_STATUS")
+            response_code = (
+                status.HTTP_403_FORBIDDEN
+                if response_status == "PERMISSION_DENIED"
+                else status.HTTP_400_BAD_REQUEST
+            )
             return Response(
                 fail(
-                    "INVALID_MEMBER_STATUS",
+                    response_status,
                     error.message,
-                    status.HTTP_400_BAD_REQUEST,
+                    response_code,
                 ),
-                status=status.HTTP_400_BAD_REQUEST,
+                status=response_code,
             )
 
         return Response(success(None), status=status.HTTP_200_OK)

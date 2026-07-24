@@ -27,11 +27,11 @@ import {
 } from "../components/ui/dialog";
 import {
   applyToProject,
-  changeProjectMember,
   getProject,
   leaveProject,
   listProjectApplications,
   listProjectMembers,
+  removeProjectMember,
 } from "../services/projectService";
 import {
   PROJECT_MEMBER_ROLE_LABEL,
@@ -146,27 +146,29 @@ function MemberRow({
               bg={member.role === "LEADER" ? "smu.lightBlue" : "smu.gray"}
               color={member.role === "LEADER" ? "white" : "smu.darkGray"}
             >
-              {member.name}
-            </Text>
-          </RouterLink>
-        ) : (
-          <Text fontWeight={"bold"} color={"smu.blue"}>
-            {member.name}
+              {PROJECT_MEMBER_ROLE_LABEL[member.role]}
+            </Pill>
+          </HStack>
+          {canRemove && (
+            <Button
+              variant="outline"
+              colorPalette="red"
+              borderColor="red.500"
+              color="red.600"
+              bg="white"
+              size="xs"
+              disabled={removing}
+              onClick={() => onRemove(member)}
+            >
+              내보내기
+            </Button>
+          )}
+        </HStack>
+        {member.joinedAt && (
+          <Text fontSize={"xs"} color={"smu.darkGray"}>
+            {formatDateTimeKST(member.joinedAt)} 참여
           </Text>
         )}
-        {member.description && (
-          <Text fontSize={"sm"} color={"smu.darkGray"} mt={1}>
-            {member.description}
-          </Text>
-        )}
-      </Box>
-      <VStack alignItems={"flex-end"} gap={1}>
-        <Pill
-          bg={member.role === "LEADER" ? "smu.lightBlue" : "smu.gray"}
-          color={member.role === "LEADER" ? "white" : "smu.darkGray"}
-        >
-          {PROJECT_MEMBER_ROLE_LABEL[member.role]}
-        </Pill>
       </VStack>
     </HStack>
   );
@@ -362,11 +364,7 @@ export default function ProjectDetailPage() {
       projectId: number;
       memberId: number;
       description: string;
-    }) =>
-      changeProjectMember(projectId, memberId, {
-        status: "LEFT",
-        description,
-      }),
+    }) => removeProjectMember(projectId, memberId, description),
     onSuccess: async (response, { projectId }) => {
       if (response.status !== "SUCCESS") {
         window.alert(response.detail.message);

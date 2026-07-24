@@ -309,6 +309,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", allow_null=True)
     name = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
+    joinedAt = serializers.DateTimeField(source="joined_at", allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at")
 
     class Meta:
@@ -321,6 +322,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "role",
             "status",
             "description",
+            "joinedAt",
             "createdAt",
         )
 

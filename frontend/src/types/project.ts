@@ -15,6 +15,7 @@ export interface ProjectDetailMember {
   role: ProjectMemberRole;
   status: ProjectApplicationStatus;
   description?: string | null;
+  joinedAt: string | null;
   createdAt: string;
 }
 

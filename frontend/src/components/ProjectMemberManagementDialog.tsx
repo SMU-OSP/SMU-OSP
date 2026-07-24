@@ -2,7 +2,8 @@ import { Box, HStack, Input, Spinner, Text, VStack } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  changeProjectMember,
+  approveProjectMember,
+  declineProjectMember,
   listProjectMembers,
 } from "../services/projectService";
 import { PROJECT_APPLICATION_STATUS_LABEL } from "../types/project";
@@ -44,20 +45,23 @@ export default function ProjectMemberManagementDialog({
   const updateMutation = useMutation({
     mutationFn: ({
       memberId,
-      status,
+      approve,
       description,
     }: {
       memberId: number;
-      status: "DECLINED" | "JOINED";
+      approve: boolean;
       description?: string;
-    }) => changeProjectMember(projectId, memberId, { status, description }),
-    onSuccess: async (response, { memberId, status }) => {
+    }) =>
+      approve
+        ? approveProjectMember(projectId, memberId)
+        : declineProjectMember(projectId, memberId, description),
+    onSuccess: async (response, { memberId, approve }) => {
       if (response.status !== "SUCCESS") {
         setMessage(response.detail.message);
         return;
       }
       setMessage(
-        status === "JOINED"
+        approve
           ? "참가 신청을 승인했습니다."
           : "참가 신청을 반려했습니다."
       );
@@ -84,16 +88,15 @@ export default function ProjectMemberManagementDialog({
     (member) => member.status === "PENDING"
   );
 
-  const changeStatus = (memberId: number, status: "DECLINED" | "JOINED") => {
-    const action = status === "JOINED" ? "승인" : "반려";
+  const changeStatus = (memberId: number, approve: boolean) => {
+    const action = approve ? "승인" : "반려";
     setMessage("");
     if (window.confirm(`이 참가 신청을 ${action}하시겠습니까?`)) {
       const description = descriptions[memberId]?.trim();
       updateMutation.mutate({
         memberId,
-        status,
-        description:
-          status === "DECLINED" && description ? description : undefined,
+        approve,
+        description: !approve && description ? description : undefined,
       });
     }
   };
@@ -181,7 +184,7 @@ export default function ProjectMemberManagementDialog({
                         variant="outline"
                         colorPalette="red"
                         disabled={updateMutation.isPending}
-                        onClick={() => changeStatus(member.id, "DECLINED")}
+                        onClick={() => changeStatus(member.id, false)}
                       >
                         반려
                       </Button>
@@ -189,7 +192,7 @@ export default function ProjectMemberManagementDialog({
                         flex={1}
                         bg="smu.blue"
                         disabled={updateMutation.isPending}
-                        onClick={() => changeStatus(member.id, "JOINED")}
+                        onClick={() => changeStatus(member.id, true)}
                       >
                         승인
                       </Button>
