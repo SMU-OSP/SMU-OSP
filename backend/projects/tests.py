@@ -717,6 +717,38 @@ class ProjectApiTests(TestCase):
         self.assertEqual(self.repository.last_error_code, "GITHUB_API_FAILED")
 
     @patch("projects.tasks.requests.get")
+    def test_repository_refresh_task_distinguishes_github_failures(
+        self,
+        request_get,
+    ):
+        response = request_get.return_value
+        cases = (
+            (404, {}, {}, "GITHUB_REPOSITORY_NOT_FOUND"),
+            (403, {}, {}, "PRIVATE_REPOSITORY"),
+            (
+                403,
+                {"X-RateLimit-Remaining": "0"},
+                {},
+                "GITHUB_RATE_LIMIT_EXCEEDED",
+            ),
+            (429, {}, {}, "GITHUB_RATE_LIMIT_EXCEEDED"),
+            (200, {}, {"private": True}, "PRIVATE_REPOSITORY"),
+        )
+
+        for status_code, headers, data, expected_code in cases:
+            with self.subTest(status_code=status_code, expected_code=expected_code):
+                response.status_code = status_code
+                response.headers = headers
+                response.json.return_value = data
+
+                self.assertFalse(refresh_repository(self.repository.pk))
+                self.repository.refresh_from_db()
+                self.assertEqual(
+                    self.repository.last_error_code,
+                    expected_code,
+                )
+
+    @patch("projects.tasks.requests.get")
     def test_repository_refresh_task_handles_duplicate_github_id(
         self,
         request_get,

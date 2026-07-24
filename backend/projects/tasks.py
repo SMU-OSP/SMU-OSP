@@ -59,9 +59,17 @@ def refresh_repository(repository_id):
         return False
 
     if response.status_code == 404:
-        mark_refresh_failed(repository, "REPOSITORY_NOT_FOUND")
+        mark_refresh_failed(repository, "GITHUB_REPOSITORY_NOT_FOUND")
         return False
     if response.status_code == 403:
+        error_code = (
+            "GITHUB_RATE_LIMIT_EXCEEDED"
+            if response.headers.get("X-RateLimit-Remaining") == "0"
+            else "PRIVATE_REPOSITORY"
+        )
+        mark_refresh_failed(repository, error_code)
+        return False
+    if response.status_code == 429:
         mark_refresh_failed(repository, "GITHUB_RATE_LIMIT_EXCEEDED")
         return False
     if response.status_code >= 400:
@@ -73,8 +81,11 @@ def refresh_repository(repository_id):
     except ValueError:
         mark_refresh_failed(repository, "GITHUB_API_FAILED")
         return False
-    if not isinstance(data, dict) or data.get("private") is True:
+    if not isinstance(data, dict):
         mark_refresh_failed(repository, "GITHUB_API_FAILED")
+        return False
+    if data.get("private") is True:
+        mark_refresh_failed(repository, "PRIVATE_REPOSITORY")
         return False
 
     repository.github_id = data.get("id")
