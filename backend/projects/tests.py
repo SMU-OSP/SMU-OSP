@@ -409,6 +409,22 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(body["data"])
         self.assertEqual(body["detail"]["httpStatus"], 404)
 
+    def test_project_update_and_delete_return_not_found(self):
+        self.client.force_login(self.user)
+
+        responses = (
+            self.client.put(
+                "/api/v1/projects/999",
+                data=self.project_update_payload(),
+                content_type="application/json",
+            ),
+            self.client.delete("/api/v1/projects/999"),
+        )
+
+        for response in responses:
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json()["status"], "PROJECT_NOT_FOUND")
+
     def test_project_delete_cascades_to_repository_and_members(self):
         repository_id = self.repository.pk
         member_id = self.member.pk
