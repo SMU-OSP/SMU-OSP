@@ -948,6 +948,24 @@ class ProjectApiTests(TestCase):
         with self.assertRaises(ValidationError):
             membership.transition_to(Member.Status.LEFT)
 
+    def test_member_transition_to_requires_reason_when_requested(self):
+        membership = Member.objects.create(
+            project=self.project,
+            user=self.user,
+            status=Member.Status.JOINED,
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "멤버를 내보내려면 사유를 입력해주세요.",
+        ):
+            membership.transition_to(
+                Member.Status.LEFT,
+                require_description=True,
+            )
+
+        self.assertEqual(membership.status, Member.Status.JOINED)
+
     def test_pending_project_membership_can_be_canceled(self):
         application_project = Project.objects.create(
             name="Pending Application Project",

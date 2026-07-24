@@ -160,6 +160,7 @@ class Member(CommonModel):
         *,
         description=None,
         update_description=False,
+        require_description=False,
     ):
         allowed_transitions = {
             self.Status.PENDING: {
@@ -183,6 +184,11 @@ class Member(CommonModel):
             raise ValidationError(
                 "프로젝트 팀장은 탈퇴하거나 내보낼 수 없습니다.",
                 code="leader_protected",
+            )
+        if require_description and not (description or "").strip():
+            raise ValidationError(
+                "멤버를 내보내려면 사유를 입력해주세요.",
+                code="member_description_required",
             )
         if (
             next_status == self.Status.JOINED

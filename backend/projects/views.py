@@ -618,6 +618,7 @@ class ProjectMemberDetail(APIView):
                     next_status,
                     description=serializer.validated_data.get("description"),
                     update_description="description" in serializer.validated_data,
+                    require_description=next_status == Member.Status.LEFT,
                 )
                 member.save(
                     update_fields=("status", "description", "joined_at", "updated_at")
@@ -644,6 +645,7 @@ class ProjectMemberDetail(APIView):
             response_status = {
                 "leader_required": "PERMISSION_DENIED",
                 "project_capacity_reached": "PROJECT_CAPACITY_REACHED",
+                "member_description_required": "INVALID_MEMBER_INPUT",
             }.get(error.code, "INVALID_MEMBER_STATUS")
             response_code = (
                 status.HTTP_403_FORBIDDEN
