@@ -27,6 +27,8 @@ import {
 } from "../components/ui/dialog";
 import {
   applyToProject,
+  deleteProject,
+  finishProject,
   getProject,
   leaveProject,
   listProjectApplications,
