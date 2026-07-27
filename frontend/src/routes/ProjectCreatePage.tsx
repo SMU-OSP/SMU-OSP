@@ -194,6 +194,16 @@ export default function ProjectCreatePage() {
                 maxLength={MAX_PROJECT_URL_LENGTH}
                 disabled={mutation.isPending}
               />
+              <Box mt={2} p={3} borderRadius={"md"} bg={"#f7f7f7"}>
+                <Text fontSize={"xs"} color={"smu.darkGray"}>
+                  정확한 Repository URL을 입력하지 않거나 생략하면 프로젝트
+                  랭킹이 집계되지 않을 수 있습니다.
+                </Text>
+                <Text mt={1} fontSize={"xs"} color={"smu.darkGray"}>
+                  Repository 활동이 30일 동안 확인되지 않으면 프로젝트가 비활성
+                  상태로 전환될 수 있습니다.
+                </Text>
+              </Box>
             </Field>
 
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
