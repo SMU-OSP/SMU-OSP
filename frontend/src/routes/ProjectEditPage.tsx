@@ -141,6 +141,7 @@ export default function ProjectEditPage() {
       </MessageCard>
     );
   }
+  const hasRepository = !!project.repository;
 
   const handleSubmit = () => {
     if (mutation.isPending) return;
@@ -216,8 +217,13 @@ export default function ProjectEditPage() {
                 onChange={(e) => setRepositoryUrl(e.target.value)}
                 placeholder="https://github.com/owner/repository"
                 maxLength={MAX_PROJECT_URL_LENGTH}
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || hasRepository}
               />
+              {hasRepository && (
+                <Text mt={1} fontSize={"xs"} color={"smu.darkGray"}>
+                  등록된 Repository는 변경하거나 연결 해제할 수 없습니다.
+                </Text>
+              )}
             </Field>
 
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>

@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection
@@ -8,6 +9,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from .models import Member, Project, Repository
+from .tasks import refresh_repository
 
 
 class ProjectApiTests(TestCase):
@@ -183,8 +185,7 @@ class ProjectApiTests(TestCase):
         self.assertFalse(data["canEdit"])
         self.assertIsNone(data["members"])
 
-    def test_project_leader_can_update_all_project_fields(self):
-        repository_id = self.repository.pk
+    def test_project_leader_can_update_project_fields(self):
         self.client.force_login(self.user)
 
         response = self.client.put(
@@ -192,7 +193,6 @@ class ProjectApiTests(TestCase):
             data=self.project_update_payload(
                 name="Updated SOSP",
                 description="수정된 프로젝트 설명",
-                repositoryUrl="https://github.com/example/updated-project",
                 demoUrl="https://updated.example.com",
                 presentationUrl="https://updated.example.com/slides",
                 techStack=["React", "Django", "MySQL"],
@@ -223,22 +223,14 @@ class ProjectApiTests(TestCase):
             ["Django REST framework", "Chakra UI"],
         )
 
-        repository = Repository.objects.get(pk=repository_id)
+        self.repository.refresh_from_db()
         self.assertEqual(
-            repository.html_url,
-            "https://github.com/example/updated-project",
+            self.repository.html_url,
+            "https://github.com/Jiyeon125/SMU-OSP",
         )
-        self.assertIsNone(repository.github_id)
-        self.assertIsNone(repository.description)
-        self.assertEqual(repository.stars, 0)
-        self.assertEqual(repository.forks, 0)
-        self.assertIsNone(repository.language)
-        self.assertEqual(repository.topics, [])
-        self.assertIsNone(repository.github_updated_at)
-        self.assertIsNone(repository.fetched_at)
-        self.assertIsNone(repository.refresh_status)
+        self.assertEqual(self.repository.github_id, 101)
 
-    def test_project_leader_can_remove_repository_connection(self):
+    def test_project_leader_cannot_remove_repository_connection(self):
         self.client.force_login(self.user)
 
         response = self.client.put(
@@ -247,9 +239,38 @@ class ProjectApiTests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()["data"])
-        self.assertFalse(Repository.objects.filter(project=self.project).exists())
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 등록된 Repository는 변경하거나 연결 해제할 수 없습니다.",
+        )
+        self.assertTrue(Repository.objects.filter(project=self.project).exists())
+
+    def test_project_leader_cannot_change_repository_connection(self):
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(
+                name="롤백되어야 하는 이름",
+                repositoryUrl="https://github.com/example/other-project",
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 등록된 Repository는 변경하거나 연결 해제할 수 없습니다.",
+        )
+        self.project.refresh_from_db()
+        self.repository.refresh_from_db()
+        self.assertEqual(self.project.name, "SOSP")
+        self.assertEqual(
+            self.repository.html_url,
+            "https://github.com/Jiyeon125/SMU-OSP",
+        )
 
     def test_non_leader_cannot_update_project(self):
         teammate = get_user_model().objects.create_user(
@@ -505,6 +526,186 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Repository.objects.filter(project=project).exists())
         self.assertTrue(project.members.get().is_leader)
 
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_create_project_with_repository_enqueues_refresh_after_commit(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/projects/",
+                data={
+                    "name": "Repository Refresh Project",
+                    "description": "Repository 갱신 작업을 예약합니다.",
+                    "repositoryUrl": "https://github.com/example/refresh-project",
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        repository = Repository.objects.get(
+            project__name="Repository Refresh Project"
+        )
+        refresh_delay.assert_called_once_with(repository.pk)
+
+    def test_create_project_rejects_repository_linked_to_another_project(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Duplicate Repository Project",
+                "description": "이미 연결된 Repository를 사용할 수 없습니다.",
+                "repositoryUrl": "https://github.com/jiyeon125/smu-osp",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "이미 다른 프로젝트에 연결된 Repository입니다.",
+        )
+        self.assertFalse(
+            Project.objects.filter(name="Duplicate Repository Project").exists()
+        )
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_project_without_repository_can_add_one_and_enqueue_refresh(
+        self,
+        refresh_delay,
+    ):
+        self.repository.delete()
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(
+                    repositoryUrl="https://github.com/example/new-project"
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        repository = Repository.objects.get(project=self.project)
+        self.assertEqual(
+            repository.html_url,
+            "https://github.com/example/new-project",
+        )
+        refresh_delay.assert_called_once_with(repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_unchanged_repository_does_not_enqueue_refresh(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        refresh_delay.assert_not_called()
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_updates_metadata_for_same_github_id(
+        self,
+        request_get,
+    ):
+        response = request_get.return_value
+        response.status_code = 200
+        response.json.return_value = {
+            "id": self.repository.github_id,
+            "name": "SMU-OSP-renamed",
+            "full_name": "SMU-OSP/SMU-OSP-renamed",
+            "description": "🚀 최신 설명 ✨",
+            "stargazers_count": 12,
+            "forks_count": 3,
+            "language": "Python",
+            "topics": ["django", "celery"],
+            "html_url": "https://github.com/SMU-OSP/SMU-OSP-renamed",
+            "updated_at": "2026-07-22T00:00:00Z",
+            "private": False,
+        }
+
+        result = refresh_repository(self.repository.pk)
+
+        self.assertTrue(result)
+        self.repository.refresh_from_db()
+        self.assertEqual(self.repository.full_name, "SMU-OSP/SMU-OSP-renamed")
+        self.assertEqual(
+            self.repository.html_url,
+            "https://github.com/SMU-OSP/SMU-OSP-renamed",
+        )
+        self.assertEqual(self.repository.description, "최신 설명 ✨")
+        self.assertEqual(self.repository.stars, 12)
+        self.assertEqual(self.repository.forks, 3)
+        self.assertEqual(self.repository.topics, ["django", "celery"])
+        self.assertIsNotNone(self.repository.fetched_at)
+        self.assertEqual(
+            self.repository.refresh_status,
+            Repository.RefreshStatus.SUCCESS,
+        )
+        self.assertIsNone(self.repository.last_error_code)
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_rejects_different_github_id(self, request_get):
+        original_full_name = self.repository.full_name
+        original_html_url = self.repository.html_url
+        response = request_get.return_value
+        response.status_code = 200
+        response.json.return_value = {
+            "id": self.repository.github_id + 1,
+            "name": "different-project",
+            "full_name": "example/different-project",
+            "html_url": "https://github.com/example/different-project",
+            "private": False,
+        }
+
+        result = refresh_repository(self.repository.pk)
+
+        self.assertFalse(result)
+        self.repository.refresh_from_db()
+        self.assertEqual(self.repository.full_name, original_full_name)
+        self.assertEqual(self.repository.html_url, original_html_url)
+        self.assertEqual(
+            self.repository.refresh_status,
+            Repository.RefreshStatus.FAILED,
+        )
+        self.assertEqual(
+            self.repository.last_error_code,
+            "GITHUB_REPOSITORY_MISMATCH",
+        )
+
+    @patch("projects.tasks.requests.get")
+    def test_repository_refresh_preserves_cache_on_request_failure(
+        self,
+        request_get,
+    ):
+        request_get.side_effect = requests.RequestException
+        original_stars = self.repository.stars
+        original_fetched_at = self.repository.fetched_at
+
+        result = refresh_repository(self.repository.pk)
+
+        self.assertFalse(result)
+        self.repository.refresh_from_db()
+        self.assertEqual(self.repository.stars, original_stars)
+        self.assertEqual(self.repository.fetched_at, original_fetched_at)
+        self.assertEqual(
+            self.repository.refresh_status,
+            Repository.RefreshStatus.FAILED,
+        )
+        self.assertEqual(self.repository.last_error_code, "GITHUB_API_FAILED")
+
     def test_create_project_requires_login(self):
         response = self.client.post(
             "/api/v1/projects/",
@@ -564,7 +765,7 @@ class ProjectApiTests(TestCase):
         self.client.force_login(self.user)
 
         with patch(
-            "projects.views.Repository.objects.create",
+            "projects.services.Repository.objects.create",
             side_effect=IntegrityError,
         ):
             response = self.client.post(
