@@ -855,14 +855,35 @@ export default function ProjectDetailPage() {
                     borderRadius={"md"}
                     bg={"#fff8ec"}
                   >
-                    <Text color={"smu.orange"} fontSize={"sm"} fontWeight={"bold"}>
-                      Repository 정보를 불러오지 못했습니다.
-                    </Text>
-                    <Text color={"smu.darkGray"} fontSize={"xs"}>
-                      {REPOSITORY_REFRESH_ERROR_MESSAGES[
-                        project.repository.lastErrorCode || ""
-                      ] || "잠시 후 다시 시도해주세요."}
-                    </Text>
+                    <HStack
+                      justifyContent={"space-between"}
+                      alignItems={"center"}
+                      gap={3}
+                      flexWrap={"wrap"}
+                    >
+                      <Box>
+                        <Text
+                          color={"smu.orange"}
+                          fontSize={"sm"}
+                          fontWeight={"bold"}
+                        >
+                          Repository 정보를 불러오지 못했습니다.
+                        </Text>
+                        <Text color={"smu.darkGray"} fontSize={"xs"}>
+                          {REPOSITORY_REFRESH_ERROR_MESSAGES[
+                            project.repository.lastErrorCode || ""
+                          ] || "잠시 후 다시 시도해주세요."}
+                        </Text>
+                      </Box>
+                      <Button
+                        size={"sm"}
+                        colorPalette={"orange"}
+                        variant={"outline"}
+                        disabled
+                      >
+                        다시 불러오기
+                      </Button>
+                    </HStack>
                   </Box>
                 )}
                 <ExternalTextLink href={repositoryUrl}>
