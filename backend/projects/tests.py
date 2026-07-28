@@ -1,7 +1,6 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-import requests
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection
@@ -9,7 +8,6 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from .models import Member, Project, Repository
-from .tasks import refresh_repository
 
 
 class ProjectApiTests(TestCase):
@@ -456,7 +454,19 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Repository.objects.filter(pk=repository_id).exists())
         self.assertFalse(Member.objects.filter(pk=member_id).exists())
 
-    def test_create_project_creates_leader_member_and_url_only_repository(self):
+    @patch("projects.services.requests.get")
+    def test_create_project_creates_leader_member_and_repository(
+        self,
+        request_get,
+    ):
+        request_get.return_value.status_code = 200
+        request_get.return_value.json.return_value = {
+            "id": 202,
+            "name": "new-project",
+            "full_name": "example/new-project",
+            "html_url": "https://github.com/example/new-project",
+            "private": False,
+        }
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -502,7 +512,7 @@ class ProjectApiTests(TestCase):
             repository.html_url,
             "https://github.com/example/new-project",
         )
-        self.assertIsNone(repository.github_id)
+        self.assertEqual(repository.github_id, 202)
         self.assertIsNone(repository.fetched_at)
 
     def test_create_project_without_repository_url_keeps_repository_empty(self):
@@ -526,29 +536,32 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Repository.objects.filter(project=project).exists())
         self.assertTrue(project.members.get().is_leader)
 
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_create_project_with_repository_enqueues_refresh_after_commit(
+    @patch("projects.services.requests.get")
+    def test_create_project_rolls_back_when_repository_lookup_fails(
         self,
-        refresh_delay,
+        request_get,
     ):
+        request_get.return_value.status_code = 404
         self.client.force_login(self.user)
 
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                "/api/v1/projects/",
-                data={
-                    "name": "Repository Refresh Project",
-                    "description": "Repository 갱신 작업을 예약합니다.",
-                    "repositoryUrl": "https://github.com/example/refresh-project",
-                },
-                content_type="application/json",
-            )
-
-        self.assertEqual(response.status_code, 201)
-        repository = Repository.objects.get(
-            project__name="Repository Refresh Project"
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Invalid Repository Project",
+                "description": "조회되지 않는 Repository는 등록하지 않습니다.",
+                "repositoryUrl": "https://github.com/example/not-found",
+            },
+            content_type="application/json",
         )
-        refresh_delay.assert_called_once_with(repository.pk)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "존재하는 공개 GitHub Repository URL을 입력해주세요.",
+        )
+        self.assertFalse(
+            Project.objects.filter(name="Invalid Repository Project").exists()
+        )
 
     def test_create_project_rejects_repository_linked_to_another_project(self):
         self.client.force_login(self.user)
@@ -573,138 +586,73 @@ class ProjectApiTests(TestCase):
             Project.objects.filter(name="Duplicate Repository Project").exists()
         )
 
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_project_without_repository_can_add_one_and_enqueue_refresh(
+    @patch("projects.services.requests.get")
+    def test_project_without_repository_can_add_one(
         self,
-        refresh_delay,
+        request_get,
     ):
+        request_get.return_value.status_code = 200
+        request_get.return_value.json.return_value = {
+            "id": 303,
+            "name": "new-project",
+            "full_name": "example/new-project",
+            "html_url": "https://github.com/example/new-project",
+            "private": False,
+        }
         self.repository.delete()
         self.client.force_login(self.user)
 
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.put(
-                f"/api/v1/projects/{self.project.pk}",
-                data=self.project_update_payload(
-                    repositoryUrl="https://github.com/example/new-project"
-                ),
-                content_type="application/json",
-            )
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(
+                repositoryUrl="https://github.com/example/new-project"
+            ),
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 200)
         repository = Repository.objects.get(project=self.project)
+        self.assertEqual(repository.github_id, 303)
         self.assertEqual(
             repository.html_url,
             "https://github.com/example/new-project",
         )
-        refresh_delay.assert_called_once_with(repository.pk)
 
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_unchanged_repository_does_not_enqueue_refresh(
+    @patch("projects.services.requests.get")
+    def test_project_update_rolls_back_when_repository_lookup_fails(
         self,
-        refresh_delay,
+        request_get,
     ):
+        request_get.return_value.status_code = 404
+        self.repository.delete()
         self.client.force_login(self.user)
 
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.put(
-                f"/api/v1/projects/{self.project.pk}",
-                data=self.project_update_payload(),
-                content_type="application/json",
-            )
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(
+                name="롤백되어야 하는 이름",
+                repositoryUrl="https://github.com/example/not-found",
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, "SOSP")
+        self.assertFalse(Repository.objects.filter(project=self.project).exists())
+
+    @patch("projects.services.requests.get")
+    def test_unchanged_repository_does_not_request_github(self, request_get):
+        self.client.force_login(self.user)
+
+        response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(),
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 200)
-        refresh_delay.assert_not_called()
-
-    @patch("projects.tasks.requests.get")
-    def test_repository_refresh_updates_metadata_for_same_github_id(
-        self,
-        request_get,
-    ):
-        response = request_get.return_value
-        response.status_code = 200
-        response.json.return_value = {
-            "id": self.repository.github_id,
-            "name": "SMU-OSP-renamed",
-            "full_name": "SMU-OSP/SMU-OSP-renamed",
-            "description": "🚀 최신 설명 ✨",
-            "stargazers_count": 12,
-            "forks_count": 3,
-            "language": "Python",
-            "topics": ["django", "celery"],
-            "html_url": "https://github.com/SMU-OSP/SMU-OSP-renamed",
-            "updated_at": "2026-07-22T00:00:00Z",
-            "private": False,
-        }
-
-        result = refresh_repository(self.repository.pk)
-
-        self.assertTrue(result)
-        self.repository.refresh_from_db()
-        self.assertEqual(self.repository.full_name, "SMU-OSP/SMU-OSP-renamed")
-        self.assertEqual(
-            self.repository.html_url,
-            "https://github.com/SMU-OSP/SMU-OSP-renamed",
-        )
-        self.assertEqual(self.repository.description, "최신 설명 ✨")
-        self.assertEqual(self.repository.stars, 12)
-        self.assertEqual(self.repository.forks, 3)
-        self.assertEqual(self.repository.topics, ["django", "celery"])
-        self.assertIsNotNone(self.repository.fetched_at)
-        self.assertEqual(
-            self.repository.refresh_status,
-            Repository.RefreshStatus.SUCCESS,
-        )
-        self.assertIsNone(self.repository.last_error_code)
-
-    @patch("projects.tasks.requests.get")
-    def test_repository_refresh_rejects_different_github_id(self, request_get):
-        original_full_name = self.repository.full_name
-        original_html_url = self.repository.html_url
-        response = request_get.return_value
-        response.status_code = 200
-        response.json.return_value = {
-            "id": self.repository.github_id + 1,
-            "name": "different-project",
-            "full_name": "example/different-project",
-            "html_url": "https://github.com/example/different-project",
-            "private": False,
-        }
-
-        result = refresh_repository(self.repository.pk)
-
-        self.assertFalse(result)
-        self.repository.refresh_from_db()
-        self.assertEqual(self.repository.full_name, original_full_name)
-        self.assertEqual(self.repository.html_url, original_html_url)
-        self.assertEqual(
-            self.repository.refresh_status,
-            Repository.RefreshStatus.FAILED,
-        )
-        self.assertEqual(
-            self.repository.last_error_code,
-            "GITHUB_REPOSITORY_MISMATCH",
-        )
-
-    @patch("projects.tasks.requests.get")
-    def test_repository_refresh_preserves_cache_on_request_failure(
-        self,
-        request_get,
-    ):
-        request_get.side_effect = requests.RequestException
-        original_stars = self.repository.stars
-        original_fetched_at = self.repository.fetched_at
-
-        result = refresh_repository(self.repository.pk)
-
-        self.assertFalse(result)
-        self.repository.refresh_from_db()
-        self.assertEqual(self.repository.stars, original_stars)
-        self.assertEqual(self.repository.fetched_at, original_fetched_at)
-        self.assertEqual(
-            self.repository.refresh_status,
-            Repository.RefreshStatus.FAILED,
-        )
-        self.assertEqual(self.repository.last_error_code, "GITHUB_API_FAILED")
+        request_get.assert_not_called()
 
     def test_create_project_requires_login(self):
         response = self.client.post(
@@ -761,7 +709,19 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(Project.objects.filter(name="Rollback Project").exists())
 
-    def test_create_project_rolls_back_when_repository_creation_fails(self):
+    @patch("projects.services.requests.get")
+    def test_create_project_rolls_back_when_repository_creation_fails(
+        self,
+        request_get,
+    ):
+        request_get.return_value.status_code = 200
+        request_get.return_value.json.return_value = {
+            "id": 404,
+            "name": "rollback",
+            "full_name": "example/rollback",
+            "html_url": "https://github.com/example/rollback",
+            "private": False,
+        }
         self.client.force_login(self.user)
 
         with patch(

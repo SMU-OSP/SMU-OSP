@@ -43,16 +43,6 @@ import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 const MAX_REAPPLICATIONS = 5;
-const REPOSITORY_REFRESH_ERROR_MESSAGES: Record<string, string> = {
-  GITHUB_REPOSITORY_NOT_FOUND: "GitHub에서 Repository를 찾을 수 없습니다.",
-  GITHUB_RATE_LIMIT_EXCEEDED:
-    "GitHub API 요청 제한으로 잠시 후 다시 시도해주세요.",
-  PRIVATE_REPOSITORY: "공개 Repository가 아니어서 정보를 불러올 수 없습니다.",
-  REPOSITORY_ALREADY_LINKED: "이미 다른 프로젝트에 연결된 Repository입니다.",
-  GITHUB_REPOSITORY_MISMATCH:
-    "기존에 연결된 Repository와 다른 저장소가 확인되었습니다.",
-  GITHUB_API_FAILED: "GitHub Repository 정보를 불러오는 중 문제가 발생했습니다.",
-};
 
 function Section({
   title,
@@ -846,46 +836,6 @@ export default function ProjectDetailPage() {
                     ))}
                   </HStack>
                 ) : null}
-                {project.repository?.refreshStatus === "FAILED" && (
-                  <Box
-                    p={3}
-                    mb={3}
-                    borderWidth={1}
-                    borderColor={"smu.orange"}
-                    borderRadius={"md"}
-                    bg={"#fff8ec"}
-                  >
-                    <HStack
-                      justifyContent={"space-between"}
-                      alignItems={"center"}
-                      gap={3}
-                      flexWrap={"wrap"}
-                    >
-                      <Box>
-                        <Text
-                          color={"smu.orange"}
-                          fontSize={"sm"}
-                          fontWeight={"bold"}
-                        >
-                          Repository 정보를 불러오지 못했습니다.
-                        </Text>
-                        <Text color={"smu.darkGray"} fontSize={"xs"}>
-                          {REPOSITORY_REFRESH_ERROR_MESSAGES[
-                            project.repository.lastErrorCode || ""
-                          ] || "잠시 후 다시 시도해주세요."}
-                        </Text>
-                      </Box>
-                      <Button
-                        size={"sm"}
-                        colorPalette={"orange"}
-                        variant={"outline"}
-                        disabled
-                      >
-                        다시 불러오기
-                      </Button>
-                    </HStack>
-                  </Box>
-                )}
                 <ExternalTextLink href={repositoryUrl}>
                   Repository 열기
                 </ExternalTextLink>
