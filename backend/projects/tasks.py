@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
+    Project,
     Repository,
     RepositoryLanguage,
     RepositorySnapshot,
@@ -31,9 +32,12 @@ class GitHubCollectionError(Exception):
         super().__init__(code)
 
 
-def _dispatch_repository_refresh(repository_id):
+def _dispatch_repository_refresh(repository_id, snapshot_date=None):
     try:
-        refresh_repository.delay(repository_id)
+        if snapshot_date is None:
+            refresh_repository.delay(repository_id)
+        else:
+            refresh_repository.delay(repository_id, snapshot_date)
     except Exception:
         logger.exception(
             "Failed to enqueue repository refresh for repository %s",
@@ -42,7 +46,7 @@ def _dispatch_repository_refresh(repository_id):
         _mark_collection_failed(repository_id, REFRESH_QUEUE_FAILED)
 
 
-def enqueue_repository_refresh(repository_id):
+def enqueue_repository_refresh(repository_id, snapshot_date=None):
     with transaction.atomic():
         try:
             repository = Repository.objects.select_for_update().get(
@@ -66,7 +70,7 @@ def enqueue_repository_refresh(repository_id):
             status.save(update_fields=("last_status_code", "updated_at"))
 
         transaction.on_commit(
-            lambda: _dispatch_repository_refresh(repository_id),
+            lambda: _dispatch_repository_refresh(repository_id, snapshot_date),
             robust=True,
         )
     return True
@@ -341,6 +345,24 @@ def _mark_collection_failed(repository_id, error_code):
     RepositoryStatus.objects.update_or_create(
         repository=repository,
         defaults={"last_status_code": error_code},
+    )
+
+
+@shared_task
+def enqueue_daily_repository_refreshes(snapshot_date=None):
+    target_date = (
+        date.fromisoformat(snapshot_date)
+        if snapshot_date
+        else datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
+    )
+    repository_ids = list(
+        Repository.objects.filter(project__status=Project.Status.ACTIVE)
+        .exclude(snapshots__date=target_date)
+        .values_list("pk", flat=True)
+    )
+    return sum(
+        enqueue_repository_refresh(repository_id, target_date.isoformat())
+        for repository_id in repository_ids
     )
 
 

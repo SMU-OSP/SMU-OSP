@@ -23,6 +23,25 @@ import {
   ProjectUpdateInput,
 } from "../types/project";
 
+const REPOSITORY_PENDING_TIMEOUT_MS = 15 * 60 * 1000;
+
+export function getRepositoryPendingRetryDelay(
+  statusCode: string | null | undefined,
+  statusUpdatedAt: string | null | undefined,
+  now = Date.now()
+): number | null {
+  if (statusCode !== "PENDING" || !statusUpdatedAt) {
+    return null;
+  }
+
+  const updatedAt = Date.parse(statusUpdatedAt);
+  if (Number.isNaN(updatedAt)) {
+    return null;
+  }
+
+  return Math.max(updatedAt + REPOSITORY_PENDING_TIMEOUT_MS - now, 0);
+}
+
 export interface ListParams {
   start?: number;
   limit?: number;

@@ -198,6 +198,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "users.tasks.daily_update",
         "schedule": crontab(minute="0", hour="0,6,12,18"),
     },
+    "daily-repository-refresh": {
+        "task": "projects.tasks.enqueue_daily_repository_refreshes",
+        "schedule": crontab(minute="10", hour="0,1,2"),
+    },
 }
 
 # SECURE_SSL_REDIRECT = True

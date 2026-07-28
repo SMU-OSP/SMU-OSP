@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from unittest.mock import Mock, patch
 
 import requests
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
@@ -21,6 +22,7 @@ from .tasks import (
     PENDING,
     REFRESH_QUEUE_FAILED,
     SUCCESS,
+    enqueue_daily_repository_refreshes,
     refresh_repository,
 )
 
@@ -169,6 +171,61 @@ class RepositoryRefreshTaskTests(TestCase):
             self.response({"total_count": 2, "incomplete_results": False})
         )
         return responses
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_daily_refresh_enqueues_only_active_repositories_without_snapshot(
+        self,
+        refresh_delay,
+    ):
+        snapshot_date = date(2026, 7, 28)
+        completed_project = Project.objects.create(
+            name="Already Collected Project",
+            description="당일 수집 완료 프로젝트",
+        )
+        completed_repository = Repository.objects.create(
+            project=completed_project,
+            github_id=9002,
+            name="completed",
+            full_name="example/completed",
+            html_url="https://github.com/example/completed",
+        )
+        RepositorySnapshot.objects.create(
+            repository=completed_repository,
+            date=snapshot_date,
+        )
+        inactive_project = Project.objects.create(
+            name="Inactive Repository Project",
+            description="비활성 프로젝트",
+            status=Project.Status.INACTIVE,
+        )
+        Repository.objects.create(
+            project=inactive_project,
+            github_id=9003,
+            name="inactive",
+            full_name="example/inactive",
+            html_url="https://github.com/example/inactive",
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            scheduled_count = enqueue_daily_repository_refreshes(
+                snapshot_date.isoformat()
+            )
+
+        self.assertEqual(scheduled_count, 1)
+        refresh_delay.assert_called_once_with(
+            self.repository.pk,
+            snapshot_date.isoformat(),
+        )
+
+    def test_repository_refresh_beat_schedule_runs_three_times_daily(self):
+        entry = settings.CELERY_BEAT_SCHEDULE["daily-repository-refresh"]
+
+        self.assertEqual(
+            entry["task"],
+            "projects.tasks.enqueue_daily_repository_refreshes",
+        )
+        self.assertEqual(entry["schedule"].minute, {10})
+        self.assertEqual(entry["schedule"].hour, {0, 1, 2})
 
     @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):

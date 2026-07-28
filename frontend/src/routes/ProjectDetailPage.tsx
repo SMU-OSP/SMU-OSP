@@ -30,6 +30,7 @@ import {
   deleteProject,
   finishProject,
   getProject,
+  getRepositoryPendingRetryDelay,
   leaveProject,
   listProjectApplications,
   listProjectMembers,
@@ -45,7 +46,6 @@ import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 const MAX_REAPPLICATIONS = 5;
-const REPOSITORY_PENDING_TIMEOUT_MS = 15 * 60 * 1000;
 const REPOSITORY_STATUS_MESSAGES: Record<string, string> = {
   PENDING: "Repository 정보 수집 대기 중입니다.",
   REFRESH_QUEUE_FAILED:
@@ -330,20 +330,16 @@ export default function ProjectDetailPage() {
   const repositoryStatusCode = managedProject?.repository?.lastStatusCode;
   const repositoryStatusUpdatedAt = managedProject?.repository?.fetchedAt;
   useEffect(() => {
-    if (repositoryStatusCode !== "PENDING" || !repositoryStatusUpdatedAt) {
+    const remaining = getRepositoryPendingRetryDelay(
+      repositoryStatusCode,
+      repositoryStatusUpdatedAt
+    );
+    if (remaining === null) {
       setRepositoryPendingStale(false);
       return;
     }
 
-    const statusUpdatedAt = Date.parse(repositoryStatusUpdatedAt);
-    if (Number.isNaN(statusUpdatedAt)) {
-      setRepositoryPendingStale(false);
-      return;
-    }
-
-    const remaining =
-      statusUpdatedAt + REPOSITORY_PENDING_TIMEOUT_MS - Date.now();
-    if (remaining <= 0) {
+    if (remaining === 0) {
       setRepositoryPendingStale(true);
       return;
     }
