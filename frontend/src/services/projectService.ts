@@ -8,6 +8,7 @@ import {
   getProjectMembers,
   getProjectMemberships,
   getProjects,
+  refreshProjectRepository,
   updateProjectMember,
   updateProject as updateProjectApi,
 } from "../api";
@@ -208,6 +209,34 @@ export async function finishProject(
     usedOpenSource: project.usedOpenSource,
     status: "FINISHED",
   });
+}
+
+export async function reactivateProject(
+  project: ProjectDetail
+): Promise<ApiResponse<null>> {
+  return updateProject(String(project.id), {
+    name: project.name,
+    description: project.description,
+    repositoryUrl: project.repository?.htmlUrl || null,
+    demoUrl: project.demoUrl || null,
+    presentationUrl: project.presentationUrl || null,
+    techStack: project.techStack,
+    usedOpenSource: project.usedOpenSource,
+    status: "ACTIVE",
+  });
+}
+
+export async function retryRepositoryCollection(
+  projectId: number
+): Promise<ApiResponse<null>> {
+  try {
+    return await refreshProjectRepository(projectId);
+  } catch (e) {
+    return toApiResponse<null>(
+      e,
+      "Repository 정보 재수집 요청 중 오류가 발생했습니다."
+    );
+  }
 }
 
 export async function deleteProject(id: number): Promise<ApiResponse<null>> {

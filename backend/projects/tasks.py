@@ -5,6 +5,7 @@ import requests
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from .models import (
     Repository,
@@ -14,9 +15,11 @@ from .models import (
 )
 
 SUCCESS = "SUCCESS"
+PENDING = "PENDING"
 GITHUB_REPOSITORY_UNAVAILABLE = "GITHUB_REPOSITORY_UNAVAILABLE"
 GITHUB_RATE_LIMIT_EXCEEDED = "GITHUB_RATE_LIMIT_EXCEEDED"
 GITHUB_API_FAILED = "GITHUB_API_FAILED"
+PENDING_TIMEOUT = timedelta(minutes=15)
 
 
 class GitHubCollectionError(Exception):
@@ -26,7 +29,30 @@ class GitHubCollectionError(Exception):
 
 
 def enqueue_repository_refresh(repository_id):
-    transaction.on_commit(lambda: refresh_repository.delay(repository_id))
+    with transaction.atomic():
+        try:
+            repository = Repository.objects.select_for_update().get(
+                pk=repository_id
+            )
+        except Repository.DoesNotExist:
+            return False
+
+        status, created = RepositoryStatus.objects.get_or_create(
+            repository=repository,
+            defaults={"last_status_code": PENDING},
+        )
+        if (
+            not created
+            and status.last_status_code == PENDING
+            and status.updated_at > timezone.now() - PENDING_TIMEOUT
+        ):
+            return False
+        if not created:
+            status.last_status_code = PENDING
+            status.save(update_fields=("last_status_code", "updated_at"))
+
+        transaction.on_commit(lambda: refresh_repository.delay(repository_id))
+    return True
 
 
 def _github_headers():
@@ -112,7 +138,7 @@ def _collect_commits(full_name, default_branch, since, until):
         page += 1
 
 
-def _collect_repository(repository, snapshot_date):
+def _collect_repository(repository, snapshot_date, is_first_collection):
     metadata = _github_get(f"/repos/{repository.full_name}")
     if (
         not isinstance(metadata, dict)
@@ -146,6 +172,24 @@ def _collect_repository(repository, snapshot_date):
         since,
         until,
     )
+    has_commit_history = None
+    if is_first_collection:
+        commit_history = _github_get(
+            f"/repos/{repository.full_name}/commits",
+            params={
+                "sha": metadata["default_branch"],
+                "per_page": 1,
+            },
+            empty_on_conflict=True,
+        )
+        if not isinstance(commit_history, list) or any(
+            not isinstance(item, dict)
+            or not isinstance(item.get("sha"), str)
+            for item in commit_history
+        ):
+            raise GitHubCollectionError(GITHUB_API_FAILED)
+        has_commit_history = bool(commit_history)
+
     pull_requests = _github_get(
         "/search/issues",
         params={
@@ -167,6 +211,7 @@ def _collect_repository(repository, snapshot_date):
         "metadata": metadata,
         "languages": languages,
         "commits": commits,
+        "has_commit_history": has_commit_history,
         "pull_requests": pull_requests["total_count"],
     }
 
@@ -213,8 +258,9 @@ def _save_collection(repository_id, snapshot_date, collection):
         )
         has_previous_snapshot = repository.snapshots.exists()
         has_code_changed = (
-            has_previous_snapshot
-            and previous_languages != collection["languages"]
+            previous_languages != collection["languages"]
+            if has_previous_snapshot
+            else collection["has_commit_history"]
         )
 
         repository.name = metadata["name"]
@@ -286,7 +332,11 @@ def refresh_repository(repository_id, snapshot_date=None):
         else datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
     )
     try:
-        collection = _collect_repository(repository, target_date)
+        collection = _collect_repository(
+            repository,
+            target_date,
+            is_first_collection=not repository.snapshots.exists(),
+        )
         _save_collection(repository_id, target_date, collection)
     except Repository.DoesNotExist:
         return False

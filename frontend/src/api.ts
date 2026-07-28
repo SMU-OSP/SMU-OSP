@@ -91,6 +91,15 @@ export const getProjects = ({
 export const getProject = (id: string | number) =>
   instance.get(`projects/${id}`).then((response) => response.data);
 
+export const refreshProjectRepository = (projectId: string | number) =>
+  instance
+    .post(`projects/${projectId}/repository/refresh`, null, {
+      headers: {
+        "X-CSRFToken": Cookie.get("csrftoken") || "",
+      },
+    })
+    .then((response) => response.data);
+
 export const getProjectMemberships = () =>
   instance.get("projects/members").then((response) => response.data);
 

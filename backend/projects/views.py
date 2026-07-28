@@ -7,7 +7,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
-from .models import Member, Project, RepositoryLanguage, RepositorySnapshot
+from .models import (
+    Member,
+    Project,
+    Repository,
+    RepositoryLanguage,
+    RepositorySnapshot,
+)
 from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
@@ -19,6 +25,7 @@ from .serializers import (
     ProjectUpdateSerializer,
 )
 from .services import update_project_repository
+from .tasks import enqueue_repository_refresh
 
 DEFAULT_PAGE_SIZE = 10
 TRUE_QUERY_VALUES = {"1", "true"}
@@ -435,6 +442,57 @@ class ProjectDetail(APIView):
             )
 
         return Response(success(None), status=status.HTTP_200_OK)
+
+
+class ProjectRepositoryRefresh(APIView):
+    def post(self, request, pk):
+        if not request.user.is_authenticated:
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "로그인이 필요합니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not Project.objects.filter(pk=pk).exists():
+            return Response(
+                fail(
+                    "PROJECT_NOT_FOUND",
+                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not Member.objects.filter(
+            project_id=pk,
+            user=request.user,
+            status=Member.Status.JOINED,
+        ).exists():
+            return Response(
+                fail(
+                    "PERMISSION_DENIED",
+                    "프로젝트 구성원만 Repository 정보를 다시 수집할 수 있습니다.",
+                    status.HTTP_403_FORBIDDEN,
+                ),
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            repository = Repository.objects.get(project_id=pk)
+        except Repository.DoesNotExist:
+            return Response(
+                fail(
+                    "REPOSITORY_NOT_FOUND",
+                    "연결된 Repository를 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        enqueue_repository_refresh(repository.pk)
+        return Response(success(None), status=status.HTTP_202_ACCEPTED)
 
 
 class ProjectMemberships(APIView):

@@ -33,7 +33,9 @@ import {
   leaveProject,
   listProjectApplications,
   listProjectMembers,
+  reactivateProject,
   removeProjectMember,
+  retryRepositoryCollection,
 } from "../services/projectService";
 import {
   PROJECT_MEMBER_ROLE_LABEL,
@@ -43,6 +45,15 @@ import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 const MAX_REAPPLICATIONS = 5;
+const REPOSITORY_STATUS_MESSAGES: Record<string, string> = {
+  PENDING: "Repository 정보 수집 대기 중입니다.",
+  GITHUB_REPOSITORY_UNAVAILABLE:
+    "등록된 Repository를 확인할 수 없습니다.",
+  GITHUB_RATE_LIMIT_EXCEEDED:
+    "GitHub API 요청 제한으로 Repository 정보를 불러오지 못했습니다.",
+  GITHUB_API_FAILED:
+    "GitHub 오류로 Repository 정보를 불러오지 못했습니다.",
+};
 
 function Section({
   title,
@@ -296,6 +307,8 @@ export default function ProjectDetailPage() {
   const [leaveMessage, setLeaveMessage] = useState("");
   const [applicationMessage, setApplicationMessage] = useState("");
   const [projectActionMessage, setProjectActionMessage] = useState("");
+  const [repositoryActionMessage, setRepositoryActionMessage] = useState("");
+  const [repositoryActionFailed, setRepositoryActionFailed] = useState(false);
 
   const projectQuery = useQuery({
     queryKey: ["project", id],
@@ -402,6 +415,41 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const reactivateProjectMutation = useMutation({
+    mutationFn: () => reactivateProject(managedProject!),
+    onSuccess: async (response) => {
+      const failed = response.status !== "SUCCESS";
+      setRepositoryActionFailed(failed);
+      setRepositoryActionMessage(
+        failed
+          ? response.detail.message
+          : "프로젝트를 다시 활성화하고 Repository 수집을 요청했습니다."
+      );
+      if (!failed) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["project", id] }),
+          queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        ]);
+      }
+    },
+  });
+
+  const repositoryRefreshMutation = useMutation({
+    mutationFn: () => retryRepositoryCollection(managedProject!.id),
+    onSuccess: async (response) => {
+      const failed = response.status !== "SUCCESS";
+      setRepositoryActionFailed(failed);
+      setRepositoryActionMessage(
+        failed
+          ? response.detail.message
+          : "Repository 정보 재수집을 요청했습니다."
+      );
+      if (!failed) {
+        await queryClient.invalidateQueries({ queryKey: ["project", id] });
+      }
+    },
+  });
+
   const deleteProjectMutation = useMutation({
     mutationFn: () => deleteProject(managedProject!.id),
     onSuccess: async (response) => {
@@ -482,6 +530,19 @@ export default function ProjectDetailPage() {
       : 0;
   const repositoryName = project.repository?.fullName;
   const repositoryUrl = project.repository?.htmlUrl;
+  const repositoryStatusCode = project.repository?.lastStatusCode;
+  const repositoryCollectionFailed =
+    !!repositoryStatusCode &&
+    repositoryStatusCode !== "SUCCESS" &&
+    repositoryStatusCode !== "PENDING";
+  const repositoryStatusMessage = repositoryStatusCode
+    ? REPOSITORY_STATUS_MESSAGES[repositoryStatusCode] ||
+      "Repository 정보를 불러오지 못했습니다."
+    : "";
+  const canRetryRepository =
+    repositoryCollectionFailed && project.membershipRole != null;
+  const canReactivateProject =
+    project.status === "INACTIVE" && project.membershipRole === "OWNER";
   const leave = (description: string) => {
     setLeaveMessage("");
     leaveMutation.mutate({
@@ -781,9 +842,77 @@ export default function ProjectDetailPage() {
           borderRadius={"lg"}
           bg={"white"}
         >
-          <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"} mb={2}>
-            Repository 결과물
-          </Text>
+          <HStack
+            justifyContent={"space-between"}
+            alignItems={"center"}
+            gap={3}
+            mb={2}
+            flexWrap={"wrap"}
+          >
+            <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
+              Repository 결과물
+            </Text>
+            <HStack gap={2} flexWrap={"wrap"}>
+              {canReactivateProject && (
+                <Button
+                  variant="outline"
+                  disabled={reactivateProjectMutation.isPending}
+                  onClick={() => {
+                    setRepositoryActionMessage("");
+                    reactivateProjectMutation.mutate();
+                  }}
+                >
+                  {reactivateProjectMutation.isPending
+                    ? "활성화 중..."
+                    : "프로젝트 다시 활성화"}
+                </Button>
+              )}
+              {canRetryRepository && (
+                <Button
+                  variant="outline"
+                  disabled={repositoryRefreshMutation.isPending}
+                  onClick={() => {
+                    setRepositoryActionMessage("");
+                    repositoryRefreshMutation.mutate();
+                  }}
+                >
+                  {repositoryRefreshMutation.isPending
+                    ? "요청 중..."
+                    : "Repository 다시 수집"}
+                </Button>
+              )}
+            </HStack>
+          </HStack>
+          {repositoryStatusMessage && repositoryStatusCode !== "SUCCESS" && (
+            <Box
+              role={repositoryCollectionFailed ? "alert" : "status"}
+              p={3}
+              mb={3}
+              borderWidth={1}
+              borderColor={
+                repositoryCollectionFailed ? "smu.orange" : "smu.lightBlue"
+              }
+              borderRadius="md"
+              bg={repositoryCollectionFailed ? "#fff8ec" : "#f4f9fd"}
+            >
+              <Text fontSize="sm">{repositoryStatusMessage}</Text>
+            </Box>
+          )}
+          {repositoryActionMessage && (
+            <Box
+              role={repositoryActionFailed ? "alert" : "status"}
+              p={3}
+              mb={3}
+              borderWidth={1}
+              borderColor={
+                repositoryActionFailed ? "smu.orange" : "smu.lightBlue"
+              }
+              borderRadius="md"
+              bg="white"
+            >
+              <Text fontSize="sm">{repositoryActionMessage}</Text>
+            </Box>
+          )}
           {repositoryName && repositoryUrl ? (
             <VStack alignItems={"stretch"} gap={3}>
               <Text fontSize={"sm"} color={"smu.darkGray"}>

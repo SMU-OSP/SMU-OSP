@@ -18,6 +18,7 @@ from .models import (
 )
 from .tasks import (
     GITHUB_API_FAILED,
+    PENDING,
     SUCCESS,
     refresh_repository,
 )
@@ -143,8 +144,8 @@ class RepositoryRefreshTaskTests(TestCase):
         response.json.return_value = data
         return response
 
-    def successful_responses(self, languages):
-        return [
+    def successful_responses(self, languages, *, first_collection=False):
+        responses = [
             self.response(
                 {
                     "id": 9001,
@@ -160,13 +161,17 @@ class RepositoryRefreshTaskTests(TestCase):
             ),
             self.response(languages),
             self.response([{"sha": "commit-1"}, {"sha": "commit-1"}]),
-            self.response({"total_count": 2}),
         ]
+        if first_collection:
+            responses.append(self.response([{"sha": "existing-commit"}]))
+        responses.append(self.response({"total_count": 2}))
+        return responses
 
     @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
         request_get.side_effect = self.successful_responses(
-            {"Python": 100, "JavaScript": 50}
+            {"Python": 100, "JavaScript": 50},
+            first_collection=True,
         )
 
         result = refresh_repository(self.repository.pk, "2026-07-28")
@@ -177,7 +182,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(snapshot.forks, 3)
         self.assertEqual(snapshot.commits, 1)
         self.assertEqual(snapshot.pull_requests, 2)
-        self.assertFalse(snapshot.has_code_changed)
+        self.assertTrue(snapshot.has_code_changed)
         self.assertEqual(
             dict(self.repository.languages.values_list("language", "bytes")),
             {"Python": 100, "JavaScript": 50},
@@ -185,8 +190,8 @@ class RepositoryRefreshTaskTests(TestCase):
         status = self.repository.status
         self.assertEqual(status.description, "수집된 설명")
         self.assertEqual(status.last_status_code, SUCCESS)
-        self.assertEqual(status.current_streak, 0)
-        self.assertEqual(status.max_streak, 0)
+        self.assertEqual(status.current_streak, 1)
+        self.assertEqual(status.max_streak, 1)
 
     @patch("projects.tasks.requests.get")
     def test_refresh_detects_language_change_and_updates_streak(self, request_get):
@@ -776,8 +781,11 @@ class ProjectApiTests(TestCase):
             "https://github.com/example/new-project",
         )
         self.assertEqual(repository.github_id, 202)
-        self.assertFalse(
-            RepositoryStatus.objects.filter(repository=repository).exists()
+        self.assertEqual(
+            RepositoryStatus.objects.get(
+                repository=repository
+            ).last_status_code,
+            PENDING,
         )
         refresh_delay.assert_called_once_with(repository.pk)
 
@@ -939,6 +947,75 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.ACTIVE)
+        self.assertEqual(self.repository.status.last_status_code, PENDING)
+        refresh_delay.assert_called_once_with(self.repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_joined_member_can_retry_without_duplicate_task(self, refresh_delay):
+        teammate = get_user_model().objects.create_user(
+            username="repository-teammate",
+            password="password",
+            github_email="repository-teammate@sookmyung.ac.kr",
+            name="레포 팀원",
+            student_id=220,
+            major="컴퓨터과학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=teammate,
+            status=Member.Status.JOINED,
+        )
+        self.client.force_login(teammate)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            first_response = self.client.post(
+                f"/api/v1/projects/{self.project.pk}/repository/refresh"
+            )
+            second_response = self.client.post(
+                f"/api/v1/projects/{self.project.pk}/repository/refresh"
+            )
+
+        self.assertEqual(first_response.status_code, 202)
+        self.assertEqual(second_response.status_code, 202)
+        self.assertIsNone(first_response.json()["data"])
+        self.assertEqual(self.repository.status.last_status_code, PENDING)
+        refresh_delay.assert_called_once_with(self.repository.pk)
+
+    def test_outsider_cannot_retry_repository_refresh(self):
+        outsider = get_user_model().objects.create_user(
+            username="repository-outsider",
+            password="password",
+            github_email="repository-outsider@sookmyung.ac.kr",
+            name="외부인",
+            student_id=221,
+            major="컴퓨터과학",
+        )
+        self.client.force_login(outsider)
+
+        response = self.client.post(
+            f"/api/v1/projects/{self.project.pk}/repository/refresh"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_stale_pending_repository_refresh_can_be_retried(self, refresh_delay):
+        RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=PENDING,
+        )
+        RepositoryStatus.objects.filter(repository=self.repository).update(
+            updated_at=timezone.now() - timedelta(minutes=16)
+        )
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/v1/projects/{self.project.pk}/repository/refresh"
+            )
+
+        self.assertEqual(response.status_code, 202)
         refresh_delay.assert_called_once_with(self.repository.pk)
 
     def test_create_project_requires_login(self):
