@@ -4,6 +4,7 @@ import requests
 from django.conf import settings
 
 from .models import Repository
+from .tasks import enqueue_repository_refresh
 
 REPOSITORY_ALREADY_LINKED_MESSAGE = (
     "이미 다른 프로젝트에 연결된 Repository입니다."
@@ -74,11 +75,21 @@ def _get_repository_data(full_name):
     return data
 
 
-def update_project_repository(project, repository_url):
+def update_project_repository(
+    project,
+    repository_url,
+    *,
+    previous_project_status=None,
+):
     repository = getattr(project, "repository", None)
     if repository:
         if repository_url != repository.html_url:
             raise ValueError(REPOSITORY_CHANGE_NOT_ALLOWED_MESSAGE)
+        if (
+            previous_project_status == project.Status.INACTIVE
+            and project.status == project.Status.ACTIVE
+        ):
+            enqueue_repository_refresh(repository.pk)
         return
     if not repository_url:
         return
@@ -91,10 +102,11 @@ def update_project_repository(project, repository_url):
     if Repository.objects.filter(github_id=data["id"]).exists():
         raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
 
-    Repository.objects.create(
+    repository = Repository.objects.create(
         project=project,
         github_id=data["id"],
         name=data["name"],
         full_name=data["full_name"],
         html_url=data["html_url"],
     )
+    enqueue_repository_refresh(repository.pk)

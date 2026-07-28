@@ -1,6 +1,7 @@
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
@@ -14,6 +15,11 @@ from .models import (
     RepositoryLanguage,
     RepositorySnapshot,
     RepositoryStatus,
+)
+from .tasks import (
+    GITHUB_API_FAILED,
+    SUCCESS,
+    refresh_repository,
 )
 
 
@@ -70,6 +76,176 @@ class RepositoryDataModelTests(TestCase):
                 repository=self.repository,
                 last_status_code="SUCCESS",
             )
+
+    def test_project_becomes_inactive_after_30_normal_inactive_snapshots(self):
+        snapshot_date = date(2026, 7, 28)
+        RepositorySnapshot.objects.bulk_create(
+            [
+                RepositorySnapshot(
+                    repository=self.repository,
+                    date=snapshot_date - timedelta(days=offset),
+                )
+                for offset in range(30)
+            ]
+        )
+
+        changed = self.repository.project.deactivate_if_repository_inactive(
+            snapshot_date
+        )
+
+        self.assertTrue(changed)
+        self.repository.project.refresh_from_db()
+        self.assertEqual(
+            self.repository.project.status,
+            Project.Status.INACTIVE,
+        )
+
+    def test_project_stays_active_when_snapshot_dates_have_a_gap(self):
+        snapshot_date = date(2026, 7, 28)
+        RepositorySnapshot.objects.bulk_create(
+            [
+                RepositorySnapshot(
+                    repository=self.repository,
+                    date=snapshot_date - timedelta(days=offset),
+                )
+                for offset in range(31)
+                if offset != 10
+            ]
+        )
+
+        changed = self.repository.project.deactivate_if_repository_inactive(
+            snapshot_date
+        )
+
+        self.assertFalse(changed)
+        self.repository.project.refresh_from_db()
+        self.assertEqual(self.repository.project.status, Project.Status.ACTIVE)
+
+
+class RepositoryRefreshTaskTests(TestCase):
+    def setUp(self):
+        project = Project.objects.create(
+            name="Repository Refresh Project",
+            description="Repository 수집 작업 검증",
+        )
+        self.repository = Repository.objects.create(
+            project=project,
+            github_id=9001,
+            name="repository-data",
+            full_name="example/repository-data",
+            html_url="https://github.com/example/repository-data",
+        )
+
+    def response(self, data, status_code=200, headers=None):
+        response = Mock()
+        response.status_code = status_code
+        response.headers = headers or {}
+        response.json.return_value = data
+        return response
+
+    def successful_responses(self, languages):
+        return [
+            self.response(
+                {
+                    "id": 9001,
+                    "name": "repository-data",
+                    "full_name": "example/repository-data",
+                    "html_url": "https://github.com/example/repository-data",
+                    "description": "수집된 설명",
+                    "private": False,
+                    "default_branch": "main",
+                    "stargazers_count": 12,
+                    "forks_count": 3,
+                }
+            ),
+            self.response(languages),
+            self.response([{"sha": "commit-1"}, {"sha": "commit-1"}]),
+            self.response({"total_count": 2}),
+        ]
+
+    @patch("projects.tasks.requests.get")
+    def test_refresh_saves_normalized_collection(self, request_get):
+        request_get.side_effect = self.successful_responses(
+            {"Python": 100, "JavaScript": 50}
+        )
+
+        result = refresh_repository(self.repository.pk, "2026-07-28")
+
+        self.assertTrue(result)
+        snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
+        self.assertEqual(snapshot.stars, 12)
+        self.assertEqual(snapshot.forks, 3)
+        self.assertEqual(snapshot.commits, 1)
+        self.assertEqual(snapshot.pull_requests, 2)
+        self.assertFalse(snapshot.has_code_changed)
+        self.assertEqual(
+            dict(self.repository.languages.values_list("language", "bytes")),
+            {"Python": 100, "JavaScript": 50},
+        )
+        status = self.repository.status
+        self.assertEqual(status.description, "수집된 설명")
+        self.assertEqual(status.last_status_code, SUCCESS)
+        self.assertEqual(status.current_streak, 0)
+        self.assertEqual(status.max_streak, 0)
+
+    @patch("projects.tasks.requests.get")
+    def test_refresh_detects_language_change_and_updates_streak(self, request_get):
+        RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 27),
+            has_code_changed=True,
+        )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
+        request_get.side_effect = self.successful_responses(
+            {"Python": 80, "Go": 20}
+        )
+
+        self.assertTrue(refresh_repository(self.repository.pk, "2026-07-28"))
+
+        snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
+        self.assertTrue(snapshot.has_code_changed)
+        self.assertEqual(self.repository.status.current_streak, 2)
+        self.assertEqual(self.repository.status.max_streak, 2)
+        self.assertEqual(
+            dict(self.repository.languages.values_list("language", "bytes")),
+            {"Python": 80, "Go": 20},
+        )
+
+    @patch("projects.tasks.requests.get")
+    def test_refresh_failure_preserves_last_normal_collection(self, request_get):
+        snapshot = RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 27),
+            stars=7,
+        )
+        language = RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
+        RepositoryStatus.objects.create(
+            repository=self.repository,
+            description="기존 설명",
+            last_status_code=SUCCESS,
+        )
+        request_get.side_effect = requests.RequestException
+
+        self.assertFalse(refresh_repository(self.repository.pk, "2026-07-28"))
+
+        snapshot.refresh_from_db()
+        language.refresh_from_db()
+        self.repository.status.refresh_from_db()
+        self.assertEqual(snapshot.stars, 7)
+        self.assertEqual(language.bytes, 100)
+        self.assertEqual(self.repository.status.description, "기존 설명")
+        self.assertEqual(
+            self.repository.status.last_status_code,
+            GITHUB_API_FAILED,
+        )
 
 
 class ProjectApiTests(TestCase):
@@ -188,6 +364,36 @@ class ProjectApiTests(TestCase):
         self.assertNotIn("canApply", body["data"])
         self.assertNotIn("applicationStatus", body["data"])
         self.assertIsNone(body["data"]["members"])
+
+    def test_project_detail_uses_normalized_repository_data(self):
+        RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 27),
+            stars=12,
+            forks=3,
+        )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
+        RepositoryStatus.objects.create(
+            repository=self.repository,
+            description="정규화된 설명",
+            last_status_code=SUCCESS,
+        )
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        repository = response.json()["data"]["repository"]
+        self.assertEqual(repository["description"], "정규화된 설명")
+        self.assertEqual(repository["stars"], 12)
+        self.assertEqual(repository["forks"], 3)
+        self.assertEqual(repository["language"], "Python")
+        self.assertEqual(repository["topics"], [])
+        self.assertEqual(repository["lastStatusCode"], SUCCESS)
+        self.assertNotIn("refreshStatus", repository)
+        self.assertNotIn("lastErrorCode", repository)
 
     def test_project_member_can_view_joined_member_details(self):
         teammate = get_user_model().objects.create_user(
@@ -516,10 +722,12 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Repository.objects.filter(pk=repository_id).exists())
         self.assertFalse(Member.objects.filter(pk=member_id).exists())
 
+    @patch("projects.tasks.refresh_repository.delay")
     @patch("projects.services.requests.get")
     def test_create_project_creates_leader_member_and_repository(
         self,
         request_get,
+        refresh_delay,
     ):
         request_get.return_value.status_code = 200
         request_get.return_value.json.return_value = {
@@ -531,19 +739,20 @@ class ProjectApiTests(TestCase):
         }
         self.client.force_login(self.user)
 
-        response = self.client.post(
-            "/api/v1/projects/",
-            data={
-                "name": "New Project",
-                "description": "프로젝트 정보만 입력해 등록합니다.",
-                "repositoryUrl": "https://github.com/example/new-project",
-                "demoUrl": "",
-                "presentationUrl": "",
-                "techStack": ["React", "Django"],
-                "usedOpenSource": ["Django REST framework"],
-            },
-            content_type="application/json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/v1/projects/",
+                data={
+                    "name": "New Project",
+                    "description": "프로젝트 정보만 입력해 등록합니다.",
+                    "repositoryUrl": "https://github.com/example/new-project",
+                    "demoUrl": "",
+                    "presentationUrl": "",
+                    "techStack": ["React", "Django"],
+                    "usedOpenSource": ["Django REST framework"],
+                },
+                content_type="application/json",
+            )
 
         self.assertEqual(response.status_code, 201)
         body = response.json()
@@ -576,6 +785,7 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(repository.github_id, 202)
         self.assertIsNone(repository.fetched_at)
+        refresh_delay.assert_called_once_with(repository.pk)
 
     def test_create_project_without_repository_url_keeps_repository_empty(self):
         self.client.force_login(self.user)
@@ -715,6 +925,27 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         request_get.assert_not_called()
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_restoring_inactive_project_enqueues_repository_refresh(
+        self,
+        refresh_delay,
+    ):
+        self.project.status = Project.Status.INACTIVE
+        self.project.save(update_fields=("status", "updated_at"))
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(status=Project.Status.ACTIVE),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.ACTIVE)
+        refresh_delay.assert_called_once_with(self.repository.pk)
 
     def test_create_project_requires_login(self):
         response = self.client.post(

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Final
 
 from django.conf import settings
@@ -161,9 +162,11 @@ class Project(CommonModel):
             self.Status.ACTIVE: {
                 self.Status.ACTIVE,
                 self.Status.FINISHED,
+                self.Status.INACTIVE,
                 self.Status.DELETED,
             },
             self.Status.INACTIVE: {
+                self.Status.ACTIVE,
                 self.Status.DELETED,
             },
             self.Status.FINISHED: set(),
@@ -177,6 +180,36 @@ class Project(CommonModel):
                 status=Member.Status.CANCELED,
                 updated_at=timezone.now(),
             )
+
+    def deactivate_if_repository_inactive(self, snapshot_date):
+        if self.status != self.Status.ACTIVE:
+            return False
+
+        repository = getattr(self, "repository", None)
+        if repository is None:
+            return False
+        snapshots = list(
+            repository.snapshots.order_by("-date").values_list(
+                "date",
+                "has_code_changed",
+            )[:30]
+        )
+        expected_dates = [
+            snapshot_date - timedelta(days=offset)
+            for offset in range(30)
+        ]
+        if len(snapshots) != 30 or any(
+            date != expected_date or has_code_changed
+            for (date, has_code_changed), expected_date in zip(
+                snapshots,
+                expected_dates,
+            )
+        ):
+            return False
+
+        self.set_status(self.Status.INACTIVE)
+        self.save(update_fields=("status", "updated_at"))
+        return True
 
     def __str__(self):
         return self.name

@@ -37,8 +37,7 @@ export interface Repository {
   htmlUrl: string;
   updatedAt?: string | null;
   fetchedAt: string | null;
-  refreshStatus?: "SUCCESS" | "FAILED" | null;
-  lastErrorCode?: string | null;
+  lastStatusCode?: string | null;
 }
 
 export interface Project {

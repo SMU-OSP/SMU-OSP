@@ -17,13 +17,55 @@ class RepositorySerializer(serializers.ModelSerializer):
     githubId = serializers.IntegerField(source="github_id", allow_null=True)
     fullName = serializers.CharField(source="full_name")
     htmlUrl = serializers.URLField(source="html_url")
-    updatedAt = serializers.DateTimeField(
-        source="github_updated_at",
-        allow_null=True,
-    )
-    fetchedAt = serializers.DateTimeField(source="fetched_at", allow_null=True)
-    refreshStatus = serializers.CharField(source="refresh_status", allow_null=True)
-    lastErrorCode = serializers.CharField(source="last_error_code", allow_null=True)
+    description = serializers.SerializerMethodField()
+    stars = serializers.SerializerMethodField()
+    forks = serializers.SerializerMethodField()
+    language = serializers.SerializerMethodField()
+    topics = serializers.SerializerMethodField()
+    fetchedAt = serializers.SerializerMethodField()
+    lastStatusCode = serializers.SerializerMethodField()
+
+    def _status(self, repository):
+        return getattr(repository, "status", None)
+
+    def _latest_snapshot(self, repository):
+        snapshots = getattr(repository, "serialized_snapshots", None)
+        if snapshots is not None:
+            return snapshots[0] if snapshots else None
+        return repository.snapshots.order_by("-date").first()
+
+    def _primary_language(self, repository):
+        languages = getattr(repository, "serialized_languages", None)
+        if languages is not None:
+            return languages[0] if languages else None
+        return repository.languages.order_by("-bytes", "language").first()
+
+    def get_description(self, repository):
+        status = self._status(repository)
+        return status.description if status else None
+
+    def get_stars(self, repository):
+        snapshot = self._latest_snapshot(repository)
+        return snapshot.stars if snapshot else 0
+
+    def get_forks(self, repository):
+        snapshot = self._latest_snapshot(repository)
+        return snapshot.forks if snapshot else 0
+
+    def get_language(self, repository):
+        language = self._primary_language(repository)
+        return language.language if language else None
+
+    def get_topics(self, repository):
+        return []
+
+    def get_fetchedAt(self, repository):
+        status = self._status(repository)
+        return status.updated_at if status else None
+
+    def get_lastStatusCode(self, repository):
+        status = self._status(repository)
+        return status.last_status_code if status else None
 
     class Meta:
         model = Repository
@@ -38,10 +80,8 @@ class RepositorySerializer(serializers.ModelSerializer):
             "language",
             "topics",
             "htmlUrl",
-            "updatedAt",
             "fetchedAt",
-            "refreshStatus",
-            "lastErrorCode",
+            "lastStatusCode",
         )
 
 

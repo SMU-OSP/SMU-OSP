@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
-from .models import Member, Project
+from .models import Member, Project, RepositoryLanguage, RepositorySnapshot
 from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
@@ -102,7 +102,22 @@ class Projects(APIView):
             )
 
         projects = (
-            Project.objects.select_related("repository")
+            Project.objects.select_related("repository", "repository__status")
+            .prefetch_related(
+                Prefetch(
+                    "repository__snapshots",
+                    queryset=RepositorySnapshot.objects.order_by("-date")[:1],
+                    to_attr="serialized_snapshots",
+                ),
+                Prefetch(
+                    "repository__languages",
+                    queryset=RepositoryLanguage.objects.order_by(
+                        "-bytes",
+                        "language",
+                    ),
+                    to_attr="serialized_languages",
+                ),
+            )
             .all()
             .order_by("-updated_at", "-pk")
         )
@@ -214,13 +229,29 @@ class ProjectDetail(APIView):
         )
         try:
             project = (
-                Project.objects.select_related("repository")
+                Project.objects.select_related(
+                    "repository",
+                    "repository__status",
+                )
                 .prefetch_related(
                     Prefetch(
                         "members",
                         queryset=joined_members,
                         to_attr="joined_members",
-                    )
+                    ),
+                    Prefetch(
+                        "repository__snapshots",
+                        queryset=RepositorySnapshot.objects.order_by("-date")[:1],
+                        to_attr="serialized_snapshots",
+                    ),
+                    Prefetch(
+                        "repository__languages",
+                        queryset=RepositoryLanguage.objects.order_by(
+                            "-bytes",
+                            "language",
+                        ),
+                        to_attr="serialized_languages",
+                    ),
                 )
                 .get(pk=pk)
             )
@@ -287,6 +318,7 @@ class ProjectDetail(APIView):
                 serializer.is_valid(raise_exception=True)
 
                 data = serializer.validated_data
+                previous_project_status = project.status
                 for field in (
                     "name",
                     "description",
@@ -298,7 +330,11 @@ class ProjectDetail(APIView):
                     setattr(project, field, data[field])
                 project.set_status(data["status"])
                 project.save()
-                update_project_repository(project, data.get("repository_url"))
+                update_project_repository(
+                    project,
+                    data.get("repository_url"),
+                    previous_project_status=previous_project_status,
+                )
         except Project.DoesNotExist:
             return Response(
                 fail(
