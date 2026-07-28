@@ -458,7 +458,12 @@ class ProjectRepositoryRefresh(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not Project.objects.filter(pk=pk).exists():
+        project_status = (
+            Project.objects.filter(pk=pk)
+            .values_list("status", flat=True)
+            .first()
+        )
+        if project_status is None:
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
@@ -466,6 +471,18 @@ class ProjectRepositoryRefresh(APIView):
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        if project_status in {
+            Project.Status.FINISHED,
+            Project.Status.DELETED,
+        }:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_STATUS",
+                    "완료되거나 삭제된 프로젝트의 Repository 정보는 다시 수집할 수 없습니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
             )
         if not Member.objects.filter(
             project_id=pk,

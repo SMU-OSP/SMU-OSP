@@ -235,6 +235,22 @@ class RepositoryRefreshTaskTests(TestCase):
         )
 
     @patch("projects.tasks.requests.get")
+    def test_refresh_skips_finished_and_deleted_projects(self, request_get):
+        for project_status in (
+            Project.Status.FINISHED,
+            Project.Status.DELETED,
+        ):
+            with self.subTest(project_status=project_status):
+                self.repository.project.status = project_status
+                self.repository.project.save(
+                    update_fields=("status", "updated_at")
+                )
+
+                self.assertFalse(refresh_repository(self.repository.pk))
+
+        request_get.assert_not_called()
+
+    @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
         request_get.side_effect = self.successful_responses(
             {"Python": 100, "JavaScript": 50},
@@ -737,6 +753,23 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.DELETED)
 
+    def test_project_leader_can_soft_delete_finished_project(self):
+        self.client.force_login(self.user)
+
+        finish_response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(status=Project.Status.FINISHED),
+            content_type="application/json",
+        )
+        delete_response = self.client.delete(
+            f"/api/v1/projects/{self.project.pk}"
+        )
+
+        self.assertEqual(finish_response.status_code, 200)
+        self.assertEqual(delete_response.status_code, 200)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, Project.Status.DELETED)
+
     def test_non_leader_cannot_delete_project(self):
         teammate = get_user_model().objects.create_user(
             username="delete-nonleader",
@@ -1123,6 +1156,33 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(first_response.json()["data"])
         self.assertEqual(self.repository.status.last_status_code, PENDING)
         refresh_delay.assert_called_once_with(self.repository.pk)
+
+    @patch("projects.tasks.refresh_repository.delay")
+    def test_finished_and_deleted_projects_cannot_retry_repository_refresh(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        for project_status in (
+            Project.Status.FINISHED,
+            Project.Status.DELETED,
+        ):
+            with self.subTest(project_status=project_status):
+                self.project.status = project_status
+                self.project.save(update_fields=("status", "updated_at"))
+
+                response = self.client.post(
+                    f"/api/v1/projects/{self.project.pk}/repository/refresh"
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json()["status"],
+                    "INVALID_PROJECT_STATUS",
+                )
+
+        refresh_delay.assert_not_called()
 
     def test_outsider_cannot_retry_repository_refresh(self):
         outsider = get_user_model().objects.create_user(

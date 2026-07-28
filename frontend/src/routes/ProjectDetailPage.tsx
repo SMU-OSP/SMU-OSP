@@ -75,6 +75,19 @@ function Section({
   );
 }
 
+function MessageCloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      aria-label="안내 닫기"
+      size="sm"
+      variant="ghost"
+      onClick={onClick}
+    >
+      ×
+    </Button>
+  );
+}
+
 function Pill({
   children,
   bg = "smu.gray",
@@ -570,9 +583,13 @@ export default function ProjectDetailPage() {
     : "";
   const canRetryRepository =
     (repositoryCollectionFailed || repositoryPendingStale) &&
-    project.membershipRole != null;
+    project.membershipRole != null &&
+    project.status !== "FINISHED" &&
+    project.status !== "DELETED";
   const canReactivateProject =
     project.status === "INACTIVE" && project.membershipRole === "OWNER";
+  const canDeleteProject =
+    project.status !== "DELETED" && project.membershipRole === "OWNER";
   const leave = (description: string) => {
     setLeaveMessage("");
     leaveMutation.mutate({
@@ -625,43 +642,45 @@ export default function ProjectDetailPage() {
               </Button>
             )}
             {project.canEdit && (
-              <>
-                <Button
-                  variant="outline"
-                  disabled={finishProjectMutation.isPending}
-                  onClick={() => {
-                    if (window.confirm("프로젝트를 완료하시겠습니까?")) {
-                      setProjectActionMessage("");
-                      finishProjectMutation.mutate();
-                    }
-                  }}
-                >
-                  프로젝트 완료
-                </Button>
-                <Button
-                  colorPalette="red"
-                  variant="outline"
-                  disabled={deleteProjectMutation.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "프로젝트를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
-                      )
-                    ) {
-                      setProjectActionMessage("");
-                      deleteProjectMutation.mutate();
-                    }
-                  }}
-                >
-                  프로젝트 삭제
-                </Button>
-                <Button
-                  bg={"smu.blue"}
-                  onClick={() => navigate(`/projects/${project.id}/edit`)}
-                >
-                  프로젝트 수정
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                disabled={finishProjectMutation.isPending}
+                onClick={() => {
+                  if (window.confirm("프로젝트를 완료하시겠습니까?")) {
+                    setProjectActionMessage("");
+                    finishProjectMutation.mutate();
+                  }
+                }}
+              >
+                프로젝트 완료
+              </Button>
+            )}
+            {canDeleteProject && (
+              <Button
+                colorPalette="red"
+                variant="outline"
+                disabled={deleteProjectMutation.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "프로젝트를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
+                    )
+                  ) {
+                    setProjectActionMessage("");
+                    deleteProjectMutation.mutate();
+                  }
+                }}
+              >
+                프로젝트 삭제
+              </Button>
+            )}
+            {project.canEdit && (
+              <Button
+                bg={"smu.blue"}
+                onClick={() => navigate(`/projects/${project.id}/edit`)}
+              >
+                프로젝트 수정
+              </Button>
             )}
           </HStack>
         </HStack>
@@ -683,7 +702,12 @@ export default function ProjectDetailPage() {
             borderRadius="md"
             bg="white"
           >
-            <Text fontSize="sm">{projectActionMessage}</Text>
+            <HStack justifyContent="space-between" alignItems="center" gap={3}>
+              <Text fontSize="sm">{projectActionMessage}</Text>
+              <MessageCloseButton
+                onClick={() => setProjectActionMessage("")}
+              />
+            </HStack>
           </Box>
         )}
 
@@ -700,7 +724,10 @@ export default function ProjectDetailPage() {
             borderRadius="md"
             bg="white"
           >
-            <Text fontSize="sm">{leaveMessage}</Text>
+            <HStack justifyContent="space-between" alignItems="center" gap={3}>
+              <Text fontSize="sm">{leaveMessage}</Text>
+              <MessageCloseButton onClick={() => setLeaveMessage("")} />
+            </HStack>
           </Box>
         )}
 
@@ -745,9 +772,16 @@ export default function ProjectDetailPage() {
             borderRadius={"md"}
             bg={"white"}
           >
-            <Text fontSize={"sm"}>
-              {applicationMessage || "참가 신청 승인 대기 중입니다."}
-            </Text>
+            <HStack justifyContent="space-between" alignItems="center" gap={3}>
+              <Text fontSize={"sm"}>
+                {applicationMessage || "참가 신청 승인 대기 중입니다."}
+              </Text>
+              {applicationMessage && (
+                <MessageCloseButton
+                  onClick={() => setApplicationMessage("")}
+                />
+              )}
+            </HStack>
           </Box>
         )}
 
@@ -913,6 +947,26 @@ export default function ProjectDetailPage() {
               )}
             </HStack>
           </HStack>
+          {repositoryActionMessage && (
+            <Box
+              role={repositoryActionFailed ? "alert" : "status"}
+              p={3}
+              mb={3}
+              borderWidth={1}
+              borderColor={
+                repositoryActionFailed ? "smu.orange" : "smu.lightBlue"
+              }
+              borderRadius="md"
+              bg="white"
+            >
+              <HStack justifyContent="space-between" alignItems="center" gap={3}>
+                <Text fontSize="sm">{repositoryActionMessage}</Text>
+                <MessageCloseButton
+                  onClick={() => setRepositoryActionMessage("")}
+                />
+              </HStack>
+            </Box>
+          )}
           {repositoryStatusMessage && repositoryStatusCode !== "SUCCESS" && (
             <Box
               role={
@@ -936,21 +990,6 @@ export default function ProjectDetailPage() {
               }
             >
               <Text fontSize="sm">{repositoryStatusMessage}</Text>
-            </Box>
-          )}
-          {repositoryActionMessage && (
-            <Box
-              role={repositoryActionFailed ? "alert" : "status"}
-              p={3}
-              mb={3}
-              borderWidth={1}
-              borderColor={
-                repositoryActionFailed ? "smu.orange" : "smu.lightBlue"
-              }
-              borderRadius="md"
-              bg="white"
-            >
-              <Text fontSize="sm">{repositoryActionMessage}</Text>
             </Box>
           )}
           {repositoryName && repositoryUrl ? (

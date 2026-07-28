@@ -152,7 +152,9 @@ class Project(CommonModel):
                 self.Status.ACTIVE,
                 self.Status.DELETED,
             },
-            self.Status.FINISHED: set(),
+            self.Status.FINISHED: {
+                self.Status.DELETED,
+            },
             self.Status.DELETED: set(),
         }
         if status not in allowed_transitions[self.status]:
