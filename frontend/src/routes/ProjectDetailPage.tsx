@@ -328,7 +328,7 @@ export default function ProjectDetailPage() {
   const managedProject =
     projectQuery.data?.status === "SUCCESS" ? projectQuery.data.data : null;
   const repositoryStatusCode = managedProject?.repository?.lastStatusCode;
-  const repositoryStatusUpdatedAt = managedProject?.repository?.fetchedAt;
+  const repositoryStatusUpdatedAt = managedProject?.repository?.statusUpdatedAt;
   useEffect(() => {
     const remaining = getRepositoryPendingRetryDelay(
       repositoryStatusCode,
@@ -985,7 +985,7 @@ export default function ProjectDetailPage() {
                     <Stat label="stars" value={`${project.repository.stars}`} />
                     <Stat label="forks" value={`${project.repository.forks}`} />
                     <Stat
-                      label="수집 상태 갱신"
+                      label="최근 수집"
                       value={formatDateTimeKST(project.repository.fetchedAt)}
                     />
                   </SimpleGrid>

@@ -80,6 +80,7 @@ class RepositoryStatus(models.Model):
     max_streak = models.PositiveIntegerField(default=0)
     description = models.TextField(null=True, blank=True)
     last_status_code = models.CharField(max_length=30)
+    fetched_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 

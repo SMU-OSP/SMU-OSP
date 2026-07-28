@@ -24,6 +24,7 @@ class RepositorySerializer(serializers.ModelSerializer):
     topics = serializers.SerializerMethodField()
     fetchedAt = serializers.SerializerMethodField()
     lastStatusCode = serializers.SerializerMethodField()
+    statusUpdatedAt = serializers.SerializerMethodField()
 
     def _status(self, repository):
         return getattr(repository, "status", None)
@@ -61,11 +62,15 @@ class RepositorySerializer(serializers.ModelSerializer):
 
     def get_fetchedAt(self, repository):
         status = self._status(repository)
-        return status.updated_at if status else None
+        return status.fetched_at if status else None
 
     def get_lastStatusCode(self, repository):
         status = self._status(repository)
         return status.last_status_code if status else None
+
+    def get_statusUpdatedAt(self, repository):
+        status = self._status(repository)
+        return status.updated_at if status else None
 
     class Meta:
         model = Repository
@@ -82,6 +87,7 @@ class RepositorySerializer(serializers.ModelSerializer):
             "htmlUrl",
             "fetchedAt",
             "lastStatusCode",
+            "statusUpdatedAt",
         )
 
 

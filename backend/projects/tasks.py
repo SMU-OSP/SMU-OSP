@@ -332,6 +332,7 @@ def _save_collection(repository_id, snapshot_date, collection):
                 "last_status_code": SUCCESS,
                 "current_streak": current_streak,
                 "max_streak": max_streak,
+                "fetched_at": timezone.now(),
             },
         )
         repository.project.deactivate_if_repository_inactive(snapshot_date)

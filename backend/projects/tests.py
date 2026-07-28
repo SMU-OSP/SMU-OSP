@@ -64,6 +64,7 @@ class RepositoryDataModelTests(TestCase):
         self.assertEqual(status.current_streak, 0)
         self.assertEqual(status.max_streak, 0)
         self.assertIsNone(status.description)
+        self.assertIsNone(status.fetched_at)
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             RepositorySnapshot.objects.create(
@@ -252,6 +253,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(status.last_status_code, SUCCESS)
         self.assertEqual(status.current_streak, 1)
         self.assertEqual(status.max_streak, 1)
+        self.assertIsNotNone(status.fetched_at)
 
     @patch("projects.tasks.requests.get")
     def test_refresh_detects_language_change_and_updates_streak(self, request_get):
@@ -342,10 +344,12 @@ class RepositoryRefreshTaskTests(TestCase):
             language="Python",
             bytes=100,
         )
+        fetched_at = timezone.now() - timedelta(days=1)
         RepositoryStatus.objects.create(
             repository=self.repository,
             description="기존 설명",
             last_status_code=SUCCESS,
+            fetched_at=fetched_at,
         )
         request_get.side_effect = requests.RequestException
 
@@ -361,6 +365,7 @@ class RepositoryRefreshTaskTests(TestCase):
             self.repository.status.last_status_code,
             GITHUB_API_FAILED,
         )
+        self.assertEqual(self.repository.status.fetched_at, fetched_at)
 
 
 class ProjectApiTests(TestCase):
@@ -484,10 +489,12 @@ class ProjectApiTests(TestCase):
             language="Python",
             bytes=100,
         )
-        RepositoryStatus.objects.create(
+        fetched_at = timezone.now() - timedelta(days=1)
+        status = RepositoryStatus.objects.create(
             repository=self.repository,
             description="정규화된 설명",
             last_status_code=SUCCESS,
+            fetched_at=fetched_at,
         )
 
         response = self.client.get(f"/api/v1/projects/{self.project.pk}")
@@ -499,6 +506,14 @@ class ProjectApiTests(TestCase):
         self.assertEqual(repository["language"], "Python")
         self.assertEqual(repository["topics"], [])
         self.assertEqual(repository["lastStatusCode"], SUCCESS)
+        self.assertEqual(
+            repository["fetchedAt"],
+            fetched_at.isoformat().replace("+00:00", "Z"),
+        )
+        self.assertEqual(
+            repository["statusUpdatedAt"],
+            status.updated_at.isoformat().replace("+00:00", "Z"),
+        )
         self.assertNotIn("refreshStatus", repository)
         self.assertNotIn("lastErrorCode", repository)
 
