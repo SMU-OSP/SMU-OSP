@@ -367,7 +367,7 @@ def enqueue_daily_repository_refreshes(snapshot_date=None):
     )
 
 
-@shared_task
+@shared_task(rate_limit=settings.REPOSITORY_REFRESH_TASK_RATE_LIMIT)
 def refresh_repository(repository_id, snapshot_date=None):
     try:
         repository = Repository.objects.get(pk=repository_id)

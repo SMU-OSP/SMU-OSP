@@ -228,6 +228,12 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(entry["schedule"].minute, {10})
         self.assertEqual(entry["schedule"].hour, {0, 1, 2})
 
+    def test_repository_refresh_task_has_configured_rate_limit(self):
+        self.assertEqual(
+            refresh_repository.rate_limit,
+            settings.REPOSITORY_REFRESH_TASK_RATE_LIMIT,
+        )
+
     @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
         request_get.side_effect = self.successful_responses(
