@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import LogInButton from "../components/LogInButton";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
-import { createProject } from "../services/projectService";
+import { createProject, getProject } from "../services/projectService";
 
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_DESCRIPTION_LENGTH = 2000;
@@ -49,7 +49,7 @@ export default function ProjectCreatePage() {
 
   const mutation = useMutation({
     mutationFn: createProject,
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       if (response.status !== "SUCCESS") {
         setErrorMessage(response.detail.message);
         return;
@@ -57,6 +57,21 @@ export default function ProjectCreatePage() {
 
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["project", `${response.data.id}`] });
+      const repositoryFailure = response.detail?.repositoryRegistration;
+      if (repositoryFailure?.status === "FAILED") {
+        await queryClient.fetchQuery({
+          queryKey: ["project", `${response.data.id}`],
+          queryFn: () => getProject(`${response.data.id}`),
+        });
+        navigate(`/projects/${response.data.id}/edit`, {
+          replace: true,
+          state: {
+            repositoryUrl,
+            repositoryError: repositoryFailure.message,
+          },
+        });
+        return;
+      }
       navigate(`/projects/${response.data.id}`);
     },
   });

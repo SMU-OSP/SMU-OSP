@@ -2,6 +2,7 @@ from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
+from django.db import IntegrityError
 
 from .models import Repository
 from .tasks import enqueue_repository_refresh
@@ -18,6 +19,15 @@ REPOSITORY_INVALID_MESSAGE = (
 REPOSITORY_LOOKUP_FAILED_MESSAGE = (
     "GitHub Repository 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요."
 )
+REPOSITORY_SAVE_FAILED_MESSAGE = (
+    "Repository를 등록하지 못했습니다. 잠시 후 다시 시도해주세요."
+)
+
+
+class RepositoryRegistrationError(ValueError):
+    def __init__(self, code, message):
+        self.code = code
+        super().__init__(message)
 
 
 def _parse_repository_identity(repository_url):
@@ -27,7 +37,10 @@ def _parse_repository_identity(repository_url):
         parsed.hostname not in {"github.com", "www.github.com"}
         or len(path_parts) != 2
     ):
-        raise ValueError(REPOSITORY_INVALID_MESSAGE)
+        raise RepositoryRegistrationError(
+            "INVALID_GITHUB_URL",
+            REPOSITORY_INVALID_MESSAGE,
+        )
     return "/".join(path_parts).removesuffix(".git")
 
 
@@ -47,21 +60,42 @@ def _get_repository_data(full_name):
             timeout=10,
         )
     except requests.RequestException as error:
-        raise ValueError(REPOSITORY_LOOKUP_FAILED_MESSAGE) from error
+        raise RepositoryRegistrationError(
+            "GITHUB_API_FAILED",
+            REPOSITORY_LOOKUP_FAILED_MESSAGE,
+        ) from error
 
     if response.status_code == 404:
-        raise ValueError(REPOSITORY_INVALID_MESSAGE)
+        raise RepositoryRegistrationError(
+            "GITHUB_REPOSITORY_NOT_FOUND",
+            REPOSITORY_INVALID_MESSAGE,
+        )
+    if response.status_code == 429 or (
+        response.status_code == 403
+        and response.headers.get("X-RateLimit-Remaining") == "0"
+    ):
+        raise RepositoryRegistrationError(
+            "GITHUB_RATE_LIMIT_EXCEEDED",
+            REPOSITORY_LOOKUP_FAILED_MESSAGE,
+        )
     if response.status_code == 403:
-        if response.headers.get("X-RateLimit-Remaining") == "0":
-            raise ValueError(REPOSITORY_LOOKUP_FAILED_MESSAGE)
-        raise ValueError(REPOSITORY_INVALID_MESSAGE)
+        raise RepositoryRegistrationError(
+            "PRIVATE_REPOSITORY",
+            REPOSITORY_INVALID_MESSAGE,
+        )
     if response.status_code >= 400:
-        raise ValueError(REPOSITORY_LOOKUP_FAILED_MESSAGE)
+        raise RepositoryRegistrationError(
+            "GITHUB_API_FAILED",
+            REPOSITORY_LOOKUP_FAILED_MESSAGE,
+        )
 
     try:
         data = response.json()
     except ValueError as error:
-        raise ValueError(REPOSITORY_LOOKUP_FAILED_MESSAGE) from error
+        raise RepositoryRegistrationError(
+            "GITHUB_API_FAILED",
+            REPOSITORY_LOOKUP_FAILED_MESSAGE,
+        ) from error
 
     if (
         not isinstance(data, dict)
@@ -69,9 +103,16 @@ def _get_repository_data(full_name):
         or not data.get("name")
         or not data.get("full_name")
         or not data.get("html_url")
-        or data.get("private") is True
     ):
-        raise ValueError(REPOSITORY_INVALID_MESSAGE)
+        raise RepositoryRegistrationError(
+            "GITHUB_API_FAILED",
+            REPOSITORY_LOOKUP_FAILED_MESSAGE,
+        )
+    if data.get("private") is True:
+        raise RepositoryRegistrationError(
+            "PRIVATE_REPOSITORY",
+            REPOSITORY_INVALID_MESSAGE,
+        )
     return data
 
 
@@ -102,11 +143,17 @@ def update_project_repository(
     if Repository.objects.filter(github_id=data["id"]).exists():
         raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
 
-    repository = Repository.objects.create(
-        project=project,
-        github_id=data["id"],
-        name=data["name"],
-        full_name=data["full_name"],
-        html_url=data["html_url"],
-    )
+    try:
+        repository = Repository.objects.create(
+            project=project,
+            github_id=data["id"],
+            name=data["name"],
+            full_name=data["full_name"],
+            html_url=data["html_url"],
+        )
+    except IntegrityError as error:
+        raise RepositoryRegistrationError(
+            "INTERNAL_SERVER_ERROR",
+            REPOSITORY_SAVE_FAILED_MESSAGE,
+        ) from error
     enqueue_repository_refresh(repository.pk)

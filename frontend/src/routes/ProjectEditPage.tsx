@@ -10,7 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LogInButton from "../components/LogInButton";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
@@ -38,6 +38,15 @@ function optionalUrl(value: string) {
 
 export default function ProjectEditPage() {
   const { id = "" } = useParams<{ id: string }>();
+  const location = useLocation();
+  const retryState = location.state as
+    | {
+        repositoryUrl?: string;
+        repositoryError?: string;
+      }
+    | null;
+  const retryRepositoryUrl = retryState?.repositoryUrl;
+  const retryRepositoryError = retryState?.repositoryError;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { userLoading, isLoggedIn } = useUser();
@@ -70,13 +79,23 @@ export default function ProjectEditPage() {
     const project = projectResponse.data;
     setName(project.name);
     setDescription(project.description);
-    setRepositoryUrl(project.repository?.htmlUrl || "");
+    setRepositoryUrl(
+      project.repository?.htmlUrl || retryRepositoryUrl || ""
+    );
     setDemoUrl(project.demoUrl || "");
     setPresentationUrl(project.presentationUrl || "");
     setTechStack(project.techStack.join(", "));
     setUsedOpenSource(project.usedOpenSource.join(", "));
+    if (!project.repository && retryRepositoryError) {
+      setErrorMessage(retryRepositoryError);
+    }
     setInitializedProjectId(project.id);
-  }, [initializedProjectId, projectResponse]);
+  }, [
+    initializedProjectId,
+    projectResponse,
+    retryRepositoryError,
+    retryRepositoryUrl,
+  ]);
 
   const mutation = useMutation({
     mutationFn: (input: ProjectUpdateInput) => updateProject(id, input),

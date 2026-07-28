@@ -16,6 +16,7 @@ import { ApiResponse, ERROR_CODES, PaginationDetail } from "../types/response";
 import {
   Project,
   ProjectApplicationHistory,
+  ProjectCreateDetail,
   ProjectDetail,
   ProjectDetailMember,
   ProjectInput,
@@ -196,11 +197,14 @@ export async function applyToProject(
 
 export async function createProject(
   input: ProjectInput
-): Promise<ApiResponse<Project>> {
+): Promise<ApiResponse<Project, ProjectCreateDetail>> {
   try {
     return await createProjectApi(input);
   } catch (e) {
-    return toApiResponse<Project>(e, "프로젝트 등록 중 오류가 발생했습니다.");
+    return toApiResponse<Project>(
+      e,
+      "프로젝트 등록 중 오류가 발생했습니다."
+    ) as ApiResponse<Project, ProjectCreateDetail>;
   }
 }
 

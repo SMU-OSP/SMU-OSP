@@ -86,6 +86,14 @@ export interface ProjectInput {
   usedOpenSource: string[];
 }
 
+export interface ProjectCreateDetail {
+  repositoryRegistration?: {
+    status: "FAILED";
+    code: string;
+    message: string;
+  };
+}
+
 export interface ProjectUpdateInput extends ProjectInput {
   status: "ACTIVE" | "FINISHED";
 }

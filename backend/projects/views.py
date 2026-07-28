@@ -201,16 +201,6 @@ class Projects(APIView):
                     status=Member.Status.JOINED,
                 )
                 project.request_user_memberships = [leader_member]
-                update_project_repository(project, repository_url)
-        except ValueError as error:
-            return Response(
-                fail(
-                    "INVALID_PROJECT_INPUT",
-                    str(error),
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         except IntegrityError:
             return Response(
                 fail(
@@ -221,8 +211,20 @@ class Projects(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        detail = None
+        try:
+            update_project_repository(project, repository_url)
+        except ValueError as error:
+            detail = {
+                "repositoryRegistration": {
+                    "status": "FAILED",
+                    "code": getattr(error, "code", "INVALID_PROJECT_INPUT"),
+                    "message": str(error),
+                }
+            }
+
         return Response(
-            success(ProjectSerializer(project).data),
+            success(ProjectSerializer(project).data, detail),
             status=status.HTTP_201_CREATED,
         )
 

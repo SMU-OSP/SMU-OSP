@@ -942,7 +942,7 @@ class ProjectApiTests(TestCase):
         self.assertTrue(project.members.get().is_leader)
 
     @patch("projects.services.requests.get")
-    def test_create_project_rolls_back_when_repository_lookup_fails(
+    def test_create_project_keeps_project_when_repository_lookup_fails(
         self,
         request_get,
     ):
@@ -959,16 +959,25 @@ class ProjectApiTests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(
-            response.json()["detail"]["message"],
+            body["detail"]["repositoryRegistration"]["code"],
+            "GITHUB_REPOSITORY_NOT_FOUND",
+        )
+        self.assertEqual(
+            body["detail"]["repositoryRegistration"]["message"],
             "존재하는 공개 GitHub Repository URL을 입력해주세요.",
         )
+        project = Project.objects.get(name="Invalid Repository Project")
+        self.assertEqual(body["data"]["id"], project.pk)
+        self.assertIsNone(body["data"]["repository"])
         self.assertFalse(
-            Project.objects.filter(name="Invalid Repository Project").exists()
+            Repository.objects.filter(project=project).exists()
         )
 
-    def test_create_project_rejects_repository_linked_to_another_project(self):
+    def test_create_project_keeps_project_when_repository_already_linked(self):
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -981,14 +990,17 @@ class ProjectApiTests(TestCase):
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["status"], "INVALID_PROJECT_INPUT")
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
         self.assertEqual(
-            response.json()["detail"]["message"],
+            body["detail"]["repositoryRegistration"]["message"],
             "이미 다른 프로젝트에 연결된 Repository입니다.",
         )
+        project = Project.objects.get(name="Duplicate Repository Project")
+        self.assertEqual(body["data"]["id"], project.pk)
         self.assertFalse(
-            Project.objects.filter(name="Duplicate Repository Project").exists()
+            Repository.objects.filter(project=project).exists()
         )
 
     @patch("projects.services.requests.get")
@@ -1227,7 +1239,7 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Project.objects.filter(name="Rollback Project").exists())
 
     @patch("projects.services.requests.get")
-    def test_create_project_rolls_back_when_repository_creation_fails(
+    def test_create_project_keeps_project_when_repository_creation_fails(
         self,
         request_get,
     ):
@@ -1249,17 +1261,25 @@ class ProjectApiTests(TestCase):
                 "/api/v1/projects/",
                 data={
                     "name": "Repository Rollback Project",
-                    "description": "Repository 생성 실패도 전체 등록을 롤백합니다.",
+                    "description": "Repository 생성 실패 시 프로젝트는 유지합니다.",
                     "repositoryUrl": "https://github.com/example/rollback",
                 },
                 content_type="application/json",
             )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(
-            Project.objects.filter(name="Repository Rollback Project").exists()
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "SUCCESS")
+        self.assertEqual(
+            body["detail"]["repositoryRegistration"]["code"],
+            "INTERNAL_SERVER_ERROR",
         )
+        project = Project.objects.get(name="Repository Rollback Project")
+        self.assertEqual(body["data"]["id"], project.pk)
         self.assertFalse(
+            Repository.objects.filter(project=project).exists()
+        )
+        self.assertTrue(
             Member.objects.filter(
                 project__name="Repository Rollback Project"
             ).exists()
