@@ -35,7 +35,6 @@ export interface Repository {
   language?: string | null;
   topics?: string[];
   htmlUrl: string;
-  updatedAt?: string | null;
   fetchedAt: string | null;
   lastStatusCode?: string | null;
 }

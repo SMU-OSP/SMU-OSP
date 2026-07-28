@@ -19,6 +19,7 @@ from .models import (
 from .tasks import (
     GITHUB_API_FAILED,
     PENDING,
+    REFRESH_QUEUE_FAILED,
     SUCCESS,
     refresh_repository,
 )
@@ -164,7 +165,9 @@ class RepositoryRefreshTaskTests(TestCase):
         ]
         if first_collection:
             responses.append(self.response([{"sha": "existing-commit"}]))
-        responses.append(self.response({"total_count": 2}))
+        responses.append(
+            self.response({"total_count": 2, "incomplete_results": False})
+        )
         return responses
 
     @patch("projects.tasks.requests.get")
@@ -218,6 +221,56 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(
             dict(self.repository.languages.values_list("language", "bytes")),
             {"Python": 80, "Go": 20},
+        )
+
+    @patch("projects.tasks.requests.get")
+    def test_same_day_refresh_does_not_erase_detected_code_change(
+        self,
+        request_get,
+    ):
+        RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 28),
+            has_code_changed=True,
+        )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
+        request_get.side_effect = self.successful_responses({"Python": 100})
+
+        self.assertTrue(refresh_repository(self.repository.pk, "2026-07-28"))
+
+        snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
+        self.assertTrue(snapshot.has_code_changed)
+
+    @patch("projects.tasks.requests.get")
+    def test_incomplete_pull_request_results_preserve_last_collection(
+        self,
+        request_get,
+    ):
+        snapshot = RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 27),
+            stars=7,
+        )
+        request_get.side_effect = [
+            *self.successful_responses({"Python": 100})[:-1],
+            self.response({"total_count": 2, "incomplete_results": True}),
+        ]
+
+        self.assertFalse(refresh_repository(self.repository.pk, "2026-07-28"))
+
+        snapshot.refresh_from_db()
+        self.repository.status.refresh_from_db()
+        self.assertEqual(snapshot.stars, 7)
+        self.assertFalse(
+            self.repository.snapshots.filter(date=date(2026, 7, 28)).exists()
+        )
+        self.assertEqual(
+            self.repository.status.last_status_code,
+            GITHUB_API_FAILED,
         )
 
     @patch("projects.tasks.requests.get")
@@ -1016,6 +1069,28 @@ class ProjectApiTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 202)
+        refresh_delay.assert_called_once_with(self.repository.pk)
+
+    @patch(
+        "projects.tasks.refresh_repository.delay",
+        side_effect=RuntimeError("broker unavailable"),
+    )
+    def test_queue_failure_does_not_fail_committed_refresh_request(
+        self,
+        refresh_delay,
+    ):
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/v1/projects/{self.project.pk}/repository/refresh"
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            self.repository.status.last_status_code,
+            REFRESH_QUEUE_FAILED,
+        )
         refresh_delay.assert_called_once_with(self.repository.pk)
 
     def test_create_project_requires_login(self):

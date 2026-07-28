@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -19,13 +20,26 @@ PENDING = "PENDING"
 GITHUB_REPOSITORY_UNAVAILABLE = "GITHUB_REPOSITORY_UNAVAILABLE"
 GITHUB_RATE_LIMIT_EXCEEDED = "GITHUB_RATE_LIMIT_EXCEEDED"
 GITHUB_API_FAILED = "GITHUB_API_FAILED"
+REFRESH_QUEUE_FAILED = "REFRESH_QUEUE_FAILED"
 PENDING_TIMEOUT = timedelta(minutes=15)
+logger = logging.getLogger(__name__)
 
 
 class GitHubCollectionError(Exception):
     def __init__(self, code):
         self.code = code
         super().__init__(code)
+
+
+def _dispatch_repository_refresh(repository_id):
+    try:
+        refresh_repository.delay(repository_id)
+    except Exception:
+        logger.exception(
+            "Failed to enqueue repository refresh for repository %s",
+            repository_id,
+        )
+        _mark_collection_failed(repository_id, REFRESH_QUEUE_FAILED)
 
 
 def enqueue_repository_refresh(repository_id):
@@ -51,7 +65,10 @@ def enqueue_repository_refresh(repository_id):
             status.last_status_code = PENDING
             status.save(update_fields=("last_status_code", "updated_at"))
 
-        transaction.on_commit(lambda: refresh_repository.delay(repository_id))
+        transaction.on_commit(
+            lambda: _dispatch_repository_refresh(repository_id),
+            robust=True,
+        )
     return True
 
 
@@ -204,6 +221,8 @@ def _collect_repository(repository, snapshot_date, is_first_collection):
         not isinstance(pull_requests, dict)
         or type(pull_requests.get("total_count")) is not int
         or pull_requests["total_count"] < 0
+        or type(pull_requests.get("incomplete_results")) is not bool
+        or pull_requests["incomplete_results"]
     ):
         raise GitHubCollectionError(GITHUB_API_FAILED)
 
@@ -256,12 +275,18 @@ def _save_collection(repository_id, snapshot_date, collection):
         previous_languages = dict(
             repository.languages.values_list("language", "bytes")
         )
-        has_previous_snapshot = repository.snapshots.exists()
-        has_code_changed = (
-            previous_languages != collection["languages"]
-            if has_previous_snapshot
-            else collection["has_commit_history"]
-        )
+        existing_snapshot = repository.snapshots.filter(
+            date=snapshot_date
+        ).first()
+        if existing_snapshot:
+            has_code_changed = (
+                existing_snapshot.has_code_changed
+                or previous_languages != collection["languages"]
+            )
+        elif repository.snapshots.exists():
+            has_code_changed = previous_languages != collection["languages"]
+        else:
+            has_code_changed = collection["has_commit_history"]
 
         repository.name = metadata["name"]
         repository.full_name = metadata["full_name"]

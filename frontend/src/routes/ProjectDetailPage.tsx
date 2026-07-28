@@ -7,7 +7,7 @@ import {
   Textarea,
   VStack,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import ProjectLeaveDialog from "../components/ProjectLeaveDialog";
@@ -45,8 +45,11 @@ import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
 const MAX_REAPPLICATIONS = 5;
+const REPOSITORY_PENDING_TIMEOUT_MS = 15 * 60 * 1000;
 const REPOSITORY_STATUS_MESSAGES: Record<string, string> = {
   PENDING: "Repository 정보 수집 대기 중입니다.",
+  REFRESH_QUEUE_FAILED:
+    "Repository 수집 작업을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
   GITHUB_REPOSITORY_UNAVAILABLE:
     "등록된 Repository를 확인할 수 없습니다.",
   GITHUB_RATE_LIMIT_EXCEEDED:
@@ -309,6 +312,7 @@ export default function ProjectDetailPage() {
   const [projectActionMessage, setProjectActionMessage] = useState("");
   const [repositoryActionMessage, setRepositoryActionMessage] = useState("");
   const [repositoryActionFailed, setRepositoryActionFailed] = useState(false);
+  const [repositoryPendingStale, setRepositoryPendingStale] = useState(false);
 
   const projectQuery = useQuery({
     queryKey: ["project", id],
@@ -323,6 +327,34 @@ export default function ProjectDetailPage() {
   });
   const managedProject =
     projectQuery.data?.status === "SUCCESS" ? projectQuery.data.data : null;
+  const repositoryStatusCode = managedProject?.repository?.lastStatusCode;
+  const repositoryStatusUpdatedAt = managedProject?.repository?.fetchedAt;
+  useEffect(() => {
+    if (repositoryStatusCode !== "PENDING" || !repositoryStatusUpdatedAt) {
+      setRepositoryPendingStale(false);
+      return;
+    }
+
+    const statusUpdatedAt = Date.parse(repositoryStatusUpdatedAt);
+    if (Number.isNaN(statusUpdatedAt)) {
+      setRepositoryPendingStale(false);
+      return;
+    }
+
+    const remaining =
+      statusUpdatedAt + REPOSITORY_PENDING_TIMEOUT_MS - Date.now();
+    if (remaining <= 0) {
+      setRepositoryPendingStale(true);
+      return;
+    }
+
+    setRepositoryPendingStale(false);
+    const timer = window.setTimeout(
+      () => setRepositoryPendingStale(true),
+      remaining
+    );
+    return () => window.clearTimeout(timer);
+  }, [repositoryStatusCode, repositoryStatusUpdatedAt]);
   const managedMembersQuery = useQuery({
     queryKey: ["project-members", managedProject?.id, "manage"],
     queryFn: () => listProjectMembers(managedProject!.id, true),
@@ -530,17 +562,19 @@ export default function ProjectDetailPage() {
       : 0;
   const repositoryName = project.repository?.fullName;
   const repositoryUrl = project.repository?.htmlUrl;
-  const repositoryStatusCode = project.repository?.lastStatusCode;
   const repositoryCollectionFailed =
     !!repositoryStatusCode &&
     repositoryStatusCode !== "SUCCESS" &&
     repositoryStatusCode !== "PENDING";
   const repositoryStatusMessage = repositoryStatusCode
-    ? REPOSITORY_STATUS_MESSAGES[repositoryStatusCode] ||
-      "Repository 정보를 불러오지 못했습니다."
+    ? repositoryPendingStale
+      ? "Repository 정보 수집이 오래 걸리고 있습니다. 다시 요청할 수 있습니다."
+      : REPOSITORY_STATUS_MESSAGES[repositoryStatusCode] ||
+        "Repository 정보를 불러오지 못했습니다."
     : "";
   const canRetryRepository =
-    repositoryCollectionFailed && project.membershipRole != null;
+    (repositoryCollectionFailed || repositoryPendingStale) &&
+    project.membershipRole != null;
   const canReactivateProject =
     project.status === "INACTIVE" && project.membershipRole === "OWNER";
   const leave = (description: string) => {
@@ -885,15 +919,25 @@ export default function ProjectDetailPage() {
           </HStack>
           {repositoryStatusMessage && repositoryStatusCode !== "SUCCESS" && (
             <Box
-              role={repositoryCollectionFailed ? "alert" : "status"}
+              role={
+                repositoryCollectionFailed || repositoryPendingStale
+                  ? "alert"
+                  : "status"
+              }
               p={3}
               mb={3}
               borderWidth={1}
               borderColor={
-                repositoryCollectionFailed ? "smu.orange" : "smu.lightBlue"
+                repositoryCollectionFailed || repositoryPendingStale
+                  ? "smu.orange"
+                  : "smu.lightBlue"
               }
               borderRadius="md"
-              bg={repositoryCollectionFailed ? "#fff8ec" : "#f4f9fd"}
+              bg={
+                repositoryCollectionFailed || repositoryPendingStale
+                  ? "#fff8ec"
+                  : "#f4f9fd"
+              }
             >
               <Text fontSize="sm">{repositoryStatusMessage}</Text>
             </Box>
@@ -945,15 +989,7 @@ export default function ProjectDetailPage() {
                     <Stat label="stars" value={`${project.repository.stars}`} />
                     <Stat label="forks" value={`${project.repository.forks}`} />
                     <Stat
-                      label="최근 업데이트"
-                      value={
-                        project.repository.updatedAt
-                          ? formatDateTimeKST(project.repository.updatedAt)
-                          : "-"
-                      }
-                    />
-                    <Stat
-                      label="마지막 조회"
+                      label="수집 상태 갱신"
                       value={formatDateTimeKST(project.repository.fetchedAt)}
                     />
                   </SimpleGrid>
