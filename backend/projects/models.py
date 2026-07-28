@@ -14,33 +14,15 @@ def get_default_max_members():
 
 
 class Repository(CommonModel):
-    class RefreshStatus(models.TextChoices):
-        SUCCESS = "SUCCESS", "Success"
-        FAILED = "FAILED", "Failed"
-
     project = models.OneToOneField(
         "Project",
         on_delete=models.CASCADE,
         related_name="repository",
     )
-    github_id = models.PositiveBigIntegerField(null=True, blank=True, unique=True)
+    github_id = models.PositiveBigIntegerField(unique=True)
     name = models.CharField(max_length=150)
     full_name = models.CharField(max_length=300)
-    description = models.TextField(null=True, blank=True)
-    stars = models.PositiveIntegerField(default=0)
-    forks = models.PositiveIntegerField(default=0)
-    language = models.CharField(max_length=100, null=True, blank=True)
-    topics = models.JSONField(default=list, blank=True)
     html_url = models.URLField(max_length=500)
-    github_updated_at = models.DateTimeField(null=True, blank=True)
-    fetched_at = models.DateTimeField(null=True, blank=True)
-    refresh_status = models.CharField(
-        max_length=30,
-        choices=RefreshStatus.choices,
-        null=True,
-        blank=True,
-    )
-    last_error_code = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
         return self.full_name

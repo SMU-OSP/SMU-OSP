@@ -271,15 +271,7 @@ class ProjectApiTests(TestCase):
             github_id=101,
             name="SMU-OSP",
             full_name="Jiyeon125/SMU-OSP",
-            description="SMU Open-Source Platform",
-            stars=0,
-            forks=0,
-            language="TypeScript",
-            topics=["django", "react"],
             html_url="https://github.com/Jiyeon125/SMU-OSP",
-            github_updated_at=timezone.now(),
-            fetched_at=timezone.now(),
-            refresh_status=Repository.RefreshStatus.SUCCESS,
         )
         self.member = Member.objects.create(
             project=self.project,
@@ -784,7 +776,9 @@ class ProjectApiTests(TestCase):
             "https://github.com/example/new-project",
         )
         self.assertEqual(repository.github_id, 202)
-        self.assertIsNone(repository.fetched_at)
+        self.assertFalse(
+            RepositoryStatus.objects.filter(repository=repository).exists()
+        )
         refresh_delay.assert_called_once_with(repository.pk)
 
     def test_create_project_without_repository_url_keeps_repository_empty(self):

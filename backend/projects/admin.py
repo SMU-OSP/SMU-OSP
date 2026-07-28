@@ -45,11 +45,7 @@ class RepositoryAdmin(admin.ModelAdmin):
     list_display = (
         "pk",
         "project",
+        "github_id",
         "full_name",
-        "language",
-        "stars",
-        "forks",
-        "fetched_at",
     )
     search_fields = ("project__name", "name", "full_name", "html_url")
-    list_filter = ("language", "refresh_status")
