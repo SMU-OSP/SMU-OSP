@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import requests
 from django.conf import settings
@@ -17,10 +17,13 @@ from .models import (
     RepositorySnapshot,
     RepositoryStatus,
 )
+from .serializers import RepositorySerializer
+from .services import request_repository_refresh
 from .tasks import (
     GITHUB_API_FAILED,
     PENDING,
     REFRESH_QUEUE_FAILED,
+    REFRESH_SKIPPED,
     SUCCESS,
     enqueue_daily_repository_refreshes,
     refresh_repository,
@@ -99,6 +102,11 @@ class RepositoryDataModelTests(TestCase):
         )
 
         self.assertTrue(changed)
+        self.assertEqual(
+            self.repository.project.status,
+            Project.Status.INACTIVE,
+        )
+        self.repository.project.save(update_fields=("status", "updated_at"))
         self.repository.project.refresh_from_db()
         self.assertEqual(
             self.repository.project.status,
@@ -125,6 +133,18 @@ class RepositoryDataModelTests(TestCase):
         self.assertFalse(changed)
         self.repository.project.refresh_from_db()
         self.assertEqual(self.repository.project.status, Project.Status.ACTIVE)
+
+    def test_repository_serializer_does_not_query_fallback_relations(self):
+        self.repository.serialized_status = None
+        self.repository.serialized_snapshots = []
+        self.repository.serialized_languages = []
+
+        with self.assertNumQueries(0):
+            data = RepositorySerializer(self.repository).data
+
+        self.assertEqual(data["stars"], 0)
+        self.assertEqual(data["forks"], 0)
+        self.assertIsNone(data["language"])
 
 
 class RepositoryRefreshTaskTests(TestCase):
@@ -216,6 +236,7 @@ class RepositoryRefreshTaskTests(TestCase):
         refresh_delay.assert_called_once_with(
             self.repository.pk,
             snapshot_date.isoformat(),
+            ANY,
         )
 
     def test_repository_refresh_beat_schedule_runs_three_times_daily(self):
@@ -249,6 +270,87 @@ class RepositoryRefreshTaskTests(TestCase):
                 self.assertFalse(refresh_repository(self.repository.pk))
 
         request_get.assert_not_called()
+
+    @patch("projects.tasks.requests.get")
+    def test_skipped_refresh_clears_current_pending_status(self, request_get):
+        repository_status = RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=PENDING,
+        )
+        requested_at = repository_status.updated_at.isoformat()
+        self.repository.project.status = Project.Status.FINISHED
+        self.repository.project.save(update_fields=("status", "updated_at"))
+
+        self.assertFalse(
+            refresh_repository(
+                self.repository.pk,
+                None,
+                requested_at,
+            )
+        )
+
+        repository_status.refresh_from_db()
+        self.assertEqual(
+            repository_status.last_status_code,
+            REFRESH_SKIPPED,
+        )
+        request_get.assert_not_called()
+
+    @patch("projects.tasks.requests.get", side_effect=requests.RequestException)
+    def test_superseded_failure_does_not_overwrite_newer_status(
+        self,
+        request_get,
+    ):
+        repository_status = RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=PENDING,
+        )
+        old_requested_at = repository_status.updated_at.isoformat()
+        RepositoryStatus.objects.filter(repository=self.repository).update(
+            updated_at=timezone.now() + timedelta(seconds=1)
+        )
+
+        self.assertFalse(
+            refresh_repository(
+                self.repository.pk,
+                "2026-07-28",
+                old_requested_at,
+            )
+        )
+
+        repository_status.refresh_from_db()
+        self.assertEqual(repository_status.last_status_code, PENDING)
+        request_get.assert_called_once()
+
+    @patch("projects.tasks.requests.get")
+    def test_superseded_success_does_not_overwrite_newer_request(
+        self,
+        request_get,
+    ):
+        repository_status = RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=PENDING,
+        )
+        old_requested_at = repository_status.updated_at.isoformat()
+        RepositoryStatus.objects.filter(repository=self.repository).update(
+            updated_at=timezone.now() + timedelta(seconds=1)
+        )
+        request_get.side_effect = self.successful_responses(
+            {"Python": 100},
+            first_collection=True,
+        )
+
+        self.assertFalse(
+            refresh_repository(
+                self.repository.pk,
+                "2026-07-28",
+                old_requested_at,
+            )
+        )
+
+        repository_status.refresh_from_db()
+        self.assertEqual(repository_status.last_status_code, PENDING)
+        self.assertFalse(self.repository.snapshots.exists())
 
     @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
@@ -441,6 +543,16 @@ class ProjectApiTests(TestCase):
         project_id_unique = constraints["project_member_project_id_uniq"]
         self.assertTrue(project_id_unique["unique"])
         self.assertEqual(project_id_unique["columns"], ["project_id", "id"])
+
+    @patch("projects.services.enqueue_repository_refresh")
+    def test_repository_refresh_policy_uses_one_lookup(
+        self,
+        enqueue_refresh,
+    ):
+        with self.assertNumQueries(1):
+            request_repository_refresh(self.project.pk, self.user)
+
+        enqueue_refresh.assert_called_once_with(self.repository.pk)
 
     def test_member_canceled_status_is_persisted(self):
         canceled_member = Member.objects.create(
@@ -951,7 +1063,7 @@ class ProjectApiTests(TestCase):
             ).last_status_code,
             PENDING,
         )
-        refresh_delay.assert_called_once_with(repository.pk)
+        refresh_delay.assert_called_once_with(repository.pk, None, ANY)
 
     def test_create_project_without_repository_url_keeps_repository_empty(self):
         self.client.force_login(self.user)
@@ -1087,6 +1199,10 @@ class ProjectApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["status"],
+            "GITHUB_REPOSITORY_NOT_FOUND",
+        )
         self.project.refresh_from_db()
         self.assertEqual(self.project.name, "SOSP")
         self.assertFalse(Repository.objects.filter(project=self.project).exists())
@@ -1124,7 +1240,7 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.ACTIVE)
         self.assertEqual(self.repository.status.last_status_code, PENDING)
-        refresh_delay.assert_called_once_with(self.repository.pk)
+        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
 
     @patch("projects.tasks.refresh_repository.delay")
     def test_joined_member_can_retry_without_duplicate_task(self, refresh_delay):
@@ -1155,7 +1271,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(second_response.status_code, 202)
         self.assertIsNone(first_response.json()["data"])
         self.assertEqual(self.repository.status.last_status_code, PENDING)
-        refresh_delay.assert_called_once_with(self.repository.pk)
+        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
 
     @patch("projects.tasks.refresh_repository.delay")
     def test_finished_and_deleted_projects_cannot_retry_repository_refresh(
@@ -1219,7 +1335,7 @@ class ProjectApiTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 202)
-        refresh_delay.assert_called_once_with(self.repository.pk)
+        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
 
     @patch(
         "projects.tasks.refresh_repository.delay",
@@ -1241,7 +1357,7 @@ class ProjectApiTests(TestCase):
             self.repository.status.last_status_code,
             REFRESH_QUEUE_FAILED,
         )
-        refresh_delay.assert_called_once_with(self.repository.pk)
+        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
 
     def test_create_project_requires_login(self):
         response = self.client.post(

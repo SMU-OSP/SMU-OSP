@@ -22,6 +22,7 @@ GITHUB_REPOSITORY_UNAVAILABLE = "GITHUB_REPOSITORY_UNAVAILABLE"
 GITHUB_RATE_LIMIT_EXCEEDED = "GITHUB_RATE_LIMIT_EXCEEDED"
 GITHUB_API_FAILED = "GITHUB_API_FAILED"
 REFRESH_QUEUE_FAILED = "REFRESH_QUEUE_FAILED"
+REFRESH_SKIPPED = "REFRESH_SKIPPED"
 PENDING_TIMEOUT = timedelta(minutes=15)
 logger = logging.getLogger(__name__)
 
@@ -32,18 +33,27 @@ class GitHubCollectionError(Exception):
         super().__init__(code)
 
 
-def _dispatch_repository_refresh(repository_id, snapshot_date=None):
+def _dispatch_repository_refresh(
+    repository_id,
+    snapshot_date=None,
+    refresh_requested_at=None,
+):
     try:
-        if snapshot_date is None:
-            refresh_repository.delay(repository_id)
-        else:
-            refresh_repository.delay(repository_id, snapshot_date)
+        refresh_repository.delay(
+            repository_id,
+            snapshot_date,
+            refresh_requested_at,
+        )
     except Exception:
         logger.exception(
             "Failed to enqueue repository refresh for repository %s",
             repository_id,
         )
-        _mark_collection_failed(repository_id, REFRESH_QUEUE_FAILED)
+        _mark_collection_failed(
+            repository_id,
+            REFRESH_QUEUE_FAILED,
+            refresh_requested_at,
+        )
 
 
 def enqueue_repository_refresh(repository_id, snapshot_date=None):
@@ -68,9 +78,14 @@ def enqueue_repository_refresh(repository_id, snapshot_date=None):
         if not created:
             status.last_status_code = PENDING
             status.save(update_fields=("last_status_code", "updated_at"))
+        refresh_requested_at = status.updated_at.isoformat()
 
         transaction.on_commit(
-            lambda: _dispatch_repository_refresh(repository_id, snapshot_date),
+            lambda: _dispatch_repository_refresh(
+                repository_id,
+                snapshot_date,
+                refresh_requested_at,
+            ),
             robust=True,
         )
     return True
@@ -265,13 +280,46 @@ def _calculate_streaks(repository):
     return current_streak, max_streak
 
 
-def _save_collection(repository_id, snapshot_date, collection):
+def _save_collection(
+    repository_id,
+    snapshot_date,
+    collection,
+    refresh_requested_at=None,
+):
     with transaction.atomic():
         repository = (
             Repository.objects.select_for_update()
-            .select_related("project")
             .get(pk=repository_id)
         )
+        status = None
+        if refresh_requested_at is not None:
+            status = (
+                RepositoryStatus.objects.select_for_update()
+                .filter(
+                    repository=repository,
+                    last_status_code=PENDING,
+                    updated_at=refresh_requested_at,
+                )
+                .first()
+            )
+            if status is None:
+                return False
+
+        project = Project.objects.select_for_update().get(
+            pk=repository.project_id
+        )
+        project.repository = repository
+        if project.status in {
+            Project.Status.FINISHED,
+            Project.Status.DELETED,
+        }:
+            if status is not None:
+                status.last_status_code = REFRESH_SKIPPED
+                status.save(
+                    update_fields=("last_status_code", "updated_at")
+                )
+            return False
+
         metadata = collection["metadata"]
         if repository.github_id != metadata["id"]:
             raise GitHubCollectionError(GITHUB_REPOSITORY_UNAVAILABLE)
@@ -335,17 +383,53 @@ def _save_collection(repository_id, snapshot_date, collection):
                 "fetched_at": timezone.now(),
             },
         )
-        repository.project.deactivate_if_repository_inactive(snapshot_date)
+        if project.deactivate_if_repository_inactive(snapshot_date):
+            project.save(update_fields=("status", "updated_at"))
+        return True
 
 
-def _mark_collection_failed(repository_id, error_code):
+def _mark_collection_failed(
+    repository_id,
+    error_code,
+    refresh_requested_at=None,
+):
     try:
         repository = Repository.objects.get(pk=repository_id)
     except Repository.DoesNotExist:
-        return
+        return False
+    if refresh_requested_at is not None:
+        return bool(
+            RepositoryStatus.objects.filter(
+                repository=repository,
+                last_status_code=PENDING,
+                updated_at=refresh_requested_at,
+            ).update(
+                last_status_code=error_code,
+                updated_at=timezone.now(),
+            )
+        )
     RepositoryStatus.objects.update_or_create(
         repository=repository,
         defaults={"last_status_code": error_code},
+    )
+    return True
+
+
+def _mark_collection_skipped(
+    repository_id,
+    refresh_requested_at=None,
+):
+    filters = {
+        "repository_id": repository_id,
+        "last_status_code": PENDING,
+    }
+    if refresh_requested_at is not None:
+        filters["updated_at"] = refresh_requested_at
+    return bool(
+        RepositoryStatus.objects.filter(**filters).update(
+            last_status_code=REFRESH_SKIPPED,
+            updated_at=timezone.now(),
+        )
     )
 
 
@@ -368,7 +452,11 @@ def enqueue_daily_repository_refreshes(snapshot_date=None):
 
 
 @shared_task(rate_limit=settings.REPOSITORY_REFRESH_TASK_RATE_LIMIT)
-def refresh_repository(repository_id, snapshot_date=None):
+def refresh_repository(
+    repository_id,
+    snapshot_date=None,
+    refresh_requested_at=None,
+):
     try:
         repository = Repository.objects.select_related("project").get(
             pk=repository_id
@@ -379,6 +467,7 @@ def refresh_repository(repository_id, snapshot_date=None):
         Project.Status.FINISHED,
         Project.Status.DELETED,
     }:
+        _mark_collection_skipped(repository_id, refresh_requested_at)
         return False
 
     target_date = (
@@ -392,10 +481,18 @@ def refresh_repository(repository_id, snapshot_date=None):
             target_date,
             is_first_collection=not repository.snapshots.exists(),
         )
-        _save_collection(repository_id, target_date, collection)
+        return _save_collection(
+            repository_id,
+            target_date,
+            collection,
+            refresh_requested_at,
+        )
     except Repository.DoesNotExist:
         return False
     except GitHubCollectionError as error:
-        _mark_collection_failed(repository_id, error.code)
+        _mark_collection_failed(
+            repository_id,
+            error.code,
+            refresh_requested_at,
+        )
         return False
-    return True

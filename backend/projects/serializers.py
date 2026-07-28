@@ -27,19 +27,15 @@ class RepositorySerializer(serializers.ModelSerializer):
     statusUpdatedAt = serializers.SerializerMethodField()
 
     def _status(self, repository):
-        return getattr(repository, "status", None)
+        return getattr(repository, "serialized_status", None)
 
     def _latest_snapshot(self, repository):
-        snapshots = getattr(repository, "serialized_snapshots", None)
-        if snapshots is not None:
-            return snapshots[0] if snapshots else None
-        return repository.snapshots.order_by("-date").first()
+        snapshots = getattr(repository, "serialized_snapshots", [])
+        return snapshots[0] if snapshots else None
 
     def _primary_language(self, repository):
-        languages = getattr(repository, "serialized_languages", None)
-        if languages is not None:
-            return languages[0] if languages else None
-        return repository.languages.order_by("-bytes", "language").first()
+        languages = getattr(repository, "serialized_languages", [])
+        return languages[0] if languages else None
 
     def get_description(self, repository):
         status = self._status(repository)

@@ -10,7 +10,6 @@ from common.responses import fail, success
 from .models import (
     Member,
     Project,
-    Repository,
     RepositoryLanguage,
     RepositorySnapshot,
 )
@@ -24,12 +23,29 @@ from .serializers import (
     ProjectSerializer,
     ProjectUpdateSerializer,
 )
-from .services import update_project_repository
-from .tasks import enqueue_repository_refresh
+from .services import (
+    RepositoryRefreshError,
+    RepositoryRegistrationError,
+    prepare_project_repository_update,
+    request_repository_refresh,
+    update_project_repository,
+)
 
 DEFAULT_PAGE_SIZE = 10
 TRUE_QUERY_VALUES = {"1", "true"}
 FALSE_QUERY_VALUES = {"0", "false"}
+
+
+def prepare_projects_for_serialization(projects):
+    for project in projects:
+        repository = getattr(project, "repository", None)
+        if repository is None:
+            continue
+        repository.serialized_status = getattr(repository, "status", None)
+        if not hasattr(repository, "serialized_snapshots"):
+            repository.serialized_snapshots = []
+        if not hasattr(repository, "serialized_languages"):
+            repository.serialized_languages = []
 
 
 def parse_pagination(query_params):
@@ -149,7 +165,8 @@ class Projects(APIView):
             )
 
         count = projects.count()
-        projects = projects[start : start + limit]
+        projects = list(projects[start : start + limit])
+        prepare_projects_for_serialization(projects)
         serializer = ProjectSerializer(
             projects,
             many=True,
@@ -223,6 +240,7 @@ class Projects(APIView):
                 }
             }
 
+        prepare_projects_for_serialization([project])
         return Response(
             success(ProjectSerializer(project).data, detail),
             status=status.HTTP_201_CREATED,
@@ -292,6 +310,7 @@ class ProjectDetail(APIView):
         project.request_user_memberships = (
             [current_member] if current_member is not None else []
         )
+        prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(
             project,
             context={
@@ -309,6 +328,26 @@ class ProjectDetail(APIView):
             is_leader=True,
         )
         try:
+            project = (
+                Project.objects.select_related("repository")
+                .annotate(is_leader=Exists(leader_members))
+                .get(pk=pk)
+            )
+            if not project.is_leader:
+                raise PermissionDenied
+
+            serializer = ProjectUpdateSerializer(
+                project,
+                data=request.data,
+            )
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            repository_url = data.get("repository_url")
+            repository_data = prepare_project_repository_update(
+                project,
+                repository_url,
+            )
+
             with transaction.atomic():
                 project = (
                     Project.objects.select_for_update()
@@ -320,13 +359,6 @@ class ProjectDetail(APIView):
                 if not project.is_leader:
                     raise PermissionDenied
 
-                serializer = ProjectUpdateSerializer(
-                    project,
-                    data=request.data,
-                )
-                serializer.is_valid(raise_exception=True)
-
-                data = serializer.validated_data
                 previous_project_status = project.status
                 for field in (
                     "name",
@@ -341,8 +373,9 @@ class ProjectDetail(APIView):
                 project.save()
                 update_project_repository(
                     project,
-                    data.get("repository_url"),
+                    repository_url,
                     previous_project_status=previous_project_status,
+                    repository_data=repository_data,
                 )
         except Project.DoesNotExist:
             return Response(
@@ -367,6 +400,15 @@ class ProjectDetail(APIView):
                 fail(
                     "INVALID_PROJECT_INPUT",
                     first_serializer_error(error.detail),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except RepositoryRegistrationError as error:
+            return Response(
+                fail(
+                    error.code,
+                    str(error),
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
@@ -458,59 +500,24 @@ class ProjectRepositoryRefresh(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        project_status = (
-            Project.objects.filter(pk=pk)
-            .values_list("status", flat=True)
-            .first()
-        )
-        if project_status is None:
-            return Response(
-                fail(
-                    "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
-                    status.HTTP_404_NOT_FOUND,
-                ),
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        if project_status in {
-            Project.Status.FINISHED,
-            Project.Status.DELETED,
-        }:
-            return Response(
-                fail(
-                    "INVALID_PROJECT_STATUS",
-                    "완료되거나 삭제된 프로젝트의 Repository 정보는 다시 수집할 수 없습니다.",
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not Member.objects.filter(
-            project_id=pk,
-            user=request.user,
-            status=Member.Status.JOINED,
-        ).exists():
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 구성원만 Repository 정보를 다시 수집할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         try:
-            repository = Repository.objects.get(project_id=pk)
-        except Repository.DoesNotExist:
+            request_repository_refresh(pk, request.user)
+        except RepositoryRefreshError as error:
+            http_status = {
+                "PROJECT_NOT_FOUND": status.HTTP_404_NOT_FOUND,
+                "INVALID_PROJECT_STATUS": status.HTTP_400_BAD_REQUEST,
+                "PERMISSION_DENIED": status.HTTP_403_FORBIDDEN,
+                "REPOSITORY_NOT_FOUND": status.HTTP_404_NOT_FOUND,
+            }[error.code]
             return Response(
                 fail(
-                    "REPOSITORY_NOT_FOUND",
-                    "연결된 Repository를 찾을 수 없습니다.",
-                    status.HTTP_404_NOT_FOUND,
+                    error.code,
+                    str(error),
+                    http_status,
                 ),
-                status=status.HTTP_404_NOT_FOUND,
+                status=http_status,
             )
 
-        enqueue_repository_refresh(repository.pk)
         return Response(success(None), status=status.HTTP_202_ACCEPTED)
 
 

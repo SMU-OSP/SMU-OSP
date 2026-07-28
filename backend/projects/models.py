@@ -193,7 +193,6 @@ class Project(CommonModel):
             return False
 
         self.set_status(self.Status.INACTIVE)
-        self.save(update_fields=("status", "updated_at"))
         return True
 
     def __str__(self):

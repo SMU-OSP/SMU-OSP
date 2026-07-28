@@ -43,6 +43,28 @@ export function getRepositoryPendingRetryDelay(
   return Math.max(updatedAt + REPOSITORY_PENDING_TIMEOUT_MS - now, 0);
 }
 
+export function canRetryProjectRepository(
+  project: ProjectDetail,
+  pendingStale: boolean
+): boolean {
+  const statusCode = project.repository?.lastStatusCode;
+  const failed =
+    !!statusCode &&
+    statusCode !== "SUCCESS" &&
+    statusCode !== "PENDING" &&
+    statusCode !== "REFRESH_SKIPPED";
+  return (
+    (failed || pendingStale) &&
+    project.membershipRole != null &&
+    project.status !== "FINISHED" &&
+    project.status !== "DELETED"
+  );
+}
+
+export function canReactivateProjectRepository(project: ProjectDetail): boolean {
+  return project.status === "INACTIVE" && project.membershipRole === "OWNER";
+}
+
 export interface ListParams {
   start?: number;
   limit?: number;

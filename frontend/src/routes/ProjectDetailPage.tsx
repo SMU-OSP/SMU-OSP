@@ -27,6 +27,8 @@ import {
 } from "../components/ui/dialog";
 import {
   applyToProject,
+  canReactivateProjectRepository,
+  canRetryProjectRepository,
   deleteProject,
   finishProject,
   getProject,
@@ -56,6 +58,7 @@ const REPOSITORY_STATUS_MESSAGES: Record<string, string> = {
     "GitHub API 요청 제한으로 Repository 정보를 불러오지 못했습니다.",
   GITHUB_API_FAILED:
     "GitHub 오류로 Repository 정보를 불러오지 못했습니다.",
+  REFRESH_SKIPPED: "",
 };
 
 function Section({
@@ -581,13 +584,11 @@ export default function ProjectDetailPage() {
       : REPOSITORY_STATUS_MESSAGES[repositoryStatusCode] ||
         "Repository 정보를 불러오지 못했습니다."
     : "";
-  const canRetryRepository =
-    (repositoryCollectionFailed || repositoryPendingStale) &&
-    project.membershipRole != null &&
-    project.status !== "FINISHED" &&
-    project.status !== "DELETED";
-  const canReactivateProject =
-    project.status === "INACTIVE" && project.membershipRole === "OWNER";
+  const canRetryRepository = canRetryProjectRepository(
+    project,
+    repositoryPendingStale
+  );
+  const canReactivateProject = canReactivateProjectRepository(project);
   const canDeleteProject =
     project.status !== "DELETED" && project.membershipRole === "OWNER";
   const leave = (description: string) => {
