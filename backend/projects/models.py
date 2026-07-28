@@ -45,6 +45,61 @@ class Repository(CommonModel):
         return self.full_name
 
 
+class RepositorySnapshot(models.Model):
+    repository = models.ForeignKey(
+        Repository,
+        on_delete=models.CASCADE,
+        related_name="snapshots",
+    )
+    date = models.DateField()
+    pull_requests = models.PositiveIntegerField(default=0)
+    commits = models.PositiveIntegerField(default=0)
+    stars = models.PositiveIntegerField(default=0)
+    forks = models.PositiveIntegerField(default=0)
+    has_code_changed = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("repository", "date"),
+                name="repository_snapshot_date_uniq",
+            ),
+        ]
+
+
+class RepositoryLanguage(models.Model):
+    repository = models.ForeignKey(
+        Repository,
+        on_delete=models.CASCADE,
+        related_name="languages",
+    )
+    language = models.CharField(max_length=100)
+    bytes = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("repository", "language"),
+                name="repository_language_uniq",
+            ),
+        ]
+
+
+class RepositoryStatus(models.Model):
+    repository = models.OneToOneField(
+        Repository,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="status",
+    )
+    current_streak = models.PositiveIntegerField(default=0)
+    max_streak = models.PositiveIntegerField(default=0)
+    description = models.TextField(null=True, blank=True)
+    last_status_code = models.CharField(max_length=30)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
 class Project(CommonModel):
     MAX_REAPPLICATIONS: Final[int] = 5
 

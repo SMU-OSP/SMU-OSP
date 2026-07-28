@@ -1,13 +1,75 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Member, Project, Repository
+from .models import (
+    Member,
+    Project,
+    Repository,
+    RepositoryLanguage,
+    RepositorySnapshot,
+    RepositoryStatus,
+)
+
+
+class RepositoryDataModelTests(TestCase):
+    def setUp(self):
+        project = Project.objects.create(
+            name="Repository Data Project",
+            description="Repository 수집 데이터 모델 검증",
+        )
+        self.repository = Repository.objects.create(
+            project=project,
+            github_id=9001,
+            name="repository-data",
+            full_name="example/repository-data",
+            html_url="https://github.com/example/repository-data",
+        )
+
+    def test_repository_data_constraints_and_defaults(self):
+        snapshot = RepositorySnapshot.objects.create(
+            repository=self.repository,
+            date=date(2026, 7, 28),
+        )
+        language = RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+        )
+        status = RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code="SUCCESS",
+        )
+
+        self.assertEqual(snapshot.pull_requests, 0)
+        self.assertEqual(snapshot.commits, 0)
+        self.assertEqual(snapshot.stars, 0)
+        self.assertEqual(snapshot.forks, 0)
+        self.assertFalse(snapshot.has_code_changed)
+        self.assertEqual(language.bytes, 0)
+        self.assertEqual(status.current_streak, 0)
+        self.assertEqual(status.max_streak, 0)
+        self.assertIsNone(status.description)
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            RepositorySnapshot.objects.create(
+                repository=self.repository,
+                date=snapshot.date,
+            )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            RepositoryLanguage.objects.create(
+                repository=self.repository,
+                language=language.language,
+            )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            RepositoryStatus.objects.create(
+                repository=self.repository,
+                last_status_code="SUCCESS",
+            )
 
 
 class ProjectApiTests(TestCase):
