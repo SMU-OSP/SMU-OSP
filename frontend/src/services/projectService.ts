@@ -34,6 +34,10 @@ export interface ListParams {
   joined?: boolean;
   owned?: boolean;
   finished?: boolean;
+  keyword?: string;
+  techStack?: string;
+  status?: "ACTIVE" | "INACTIVE" | "FINISHED";
+  sort?: "latest" | "name";
 }
 
 function toApiResponse<T>(
@@ -63,6 +67,10 @@ export async function listProjects(
       joined: params.joined ?? null,
       owned: params.owned ?? null,
       finished: params.finished ?? null,
+      keyword: params.keyword?.trim() || null,
+      techStack: params.techStack?.trim() || null,
+      status: params.status || null,
+      sort: params.sort || null,
     })) as ApiResponse<Project[], PaginationDetail>;
   } catch (e) {
     return toApiResponse<Project[]>(

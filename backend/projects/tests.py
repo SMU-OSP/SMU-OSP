@@ -1795,6 +1795,57 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(body["detail"]["httpStatus"], 400)
 
+    def test_project_list_searches_filters_and_sorts_projects(self):
+        alpha = Project.objects.create(
+            name="Alpha Tools",
+            description="Python helper project",
+            tech_stack=["FastAPI", "Python"],
+            status=Project.Status.INACTIVE,
+        )
+        finished = Project.objects.create(
+            name="Finished React",
+            description="Completed frontend project",
+            tech_stack=["React"],
+            status=Project.Status.FINISHED,
+        )
+
+        keyword_response = self.client.get("/api/v1/projects/?keyword=django")
+        stack_response = self.client.get(
+            "/api/v1/projects/?techStack=React,FastAPI&sort=name"
+        )
+        status_response = self.client.get("/api/v1/projects/?status=finished")
+        combined_response = self.client.get(
+            "/api/v1/projects/?keyword=python&techStack=FastAPI"
+        )
+
+        self.assertEqual(
+            [project["id"] for project in keyword_response.json()["data"]],
+            [self.project.pk],
+        )
+        self.assertEqual(
+            [project["id"] for project in stack_response.json()["data"]],
+            [alpha.pk, self.project.pk],
+        )
+        self.assertEqual(
+            [project["id"] for project in status_response.json()["data"]],
+            [finished.pk],
+        )
+        self.assertEqual(
+            [project["id"] for project in combined_response.json()["data"]],
+            [alpha.pk],
+        )
+
+    def test_project_list_rejects_invalid_search_filter(self):
+        for query in ("status=DELETED", "sort=popular", f"keyword={'x' * 101}"):
+            with self.subTest(query=query):
+                response = self.client.get(f"/api/v1/projects/?{query}")
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json()["status"],
+                    "INVALID_PROJECT_FILTER",
+                )
+
     def test_project_membership_history_requires_login(self):
         response = self.client.get("/api/v1/projects/members")
 

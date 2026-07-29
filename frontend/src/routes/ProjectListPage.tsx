@@ -3,14 +3,15 @@ import {
   Flex,
   HStack,
   Input,
+  NativeSelect,
   SimpleGrid,
   Spinner,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { LuArrowUpDown, LuFilter, LuSearch } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { LuSearch } from "react-icons/lu";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import ProjectApplicationHistory from "../components/ProjectApplicationHistory";
 import ProjectCard, {
@@ -32,6 +33,8 @@ type ProjectScope =
   | "joined"
   | "finished"
   | "applications";
+type ProjectFilterStatus = "" | "ACTIVE" | "INACTIVE" | "FINISHED";
+type ProjectSort = "latest" | "name";
 
 const PROJECT_SCOPES: ProjectScope[] = [
   "all",
@@ -113,13 +116,69 @@ export default function ProjectListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const scopeParam = searchParams.get("scope");
+  const keyword = searchParams.get("keyword") ?? "";
+  const techStack = searchParams.get("techStack") ?? "";
+  const statusParam = searchParams.get("status");
+  const projectStatus: ProjectFilterStatus = [
+    "ACTIVE",
+    "INACTIVE",
+    "FINISHED",
+  ].includes(statusParam ?? "")
+    ? (statusParam as ProjectFilterStatus)
+    : "";
+  const projectSort: ProjectSort =
+    searchParams.get("sort") === "name" ? "name" : "latest";
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  const [techStackInput, setTechStackInput] = useState(techStack);
   const projectScope: ProjectScope = PROJECT_SCOPES.includes(
     scopeParam as ProjectScope
   )
     ? (scopeParam as ProjectScope)
     : "all";
+  const effectiveStatus =
+    projectScope === "finished" ? "" : projectStatus;
+
+  useEffect(() => {
+    setKeywordInput(keyword);
+    setTechStackInput(techStack);
+  }, [keyword, techStack]);
+
   const selectScope = (scope: ProjectScope) => {
-    setSearchParams(scope === "all" ? {} : { scope });
+    const nextParams = new URLSearchParams(searchParams);
+    if (scope === "all") nextParams.delete("scope");
+    else nextParams.set("scope", scope);
+    if (scope === "finished") nextParams.delete("status");
+    setSearchParams(nextParams);
+    setPage(1);
+  };
+  const updateFilter = (name: string, value: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (value) nextParams.set(name, value);
+    else nextParams.delete(name);
+    setSearchParams(nextParams);
+    setPage(1);
+  };
+  const applyTextFilters = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    const normalizedTechStack = Array.from(
+      new Set(
+        techStackInput
+          .split(",")
+          .map((stack) => stack.trim())
+          .filter(Boolean)
+      )
+    ).join(",");
+    if (keywordInput.trim()) nextParams.set("keyword", keywordInput.trim());
+    else nextParams.delete("keyword");
+    if (normalizedTechStack) nextParams.set("techStack", normalizedTechStack);
+    else nextParams.delete("techStack");
+    setSearchParams(nextParams);
+    setPage(1);
+  };
+  const resetFilters = () => {
+    const nextParams = new URLSearchParams();
+    if (projectScope !== "all") nextParams.set("scope", projectScope);
+    setSearchParams(nextParams);
     setPage(1);
   };
 
@@ -127,7 +186,17 @@ export default function ProjectListPage() {
   const start = (page - 1) * pageSize;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["projects", projectScope, viewMode, start, pageSize],
+    queryKey: [
+      "projects",
+      projectScope,
+      viewMode,
+      start,
+      pageSize,
+      keyword,
+      techStack,
+      effectiveStatus,
+      projectSort,
+    ],
     queryFn: () =>
       listProjects({
         start,
@@ -135,6 +204,10 @@ export default function ProjectListPage() {
         owned: projectScope === "owned",
         joined: projectScope === "joined",
         finished: projectScope === "finished",
+        keyword,
+        techStack,
+        status: effectiveStatus || undefined,
+        sort: projectSort,
       }),
     enabled: projectScope !== "applications",
   });
@@ -146,6 +219,11 @@ export default function ProjectListPage() {
   const hasPreviousGroup = pageNumbers[0] > 1;
   const hasNextGroup = pageNumbers[pageNumbers.length - 1] < totalPages;
   const scopeContent = SCOPE_CONTENT[projectScope];
+  const hasFilters =
+    !!keyword ||
+    !!techStack ||
+    !!effectiveStatus ||
+    projectSort !== "latest";
 
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1280px"} mx={"auto"}>
@@ -267,46 +345,88 @@ export default function ProjectListPage() {
             borderRadius={"lg"}
             bg={"white"}
           >
-            <Flex alignItems={"center"} flexWrap={"wrap"} gap={2} flex={1}>
+            <Flex
+              as="form"
+              alignItems={"center"}
+              flexWrap={"wrap"}
+              gap={2}
+              flex={1}
+              onSubmit={(event) => {
+                event.preventDefault();
+                applyTextFilters();
+              }}
+            >
               <InputGroup
                 startElement={<LuSearch />}
-                width={{ base: "100%", sm: "260px" }}
+                width={{ base: "100%", sm: "220px" }}
               >
                 <Input
                   size={"sm"}
                   placeholder="프로젝트 검색"
-                  disabled
-                  _disabled={{ opacity: 1, cursor: "not-allowed" }}
+                  value={keywordInput}
+                  maxLength={100}
+                  onChange={(event) => setKeywordInput(event.target.value)}
                 />
               </InputGroup>
-              <Button
-                size={"sm"}
-                variant={"outline"}
-                disabled
-                _disabled={{ opacity: 0.75, cursor: "not-allowed" }}
+              <Input
+                size="sm"
+                width={{ base: "100%", sm: "220px" }}
+                placeholder="기술 스택 (쉼표로 구분)"
+                value={techStackInput}
+                maxLength={500}
+                onChange={(event) => setTechStackInput(event.target.value)}
+              />
+              {projectScope !== "finished" && (
+                <NativeSelect.Root
+                  size="sm"
+                  width={{ base: "100%", sm: "140px" }}
+                >
+                  <NativeSelect.Field
+                    aria-label="프로젝트 상태 필터"
+                    value={effectiveStatus}
+                    onChange={(event) =>
+                      updateFilter("status", event.target.value)
+                    }
+                  >
+                    <option value="">전체 상태</option>
+                    <option value="ACTIVE">진행 중</option>
+                    <option value="INACTIVE">비활성</option>
+                    {projectScope === "all" && (
+                      <option value="FINISHED">완료</option>
+                    )}
+                  </NativeSelect.Field>
+                  <NativeSelect.Indicator />
+                </NativeSelect.Root>
+              )}
+              <NativeSelect.Root
+                size="sm"
+                width={{ base: "100%", sm: "130px" }}
               >
-                <LuArrowUpDown />
-                정렬
+                <NativeSelect.Field
+                  aria-label="프로젝트 정렬"
+                  value={projectSort}
+                  onChange={(event) =>
+                    updateFilter("sort", event.target.value)
+                  }
+                >
+                  <option value="latest">최신순</option>
+                  <option value="name">이름순</option>
+                </NativeSelect.Field>
+                <NativeSelect.Indicator />
+              </NativeSelect.Root>
+              <Button size="sm" type="submit" bg="smu.blue">
+                검색
               </Button>
-              <Button
-                size={"sm"}
-                variant={"outline"}
-                disabled
-                _disabled={{ opacity: 0.75, cursor: "not-allowed" }}
-              >
-                <LuFilter />
-                필터
-              </Button>
-              <Box
-                px={2}
-                py={0.5}
-                borderRadius={"full"}
-                bg={"#f1f3f5"}
-                color={"smu.darkGray"}
-                fontSize={"xs"}
-              >
-                UI 준비 중
-              </Box>
+              {hasFilters && (
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={resetFilters}
+                >
+                  초기화
+                </Button>
+              )}
             </Flex>
 
             <HStack
@@ -354,7 +474,11 @@ export default function ProjectListPage() {
             borderRadius={"lg"}
             bg={"#f7f7f7"}
           >
-            <Text color={"smu.darkGray"}>{scopeContent.emptyMessage}</Text>
+            <Text color={"smu.darkGray"}>
+              {hasFilters
+                ? "검색 조건에 맞는 프로젝트가 없습니다."
+                : scopeContent.emptyMessage}
+            </Text>
           </Box>
         ) : (
           <>

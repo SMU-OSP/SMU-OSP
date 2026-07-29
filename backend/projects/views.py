@@ -1,6 +1,6 @@
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Prefetch
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
@@ -33,6 +33,12 @@ from .services import (
 DEFAULT_PAGE_SIZE = 10
 TRUE_QUERY_VALUES = {"1", "true"}
 FALSE_QUERY_VALUES = {"0", "false"}
+PROJECT_FILTER_STATUSES = {
+    Project.Status.ACTIVE,
+    Project.Status.INACTIVE,
+    Project.Status.FINISHED,
+}
+PROJECT_SORTS = {"latest", "name"}
 
 
 def prepare_projects_for_serialization(projects):
@@ -96,6 +102,38 @@ def parse_boolean_filter(query_params, name):
     )
 
 
+def parse_project_filters(query_params):
+    keyword = query_params.get("keyword", "").strip()
+    tech_stacks = [
+        stack.strip()
+        for value in query_params.getlist("techStack")
+        for stack in value.split(",")
+        if stack.strip()
+    ]
+    project_status = query_params.get("status", "").strip().upper()
+    sort = query_params.get("sort", "latest").strip() or "latest"
+
+    if len(keyword) > 100 or len(tech_stacks) > 20 or any(
+        len(stack) > 50 for stack in tech_stacks
+    ):
+        raise ValueError(
+            "INVALID_PROJECT_FILTER",
+            "프로젝트 검색 조건을 확인해주세요.",
+        )
+    if project_status and project_status not in PROJECT_FILTER_STATUSES:
+        raise ValueError(
+            "INVALID_PROJECT_FILTER",
+            "지원하지 않는 프로젝트 상태입니다.",
+        )
+    if sort not in PROJECT_SORTS:
+        raise ValueError(
+            "INVALID_PROJECT_FILTER",
+            "지원하지 않는 정렬 방식입니다.",
+        )
+
+    return keyword, tech_stacks, project_status, sort
+
+
 class Projects(APIView):
     def get(self, request):
         try:
@@ -103,6 +141,9 @@ class Projects(APIView):
             joined = parse_boolean_filter(request.query_params, "joined")
             owned = parse_boolean_filter(request.query_params, "owned")
             finished = parse_boolean_filter(request.query_params, "finished")
+            keyword, tech_stacks, project_status, sort = parse_project_filters(
+                request.query_params
+            )
         except ValueError as error:
             error_code, message = error.args
             return Response(
@@ -159,8 +200,24 @@ class Projects(APIView):
                 members__status=Member.Status.JOINED,
                 members__is_leader=owned,
             ).exclude(status=Project.Status.FINISHED).distinct()
-        else:
+        elif not project_status:
             projects = projects.exclude(status=Project.Status.FINISHED)
+
+        if keyword:
+            projects = projects.filter(
+                Q(name__icontains=keyword)
+                | Q(description__icontains=keyword)
+                | Q(tech_stack__icontains=keyword)
+            )
+        if tech_stacks:
+            tech_stack_query = Q()
+            for tech_stack in tech_stacks:
+                tech_stack_query |= Q(tech_stack__contains=[tech_stack])
+            projects = projects.filter(tech_stack_query)
+        if project_status:
+            projects = projects.filter(status=project_status)
+        if sort == "name":
+            projects = projects.order_by("name", "pk")
 
         if request.user.is_authenticated:
             projects = projects.prefetch_related(
