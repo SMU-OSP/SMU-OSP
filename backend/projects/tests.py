@@ -239,15 +239,23 @@ class RepositoryRefreshTaskTests(TestCase):
             ANY,
         )
 
-    def test_repository_refresh_beat_schedule_runs_three_times_daily(self):
-        entry = settings.CELERY_BEAT_SCHEDULE["daily-repository-refresh"]
+    def test_repository_refresh_beat_schedule_runs_regular_and_supplementary_checks(
+        self,
+    ):
+        regular = settings.CELERY_BEAT_SCHEDULE["daily-repository-refresh"]
+        supplement = settings.CELERY_BEAT_SCHEDULE[
+            "repository-refresh-supplement"
+        ]
 
         self.assertEqual(
-            entry["task"],
+            regular["task"],
             "projects.tasks.enqueue_daily_repository_refreshes",
         )
-        self.assertEqual(entry["schedule"].minute, {10})
-        self.assertEqual(entry["schedule"].hour, {0, 1, 2})
+        self.assertEqual(regular["schedule"].minute, {0})
+        self.assertEqual(regular["schedule"].hour, {0})
+        self.assertEqual(supplement["task"], regular["task"])
+        self.assertEqual(supplement["schedule"].minute, {10})
+        self.assertEqual(supplement["schedule"].hour, {0, 1, 2})
 
     def test_repository_refresh_task_has_configured_rate_limit(self):
         self.assertEqual(

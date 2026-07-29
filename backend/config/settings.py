@@ -204,6 +204,10 @@ CELERY_BEAT_SCHEDULE = {
     },
     "daily-repository-refresh": {
         "task": "projects.tasks.enqueue_daily_repository_refreshes",
+        "schedule": crontab(minute="0", hour="0"),
+    },
+    "repository-refresh-supplement": {
+        "task": "projects.tasks.enqueue_daily_repository_refreshes",
         "schedule": crontab(minute="10", hour="0,1,2"),
     },
 }
