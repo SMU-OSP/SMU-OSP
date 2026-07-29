@@ -18,11 +18,9 @@ from .models import (
     RepositoryStatus,
 )
 from .serializers import RepositorySerializer
-from .services import request_repository_refresh
 from .tasks import (
     GITHUB_API_FAILED,
     PENDING,
-    REFRESH_QUEUE_FAILED,
     REFRESH_SKIPPED,
     SUCCESS,
     enqueue_daily_repository_refreshes,
@@ -564,16 +562,6 @@ class ProjectApiTests(TestCase):
         project_id_unique = constraints["project_member_project_id_uniq"]
         self.assertTrue(project_id_unique["unique"])
         self.assertEqual(project_id_unique["columns"], ["project_id", "id"])
-
-    @patch("projects.services.enqueue_repository_refresh")
-    def test_repository_refresh_policy_uses_one_lookup(
-        self,
-        enqueue_refresh,
-    ):
-        with self.assertNumQueries(1):
-            request_repository_refresh(self.project.pk, self.user)
-
-        enqueue_refresh.assert_called_once_with(self.repository.pk)
 
     def test_member_canceled_status_is_persisted(self):
         canceled_member = Member.objects.create(
@@ -1261,123 +1249,6 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.ACTIVE)
         self.assertEqual(self.repository.status.last_status_code, PENDING)
-        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
-
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_joined_member_can_retry_without_duplicate_task(self, refresh_delay):
-        teammate = get_user_model().objects.create_user(
-            username="repository-teammate",
-            password="password",
-            github_email="repository-teammate@sookmyung.ac.kr",
-            name="레포 팀원",
-            student_id=220,
-            major="컴퓨터과학",
-        )
-        Member.objects.create(
-            project=self.project,
-            user=teammate,
-            status=Member.Status.JOINED,
-        )
-        self.client.force_login(teammate)
-
-        with self.captureOnCommitCallbacks(execute=True):
-            first_response = self.client.post(
-                f"/api/v1/projects/{self.project.pk}/repository/refresh"
-            )
-            second_response = self.client.post(
-                f"/api/v1/projects/{self.project.pk}/repository/refresh"
-            )
-
-        self.assertEqual(first_response.status_code, 202)
-        self.assertEqual(second_response.status_code, 202)
-        self.assertIsNone(first_response.json()["data"])
-        self.assertEqual(self.repository.status.last_status_code, PENDING)
-        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
-
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_finished_and_deleted_projects_cannot_retry_repository_refresh(
-        self,
-        refresh_delay,
-    ):
-        self.client.force_login(self.user)
-
-        for project_status in (
-            Project.Status.FINISHED,
-            Project.Status.DELETED,
-        ):
-            with self.subTest(project_status=project_status):
-                self.project.status = project_status
-                self.project.save(update_fields=("status", "updated_at"))
-
-                response = self.client.post(
-                    f"/api/v1/projects/{self.project.pk}/repository/refresh"
-                )
-
-                self.assertEqual(response.status_code, 400)
-                self.assertEqual(
-                    response.json()["status"],
-                    "INVALID_PROJECT_STATUS",
-                )
-
-        refresh_delay.assert_not_called()
-
-    def test_outsider_cannot_retry_repository_refresh(self):
-        outsider = get_user_model().objects.create_user(
-            username="repository-outsider",
-            password="password",
-            github_email="repository-outsider@sookmyung.ac.kr",
-            name="외부인",
-            student_id=221,
-            major="컴퓨터과학",
-        )
-        self.client.force_login(outsider)
-
-        response = self.client.post(
-            f"/api/v1/projects/{self.project.pk}/repository/refresh"
-        )
-
-        self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
-
-    @patch("projects.tasks.refresh_repository.delay")
-    def test_stale_pending_repository_refresh_can_be_retried(self, refresh_delay):
-        RepositoryStatus.objects.create(
-            repository=self.repository,
-            last_status_code=PENDING,
-        )
-        RepositoryStatus.objects.filter(repository=self.repository).update(
-            updated_at=timezone.now() - timedelta(minutes=16)
-        )
-        self.client.force_login(self.user)
-
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                f"/api/v1/projects/{self.project.pk}/repository/refresh"
-            )
-
-        self.assertEqual(response.status_code, 202)
-        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
-
-    @patch(
-        "projects.tasks.refresh_repository.delay",
-        side_effect=RuntimeError("broker unavailable"),
-    )
-    def test_queue_failure_does_not_fail_committed_refresh_request(
-        self,
-        refresh_delay,
-    ):
-        self.client.force_login(self.user)
-
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                f"/api/v1/projects/{self.project.pk}/repository/refresh"
-            )
-
-        self.assertEqual(response.status_code, 202)
-        self.assertEqual(
-            self.repository.status.last_status_code,
-            REFRESH_QUEUE_FAILED,
-        )
         refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
 
     def test_create_project_requires_login(self):

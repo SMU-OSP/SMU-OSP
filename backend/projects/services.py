@@ -3,9 +3,8 @@ from urllib.parse import urlparse
 import requests
 from django.conf import settings
 from django.db import IntegrityError
-from django.db.models import Exists, OuterRef
 
-from .models import Member, Project, Repository
+from .models import Project, Repository
 from .tasks import enqueue_repository_refresh
 
 REPOSITORY_ALREADY_LINKED_MESSAGE = (
@@ -26,12 +25,6 @@ REPOSITORY_SAVE_FAILED_MESSAGE = (
 
 
 class RepositoryRegistrationError(ValueError):
-    def __init__(self, code, message):
-        self.code = code
-        super().__init__(message)
-
-
-class RepositoryRefreshError(ValueError):
     def __init__(self, code, message):
         self.code = code
         super().__init__(message)
@@ -184,45 +177,4 @@ def update_project_repository(
             "INTERNAL_SERVER_ERROR",
             REPOSITORY_SAVE_FAILED_MESSAGE,
         ) from error
-    enqueue_repository_refresh(repository.pk)
-
-
-def request_repository_refresh(project_id, user):
-    joined_members = Member.objects.filter(
-        project=OuterRef("pk"),
-        user=user,
-        status=Member.Status.JOINED,
-    )
-    project = (
-        Project.objects.select_related("repository")
-        .annotate(is_joined_member=Exists(joined_members))
-        .filter(pk=project_id)
-        .first()
-    )
-    if project is None:
-        raise RepositoryRefreshError(
-            "PROJECT_NOT_FOUND",
-            f"id={project_id}에 해당하는 프로젝트를 찾을 수 없습니다.",
-        )
-    if project.status in {
-        Project.Status.FINISHED,
-        Project.Status.DELETED,
-    }:
-        raise RepositoryRefreshError(
-            "INVALID_PROJECT_STATUS",
-            "완료되거나 삭제된 프로젝트의 Repository 정보는 다시 수집할 수 없습니다.",
-        )
-    if not project.is_joined_member:
-        raise RepositoryRefreshError(
-            "PERMISSION_DENIED",
-            "프로젝트 구성원만 Repository 정보를 다시 수집할 수 있습니다.",
-        )
-
-    repository = getattr(project, "repository", None)
-    if repository is None:
-        raise RepositoryRefreshError(
-            "REPOSITORY_NOT_FOUND",
-            "연결된 Repository를 찾을 수 없습니다.",
-        )
-
     enqueue_repository_refresh(repository.pk)

@@ -24,10 +24,8 @@ from .serializers import (
     ProjectUpdateSerializer,
 )
 from .services import (
-    RepositoryRefreshError,
     RepositoryRegistrationError,
     prepare_project_repository_update,
-    request_repository_refresh,
     update_project_repository,
 )
 
@@ -486,39 +484,6 @@ class ProjectDetail(APIView):
             )
 
         return Response(success(None), status=status.HTTP_200_OK)
-
-
-class ProjectRepositoryRefresh(APIView):
-    def post(self, request, pk):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        try:
-            request_repository_refresh(pk, request.user)
-        except RepositoryRefreshError as error:
-            http_status = {
-                "PROJECT_NOT_FOUND": status.HTTP_404_NOT_FOUND,
-                "INVALID_PROJECT_STATUS": status.HTTP_400_BAD_REQUEST,
-                "PERMISSION_DENIED": status.HTTP_403_FORBIDDEN,
-                "REPOSITORY_NOT_FOUND": status.HTTP_404_NOT_FOUND,
-            }[error.code]
-            return Response(
-                fail(
-                    error.code,
-                    str(error),
-                    http_status,
-                ),
-                status=http_status,
-            )
-
-        return Response(success(None), status=status.HTTP_202_ACCEPTED)
 
 
 class ProjectMemberships(APIView):

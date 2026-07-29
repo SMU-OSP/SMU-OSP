@@ -8,7 +8,6 @@ import {
   getProjectMembers,
   getProjectMemberships,
   getProjects,
-  refreshProjectRepository,
   updateProjectMember,
   updateProject as updateProjectApi,
 } from "../api";
@@ -23,43 +22,6 @@ import {
   ProjectMemberUpdateInput,
   ProjectUpdateInput,
 } from "../types/project";
-
-const REPOSITORY_PENDING_TIMEOUT_MS = 15 * 60 * 1000;
-
-export function getRepositoryPendingRetryDelay(
-  statusCode: string | null | undefined,
-  statusUpdatedAt: string | null | undefined,
-  now = Date.now()
-): number | null {
-  if (statusCode !== "PENDING" || !statusUpdatedAt) {
-    return null;
-  }
-
-  const updatedAt = Date.parse(statusUpdatedAt);
-  if (Number.isNaN(updatedAt)) {
-    return null;
-  }
-
-  return Math.max(updatedAt + REPOSITORY_PENDING_TIMEOUT_MS - now, 0);
-}
-
-export function canRetryProjectRepository(
-  project: ProjectDetail,
-  pendingStale: boolean
-): boolean {
-  const statusCode = project.repository?.lastStatusCode;
-  const failed =
-    !!statusCode &&
-    statusCode !== "SUCCESS" &&
-    statusCode !== "PENDING" &&
-    statusCode !== "REFRESH_SKIPPED";
-  return (
-    (failed || pendingStale) &&
-    project.membershipRole != null &&
-    project.status !== "FINISHED" &&
-    project.status !== "DELETED"
-  );
-}
 
 export function canReactivateProjectRepository(project: ProjectDetail): boolean {
   return project.status === "INACTIVE" && project.membershipRole === "OWNER";
@@ -269,19 +231,6 @@ export async function reactivateProject(
     usedOpenSource: project.usedOpenSource,
     status: "ACTIVE",
   });
-}
-
-export async function retryRepositoryCollection(
-  projectId: number
-): Promise<ApiResponse<null>> {
-  try {
-    return await refreshProjectRepository(projectId);
-  } catch (e) {
-    return toApiResponse<null>(
-      e,
-      "Repository 정보 재수집 요청 중 오류가 발생했습니다."
-    );
-  }
 }
 
 export async function deleteProject(id: number): Promise<ApiResponse<null>> {
