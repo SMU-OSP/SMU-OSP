@@ -21,6 +21,7 @@ class RepositorySerializer(serializers.ModelSerializer):
     stars = serializers.SerializerMethodField()
     forks = serializers.SerializerMethodField()
     language = serializers.SerializerMethodField()
+    languages = serializers.SerializerMethodField()
     fetchedAt = serializers.SerializerMethodField()
 
     def _status(self, repository):
@@ -50,6 +51,12 @@ class RepositorySerializer(serializers.ModelSerializer):
         language = self._primary_language(repository)
         return language.language if language else None
 
+    def get_languages(self, repository):
+        return [
+            language.language
+            for language in getattr(repository, "serialized_languages", [])
+        ]
+
     def get_fetchedAt(self, repository):
         status = self._status(repository)
         return status.fetched_at if status else None
@@ -65,6 +72,7 @@ class RepositorySerializer(serializers.ModelSerializer):
             "stars",
             "forks",
             "language",
+            "languages",
             "htmlUrl",
             "fetchedAt",
         )

@@ -1,9 +1,11 @@
 import {
   Box,
+  createListCollection,
   Flex,
   HStack,
   Input,
-  NativeSelect,
+  Portal,
+  Select,
   SimpleGrid,
   Spinner,
   Text,
@@ -43,6 +45,20 @@ const PROJECT_SCOPES: ProjectScope[] = [
   "finished",
   "applications",
 ];
+const PROJECT_STATUS_OPTIONS = createListCollection({
+  items: [
+    { label: "전체 상태", value: "ALL" },
+    { label: "진행 중", value: "ACTIVE" },
+    { label: "비활성", value: "INACTIVE" },
+    { label: "완료", value: "FINISHED" },
+  ],
+});
+const PROJECT_SORT_OPTIONS = createListCollection({
+  items: [
+    { label: "최신순", value: "latest" },
+    { label: "이름순", value: "name" },
+  ],
+});
 
 const SCOPE_CONTENT: Record<
   ProjectScope,
@@ -337,8 +353,8 @@ export default function ProjectListPage() {
           <Flex
             p={3}
             justifyContent={"space-between"}
-            alignItems={{ base: "stretch", lg: "center" }}
-            direction={{ base: "column", lg: "row" }}
+            alignItems={{ base: "stretch", xl: "center" }}
+            direction={{ base: "column", xl: "row" }}
             gap={3}
             borderWidth={1}
             borderColor={"smu.gray"}
@@ -358,7 +374,9 @@ export default function ProjectListPage() {
             >
               <InputGroup
                 startElement={<LuSearch />}
-                width={{ base: "100%", sm: "220px" }}
+                width={{ base: "100%", sm: "220px", lg: "auto" }}
+                minWidth={{ lg: "140px" }}
+                flex={{ lg: "1 1 150px" }}
               >
                 <Input
                   size={"sm"}
@@ -370,50 +388,87 @@ export default function ProjectListPage() {
               </InputGroup>
               <Input
                 size="sm"
-                width={{ base: "100%", sm: "220px" }}
-                placeholder="기술 스택 (쉼표로 구분)"
+                width={{ base: "100%", sm: "220px", lg: "auto" }}
+                minWidth={{ lg: "150px" }}
+                flex={{ lg: "1 1 160px" }}
+                placeholder="기술 스택·언어 (쉼표로 구분)"
                 value={techStackInput}
                 maxLength={500}
                 onChange={(event) => setTechStackInput(event.target.value)}
               />
               {projectScope !== "finished" && (
-                <NativeSelect.Root
+                <Select.Root
                   size="sm"
-                  width={{ base: "100%", sm: "140px" }}
-                >
-                  <NativeSelect.Field
-                    aria-label="프로젝트 상태 필터"
-                    value={effectiveStatus}
-                    onChange={(event) =>
-                      updateFilter("status", event.target.value)
-                    }
-                  >
-                    <option value="">전체 상태</option>
-                    <option value="ACTIVE">진행 중</option>
-                    <option value="INACTIVE">비활성</option>
-                    {projectScope === "all" && (
-                      <option value="FINISHED">완료</option>
-                    )}
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              )}
-              <NativeSelect.Root
-                size="sm"
-                width={{ base: "100%", sm: "130px" }}
-              >
-                <NativeSelect.Field
-                  aria-label="프로젝트 정렬"
-                  value={projectSort}
-                  onChange={(event) =>
-                    updateFilter("sort", event.target.value)
+                  width={{ base: "100%", sm: "140px", lg: "120px" }}
+                  flexShrink={0}
+                  collection={PROJECT_STATUS_OPTIONS}
+                  value={[effectiveStatus || "ALL"]}
+                  onValueChange={({ value }) =>
+                    updateFilter(
+                      "status",
+                      value[0] === "ALL" ? "" : value[0]
+                    )
                   }
                 >
-                  <option value="latest">최신순</option>
-                  <option value="name">이름순</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
+                  <Select.Control>
+                    <Select.Trigger aria-label="프로젝트 상태 필터">
+                      <Select.ValueText />
+                    </Select.Trigger>
+                    <Select.IndicatorGroup>
+                      <Select.Indicator />
+                    </Select.IndicatorGroup>
+                  </Select.Control>
+                  <Portal>
+                    <Select.Positioner>
+                      <Select.Content bg="white" shadow="md">
+                        {PROJECT_STATUS_OPTIONS.items
+                          .filter(
+                            (option) =>
+                              option.value !== "FINISHED" ||
+                              projectScope === "all"
+                          )
+                          .map((option) => (
+                            <Select.Item item={option} key={option.value}>
+                              {option.label}
+                              <Select.ItemIndicator />
+                            </Select.Item>
+                          ))}
+                      </Select.Content>
+                    </Select.Positioner>
+                  </Portal>
+                </Select.Root>
+              )}
+              <Select.Root
+                size="sm"
+                width={{ base: "100%", sm: "130px", lg: "105px" }}
+                flexShrink={0}
+                collection={PROJECT_SORT_OPTIONS}
+                value={[projectSort]}
+                onValueChange={({ value }) =>
+                  updateFilter("sort", value[0])
+                }
+              >
+                <Select.Control>
+                  <Select.Trigger aria-label="프로젝트 정렬">
+                    <Select.ValueText />
+                  </Select.Trigger>
+                  <Select.IndicatorGroup>
+                    <Select.Indicator />
+                  </Select.IndicatorGroup>
+                </Select.Control>
+                <Portal>
+                  <Select.Positioner>
+                    <Select.Content bg="white" shadow="md">
+                      {PROJECT_SORT_OPTIONS.items.map((option) => (
+                        <Select.Item item={option} key={option.value}>
+                          {option.label}
+                          <Select.ItemIndicator />
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Positioner>
+                </Portal>
+              </Select.Root>
               <Button size="sm" type="submit" bg="smu.blue">
                 검색
               </Button>
@@ -571,7 +626,11 @@ export default function ProjectListPage() {
                           )}
                         </Box>
                         <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>
-                          <Text fontSize={"sm"}>{p.repository?.language || "-"}</Text>
+                          <Text fontSize={"sm"}>
+                            {p.repository?.languages?.join(", ") ||
+                              p.repository?.language ||
+                              "-"}
+                          </Text>
                         </Box>
                         <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>
                           <Text fontSize={"sm"}>{p.repository?.stars ?? "-"}</Text>

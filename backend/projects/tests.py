@@ -1808,10 +1808,20 @@ class ProjectApiTests(TestCase):
             tech_stack=["React"],
             status=Project.Status.FINISHED,
         )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="TypeScript",
+            bytes=200,
+        )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
 
-        keyword_response = self.client.get("/api/v1/projects/?keyword=django")
+        keyword_response = self.client.get("/api/v1/projects/?keyword=python")
         stack_response = self.client.get(
-            "/api/v1/projects/?techStack=reac,fast&sort=name"
+            "/api/v1/projects/?techStack=types,fast&sort=name"
         )
         status_response = self.client.get("/api/v1/projects/?status=finished")
         combined_response = self.client.get(
@@ -1820,7 +1830,15 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(
             [project["id"] for project in keyword_response.json()["data"]],
-            [self.project.pk],
+            [alpha.pk, self.project.pk],
+        )
+        self.assertEqual(
+            keyword_response.json()["data"][1]["repository"]["language"],
+            "TypeScript",
+        )
+        self.assertEqual(
+            keyword_response.json()["data"][1]["repository"]["languages"],
+            ["TypeScript", "Python"],
         )
         self.assertEqual(
             [project["id"] for project in stack_response.json()["data"]],

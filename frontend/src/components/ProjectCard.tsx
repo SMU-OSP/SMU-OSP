@@ -53,6 +53,9 @@ export default function ProjectCard({ project, showMembershipRole }: Props) {
   const repository = project.repository;
   const repositoryName = repository?.fullName;
   const repositoryUrl = repository?.htmlUrl;
+  const repositoryLanguages =
+    repository?.languages ??
+    (repository?.language ? [repository.language] : []);
 
   return (
     <Box
@@ -122,11 +125,11 @@ export default function ProjectCard({ project, showMembershipRole }: Props) {
           {repository ? (
             <VStack alignItems={"stretch"} gap={1} mt={2}>
               <HStack flexWrap={"wrap"} gap={1}>
-                {repository.language && (
-                  <Pill bg={"smu.lightBlue"} color={"white"}>
-                    {repository.language}
+                {repositoryLanguages.map((language) => (
+                  <Pill key={language} bg={"smu.lightBlue"} color={"white"}>
+                    {language}
                   </Pill>
-                )}
+                ))}
                 <Pill>stars {repository.stars}</Pill>
                 <Pill>forks {repository.forks}</Pill>
               </HStack>

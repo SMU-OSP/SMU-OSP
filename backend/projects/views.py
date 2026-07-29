@@ -204,16 +204,32 @@ class Projects(APIView):
             projects = projects.exclude(status=Project.Status.FINISHED)
 
         if keyword:
-            projects = projects.filter(
+            language_matches = RepositoryLanguage.objects.filter(
+                repository__project_id=OuterRef("pk"),
+                language__icontains=keyword,
+            )
+            projects = projects.annotate(
+                has_matching_language=Exists(language_matches)
+            ).filter(
                 Q(name__icontains=keyword)
                 | Q(description__icontains=keyword)
                 | Q(tech_stack__icontains=keyword)
+                | Q(has_matching_language=True)
             )
         if tech_stacks:
             tech_stack_query = Q()
+            language_query = Q()
             for tech_stack in tech_stacks:
                 tech_stack_query |= Q(tech_stack__icontains=tech_stack)
-            projects = projects.filter(tech_stack_query)
+                language_query |= Q(language__icontains=tech_stack)
+            language_matches = RepositoryLanguage.objects.filter(
+                repository__project_id=OuterRef("pk")
+            ).filter(language_query)
+            projects = projects.annotate(
+                has_matching_filtered_language=Exists(language_matches)
+            ).filter(
+                tech_stack_query | Q(has_matching_filtered_language=True)
+            )
         if project_status:
             projects = projects.filter(status=project_status)
         if sort == "name":

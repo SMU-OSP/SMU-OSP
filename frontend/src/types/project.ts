@@ -33,6 +33,7 @@ export interface Repository {
   stars: number;
   forks: number;
   language?: string | null;
+  languages?: string[];
   htmlUrl: string;
   fetchedAt: string | null;
 }
