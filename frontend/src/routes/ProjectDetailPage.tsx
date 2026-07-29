@@ -512,6 +512,10 @@ export default function ProjectDetailPage() {
         setProjectActionMessage(response.detail.message);
         return;
       }
+      queryClient.removeQueries({
+        queryKey: ["project", id],
+        exact: true,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
         queryClient.invalidateQueries({
