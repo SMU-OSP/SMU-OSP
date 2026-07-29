@@ -297,6 +297,7 @@ function ProjectActionConfirmDialog({
     <DialogRoot
       open={action !== null}
       onOpenChange={(event) => !event.open && setAction(null)}
+      closeOnInteractOutside={false}
       placement="center"
       role="alertdialog"
     >
