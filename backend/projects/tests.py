@@ -647,7 +647,8 @@ class ProjectApiTests(TestCase):
         self.assertEqual(repository["stars"], 12)
         self.assertEqual(repository["forks"], 3)
         self.assertEqual(repository["language"], "Python")
-        self.assertEqual(repository["topics"], [])
+        self.assertEqual(repository["githubId"], 101)
+        self.assertNotIn("topics", repository)
         self.assertEqual(repository["lastStatusCode"], SUCCESS)
         self.assertEqual(
             repository["fetchedAt"],
@@ -1156,6 +1157,37 @@ class ProjectApiTests(TestCase):
         self.assertFalse(
             Repository.objects.filter(project=project).exists()
         )
+
+    @patch("projects.services.requests.get")
+    def test_deleted_project_repository_cannot_be_reused(self, request_get):
+        self.project.status = Project.Status.DELETED
+        self.project.save(update_fields=("status", "updated_at"))
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/v1/projects/",
+            data={
+                "name": "Deleted Repository Reuse Project",
+                "description": "삭제된 프로젝트의 Repository도 재사용하지 않습니다.",
+                "repositoryUrl": self.repository.html_url,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            response.json()["detail"]["repositoryRegistration"]["message"],
+            "이미 다른 프로젝트에 연결된 Repository입니다.",
+        )
+        project = Project.objects.get(name="Deleted Repository Reuse Project")
+        self.assertFalse(Repository.objects.filter(project=project).exists())
+        self.assertTrue(
+            Repository.objects.filter(
+                project=self.project,
+                github_id=self.repository.github_id,
+            ).exists()
+        )
+        request_get.assert_not_called()
 
     @patch("projects.services.requests.get")
     def test_project_without_repository_can_add_one(

@@ -14,14 +14,13 @@ MAX_LIST_ITEM_LENGTH = 100
 
 
 class RepositorySerializer(serializers.ModelSerializer):
-    githubId = serializers.IntegerField(source="github_id", allow_null=True)
+    githubId = serializers.IntegerField(source="github_id")
     fullName = serializers.CharField(source="full_name")
     htmlUrl = serializers.URLField(source="html_url")
     description = serializers.SerializerMethodField()
     stars = serializers.SerializerMethodField()
     forks = serializers.SerializerMethodField()
     language = serializers.SerializerMethodField()
-    topics = serializers.SerializerMethodField()
     fetchedAt = serializers.SerializerMethodField()
     lastStatusCode = serializers.SerializerMethodField()
     statusUpdatedAt = serializers.SerializerMethodField()
@@ -53,9 +52,6 @@ class RepositorySerializer(serializers.ModelSerializer):
         language = self._primary_language(repository)
         return language.language if language else None
 
-    def get_topics(self, repository):
-        return []
-
     def get_fetchedAt(self, repository):
         status = self._status(repository)
         return status.fetched_at if status else None
@@ -79,7 +75,6 @@ class RepositorySerializer(serializers.ModelSerializer):
             "stars",
             "forks",
             "language",
-            "topics",
             "htmlUrl",
             "fetchedAt",
             "lastStatusCode",

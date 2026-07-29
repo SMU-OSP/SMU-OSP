@@ -934,13 +934,6 @@ export default function ProjectDetailPage() {
                     />
                   </SimpleGrid>
                 )}
-                {project.repository?.topics?.length ? (
-                  <HStack flexWrap={"wrap"} gap={1} mb={3}>
-                    {project.repository.topics.map((topic) => (
-                      <Pill key={topic}>{topic}</Pill>
-                    ))}
-                  </HStack>
-                ) : null}
                 <ExternalTextLink href={repositoryUrl}>
                   Repository 열기
                 </ExternalTextLink>

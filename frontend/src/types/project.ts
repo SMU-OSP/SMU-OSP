@@ -26,14 +26,13 @@ export interface ProjectMemberUpdateInput {
 
 export interface Repository {
   id: number;
-  githubId?: number | null;
+  githubId: number;
   name: string;
   fullName: string;
   description?: string | null;
   stars: number;
   forks: number;
   language?: string | null;
-  topics?: string[];
   htmlUrl: string;
   fetchedAt: string | null;
   lastStatusCode?: string | null;
