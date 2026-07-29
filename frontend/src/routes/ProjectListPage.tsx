@@ -487,6 +487,7 @@ export default function ProjectListPage() {
             <HStack
               p={1}
               gap={1}
+              width={"fit-content"}
               flexShrink={0}
               borderRadius={"md"}
               bg={"#f1f3f5"}
