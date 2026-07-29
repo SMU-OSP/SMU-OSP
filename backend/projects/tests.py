@@ -1811,7 +1811,7 @@ class ProjectApiTests(TestCase):
 
         keyword_response = self.client.get("/api/v1/projects/?keyword=django")
         stack_response = self.client.get(
-            "/api/v1/projects/?techStack=React,FastAPI&sort=name"
+            "/api/v1/projects/?techStack=reac,fast&sort=name"
         )
         status_response = self.client.get("/api/v1/projects/?status=finished")
         combined_response = self.client.get(

@@ -212,7 +212,7 @@ class Projects(APIView):
         if tech_stacks:
             tech_stack_query = Q()
             for tech_stack in tech_stacks:
-                tech_stack_query |= Q(tech_stack__contains=[tech_stack])
+                tech_stack_query |= Q(tech_stack__icontains=tech_stack)
             projects = projects.filter(tech_stack_query)
         if project_status:
             projects = projects.filter(status=project_status)
