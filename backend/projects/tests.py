@@ -165,10 +165,20 @@ class RepositoryRefreshTaskTests(TestCase):
         response = Mock()
         response.status_code = status_code
         response.headers = headers or {}
+        response.links = {}
         response.json.return_value = data
         return response
 
-    def successful_responses(self, languages, *, first_collection=False):
+    def successful_responses(self, languages):
+        commit_response = self.response([{"sha": "commit-1"}])
+        commit_response.links = {
+            "last": {
+                "url": (
+                    "https://api.github.com/repositories/9001/commits"
+                    "?sha=main&per_page=1&page=17"
+                )
+            }
+        }
         responses = [
             self.response(
                 {
@@ -184,13 +194,9 @@ class RepositoryRefreshTaskTests(TestCase):
                 }
             ),
             self.response(languages),
-            self.response([{"sha": "commit-1"}, {"sha": "commit-1"}]),
+            commit_response,
+            self.response({"total_count": 23, "incomplete_results": False}),
         ]
-        if first_collection:
-            responses.append(self.response([{"sha": "existing-commit"}]))
-        responses.append(
-            self.response({"total_count": 2, "incomplete_results": False})
-        )
         return responses
 
     @patch("projects.tasks.refresh_repository.delay")
@@ -343,10 +349,7 @@ class RepositoryRefreshTaskTests(TestCase):
         RepositoryStatus.objects.filter(repository=self.repository).update(
             updated_at=timezone.now() + timedelta(seconds=1)
         )
-        request_get.side_effect = self.successful_responses(
-            {"Python": 100},
-            first_collection=True,
-        )
+        request_get.side_effect = self.successful_responses({"Python": 100})
 
         self.assertFalse(
             refresh_repository(
@@ -363,8 +366,7 @@ class RepositoryRefreshTaskTests(TestCase):
     @patch("projects.tasks.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
         request_get.side_effect = self.successful_responses(
-            {"Python": 100, "JavaScript": 50},
-            first_collection=True,
+            {"Python": 100, "JavaScript": 50}
         )
 
         result = refresh_repository(self.repository.pk, "2026-07-28")
@@ -373,9 +375,20 @@ class RepositoryRefreshTaskTests(TestCase):
         snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
         self.assertEqual(snapshot.stars, 12)
         self.assertEqual(snapshot.forks, 3)
-        self.assertEqual(snapshot.commits, 1)
-        self.assertEqual(snapshot.pull_requests, 2)
+        self.assertEqual(snapshot.commits, 17)
+        self.assertEqual(snapshot.pull_requests, 23)
         self.assertTrue(snapshot.has_code_changed)
+        self.assertEqual(
+            request_get.call_args_list[2].kwargs["params"],
+            {"sha": "main", "per_page": 1},
+        )
+        self.assertEqual(
+            request_get.call_args_list[3].kwargs["params"],
+            {
+                "q": "repo:example/repository-data is:pr",
+                "per_page": 1,
+            },
+        )
         self.assertEqual(
             dict(self.repository.languages.values_list("language", "bytes")),
             {"Python": 100, "JavaScript": 50},

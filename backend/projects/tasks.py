@@ -1,5 +1,6 @@
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
+from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -102,7 +103,13 @@ def _github_headers():
     return headers
 
 
-def _github_get(path, *, params=None, empty_on_conflict=False):
+def _github_get(
+    path,
+    *,
+    params=None,
+    empty_on_conflict=False,
+    include_links=False,
+):
     api_base_url = getattr(
         settings,
         "GITHUB_API_BASE_URL",
@@ -119,7 +126,7 @@ def _github_get(path, *, params=None, empty_on_conflict=False):
         raise GitHubCollectionError(GITHUB_API_FAILED) from error
 
     if response.status_code == 409 and empty_on_conflict:
-        return []
+        return ([], {}) if include_links else []
     if response.status_code in {404, 451}:
         raise GitHubCollectionError(GITHUB_REPOSITORY_UNAVAILABLE)
     if response.status_code == 429 or (
@@ -131,50 +138,37 @@ def _github_get(path, *, params=None, empty_on_conflict=False):
         raise GitHubCollectionError(GITHUB_API_FAILED)
 
     try:
-        return response.json()
+        data = response.json()
     except ValueError as error:
         raise GitHubCollectionError(GITHUB_API_FAILED) from error
+    return (data, response.links) if include_links else data
 
 
-def _collection_window(snapshot_date):
-    local_timezone = ZoneInfo(settings.CELERY_TIMEZONE)
-    start_date = snapshot_date - timedelta(days=1)
-    start = datetime.combine(start_date, time.min, local_timezone)
-    end = datetime.combine(snapshot_date, time.min, local_timezone)
-    return start.isoformat(), (end - timedelta(microseconds=1)).isoformat()
+def _collect_commit_count(full_name, default_branch):
+    data, links = _github_get(
+        f"/repos/{full_name}/commits",
+        params={"sha": default_branch, "per_page": 1},
+        empty_on_conflict=True,
+        include_links=True,
+    )
+    if not isinstance(data, list) or any(
+        not isinstance(item, dict) or not isinstance(item.get("sha"), str)
+        for item in data
+    ):
+        raise GitHubCollectionError(GITHUB_API_FAILED)
+    if not data:
+        return 0
+
+    last_url = links.get("last", {}).get("url")
+    if not last_url:
+        return len(data)
+    last_pages = parse_qs(urlparse(last_url).query).get("page")
+    if not last_pages or not last_pages[0].isdigit():
+        raise GitHubCollectionError(GITHUB_API_FAILED)
+    return int(last_pages[0])
 
 
-def _collect_commits(full_name, default_branch, since, until):
-    shas = set()
-    page = 1
-    while True:
-        data = _github_get(
-            f"/repos/{full_name}/commits",
-            params={
-                "sha": default_branch,
-                "since": since,
-                "until": until,
-                "per_page": 100,
-                "page": page,
-            },
-            empty_on_conflict=True,
-        )
-        if not isinstance(data, list):
-            raise GitHubCollectionError(GITHUB_API_FAILED)
-
-        if any(
-            not isinstance(item, dict)
-            or not isinstance(item.get("sha"), str)
-            for item in data
-        ):
-            raise GitHubCollectionError(GITHUB_API_FAILED)
-        shas.update(item["sha"] for item in data)
-        if len(data) < 100:
-            return len(shas)
-        page += 1
-
-
-def _collect_repository(repository, snapshot_date, is_first_collection):
+def _collect_repository(repository):
     metadata = _github_get(f"/repos/{repository.full_name}")
     if (
         not isinstance(metadata, dict)
@@ -201,38 +195,15 @@ def _collect_repository(repository, snapshot_date, is_first_collection):
     ):
         raise GitHubCollectionError(GITHUB_API_FAILED)
 
-    since, until = _collection_window(snapshot_date)
-    commits = _collect_commits(
+    commits = _collect_commit_count(
         repository.full_name,
         metadata["default_branch"],
-        since,
-        until,
     )
-    has_commit_history = None
-    if is_first_collection:
-        commit_history = _github_get(
-            f"/repos/{repository.full_name}/commits",
-            params={
-                "sha": metadata["default_branch"],
-                "per_page": 1,
-            },
-            empty_on_conflict=True,
-        )
-        if not isinstance(commit_history, list) or any(
-            not isinstance(item, dict)
-            or not isinstance(item.get("sha"), str)
-            for item in commit_history
-        ):
-            raise GitHubCollectionError(GITHUB_API_FAILED)
-        has_commit_history = bool(commit_history)
 
     pull_requests = _github_get(
         "/search/issues",
         params={
-            "q": (
-                f"repo:{repository.full_name} is:pr "
-                f"created:{since}..{until}"
-            ),
+            "q": f"repo:{repository.full_name} is:pr",
             "per_page": 1,
         },
     )
@@ -249,7 +220,7 @@ def _collect_repository(repository, snapshot_date, is_first_collection):
         "metadata": metadata,
         "languages": languages,
         "commits": commits,
-        "has_commit_history": has_commit_history,
+        "has_commit_history": commits > 0,
         "pull_requests": pull_requests["total_count"],
     }
 
@@ -476,11 +447,7 @@ def refresh_repository(
         else datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
     )
     try:
-        collection = _collect_repository(
-            repository,
-            target_date,
-            is_first_collection=not repository.snapshots.exists(),
-        )
+        collection = _collect_repository(repository)
         return _save_collection(
             repository_id,
             target_date,
