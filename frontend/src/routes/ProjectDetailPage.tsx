@@ -278,6 +278,61 @@ function ProjectMemberRemoveDialog({
   );
 }
 
+type ProjectAction = "finish" | "delete";
+
+function ProjectActionConfirmDialog({
+  action,
+  setAction,
+  onConfirm,
+  isPending,
+}: {
+  action: ProjectAction | null;
+  setAction: (action: ProjectAction | null) => void;
+  onConfirm: () => void;
+  isPending: boolean;
+}) {
+  const isDelete = action === "delete";
+
+  return (
+    <DialogRoot
+      open={action !== null}
+      onOpenChange={(event) => !event.open && setAction(null)}
+      placement="center"
+      role="alertdialog"
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {isDelete ? "프로젝트 삭제" : "프로젝트 완료"}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <DialogDescription>
+            {isDelete
+              ? "프로젝트를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다."
+              : "프로젝트를 완료하시겠습니까? 완료 후 프로젝트 수정과 참여 신청이 제한됩니다."}
+          </DialogDescription>
+        </DialogBody>
+        <DialogFooter>
+          <DialogActionTrigger asChild>
+            <Button variant="outline">취소</Button>
+          </DialogActionTrigger>
+          <Button
+            colorPalette={isDelete ? "red" : undefined}
+            bg={isDelete ? undefined : "smu.blue"}
+            loading={isPending}
+            loadingText={isDelete ? "삭제 중" : "완료 처리 중"}
+            onClick={onConfirm}
+          >
+            {isDelete ? "삭제" : "완료"}
+          </Button>
+        </DialogFooter>
+        <DialogCloseTrigger />
+      </DialogContent>
+    </DialogRoot>
+  );
+}
+
 function ExternalTextLink({
   href,
   children,
@@ -316,6 +371,9 @@ export default function ProjectDetailPage() {
   const [leaveMessage, setLeaveMessage] = useState("");
   const [applicationMessage, setApplicationMessage] = useState("");
   const [projectActionMessage, setProjectActionMessage] = useState("");
+  const [projectAction, setProjectAction] = useState<ProjectAction | null>(
+    null
+  );
   const [repositoryActionMessage, setRepositoryActionMessage] = useState("");
   const [repositoryActionFailed, setRepositoryActionFailed] = useState(false);
 
@@ -553,6 +611,17 @@ export default function ProjectDetailPage() {
     });
   };
 
+  const confirmProjectAction = () => {
+    const action = projectAction;
+    setProjectAction(null);
+    setProjectActionMessage("");
+    if (action === "finish") {
+      finishProjectMutation.mutate();
+    } else if (action === "delete") {
+      deleteProjectMutation.mutate();
+    }
+  };
+
   return (
     <Box px={{ base: 4, md: 10 }} py={6} maxW={"1000px"} mx={"auto"}>
       <VStack alignItems={"stretch"} gap={5}>
@@ -600,16 +669,7 @@ export default function ProjectDetailPage() {
                       value="finish"
                       cursor="pointer"
                       disabled={finishProjectMutation.isPending}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "프로젝트를 완료하시겠습니까? 완료 후 프로젝트 수정과 참여 신청이 제한됩니다."
-                          )
-                        ) {
-                          setProjectActionMessage("");
-                          finishProjectMutation.mutate();
-                        }
-                      }}
+                      onClick={() => setProjectAction("finish")}
                     >
                       프로젝트 완료
                     </MenuItem>
@@ -619,16 +679,7 @@ export default function ProjectDetailPage() {
                       value="delete"
                       cursor="pointer"
                       disabled={deleteProjectMutation.isPending}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "프로젝트를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다."
-                          )
-                        ) {
-                          setProjectActionMessage("");
-                          deleteProjectMutation.mutate();
-                        }
-                      }}
+                      onClick={() => setProjectAction("delete")}
                     >
                       <Text color="red.600">프로젝트 삭제</Text>
                     </MenuItem>
@@ -705,6 +756,15 @@ export default function ProjectDetailPage() {
           setMember={setRemoveTarget}
           onConfirm={removeMember}
           isPending={removeMemberMutation.isPending}
+        />
+
+        <ProjectActionConfirmDialog
+          action={projectAction}
+          setAction={setProjectAction}
+          onConfirm={confirmProjectAction}
+          isPending={
+            finishProjectMutation.isPending || deleteProjectMutation.isPending
+          }
         />
 
         {(applicationMessage || latestApplication?.status === "PENDING") && (
