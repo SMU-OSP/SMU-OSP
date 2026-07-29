@@ -326,7 +326,8 @@ export default function ProjectDetailPage() {
   });
   const managedProject =
     projectQuery.data?.status === "SUCCESS" ? projectQuery.data.data : null;
-  const repositoryStatusCode = managedProject?.repository?.lastStatusCode;
+  const isRepositoryCollectionPending =
+    managedProject?.repository?.fetchedAt === null;
   const managedMembersQuery = useQuery({
     queryKey: ["project-members", managedProject?.id, "manage"],
     queryFn: () => listProjectMembers(managedProject!.id, true),
@@ -884,7 +885,7 @@ export default function ProjectDetailPage() {
               </HStack>
             </Box>
           )}
-          {repositoryStatusCode === "PENDING" && (
+          {isRepositoryCollectionPending && (
             <Box
               role="status"
               p={3}

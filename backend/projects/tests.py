@@ -633,7 +633,7 @@ class ProjectApiTests(TestCase):
             bytes=100,
         )
         fetched_at = timezone.now() - timedelta(days=1)
-        status = RepositoryStatus.objects.create(
+        RepositoryStatus.objects.create(
             repository=self.repository,
             description="정규화된 설명",
             last_status_code=SUCCESS,
@@ -649,14 +649,11 @@ class ProjectApiTests(TestCase):
         self.assertEqual(repository["language"], "Python")
         self.assertEqual(repository["githubId"], 101)
         self.assertNotIn("topics", repository)
-        self.assertEqual(repository["lastStatusCode"], SUCCESS)
+        self.assertNotIn("lastStatusCode", repository)
+        self.assertNotIn("statusUpdatedAt", repository)
         self.assertEqual(
             repository["fetchedAt"],
             fetched_at.isoformat().replace("+00:00", "Z"),
-        )
-        self.assertEqual(
-            repository["statusUpdatedAt"],
-            status.updated_at.isoformat().replace("+00:00", "Z"),
         )
         self.assertNotIn("refreshStatus", repository)
         self.assertNotIn("lastErrorCode", repository)
