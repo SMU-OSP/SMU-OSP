@@ -144,7 +144,7 @@ class Project(CommonModel):
             )
         if len(memberships) > self.MAX_REAPPLICATIONS:
             raise ValidationError(
-                f"재신청 가능 횟수 {self.MAX_REAPPLICATIONS}회를 모두 사용했습니다.",
+                "현재 참가 신청할 수 없습니다.",
                 code="membership_reapplication_limit",
             )
         if not self.has_available_member_slot():

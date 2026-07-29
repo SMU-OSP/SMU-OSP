@@ -2000,6 +2000,10 @@ class ProjectApiTests(TestCase):
         self.assertEqual(
             response.json()["status"], "MEMBERSHIP_REAPPLICATION_LIMIT"
         )
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "현재 참가 신청할 수 없습니다.",
+        )
 
     def test_project_membership_application_rejects_invalid_project(self):
         self.client.force_login(self.user)
