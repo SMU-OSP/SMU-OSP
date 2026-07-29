@@ -71,11 +71,13 @@ export const getProjects = ({
   limit = null,
   joined = null,
   owned = null,
+  finished = null,
 }: {
   start?: number | null;
   limit?: number | null;
   joined?: boolean | null;
   owned?: boolean | null;
+  finished?: boolean | null;
 } = {}) =>
   instance
     .get("projects/", {
@@ -84,6 +86,7 @@ export const getProjects = ({
         ...(limit !== null && { limit }),
         ...(joined !== null && { joined }),
         ...(owned !== null && { owned }),
+        ...(finished !== null && { finished }),
       },
     })
     .then((response) => response.data);

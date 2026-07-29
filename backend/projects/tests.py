@@ -700,6 +700,79 @@ class ProjectApiTests(TestCase):
             invalid_response.json()["detail"]["message"],
         )
 
+    def test_project_list_separates_finished_and_hides_deleted_projects(self):
+        finished_owned = Project.objects.create(
+            name="Finished Owned Project",
+            description="완료된 팀장 프로젝트",
+            status=Project.Status.FINISHED,
+        )
+        Member.objects.create(
+            project=finished_owned,
+            user=self.user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        )
+        other_user = get_user_model().objects.create_user(
+            username="finished-leader",
+            github_email="finished-leader@example.com",
+            name="완료 프로젝트 팀장",
+            student_id=300,
+            major="IT공학",
+        )
+        finished_joined = Project.objects.create(
+            name="Finished Joined Project",
+            description="완료된 팀원 프로젝트",
+            status=Project.Status.FINISHED,
+        )
+        Member.objects.create(
+            project=finished_joined,
+            user=other_user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        )
+        Member.objects.create(
+            project=finished_joined,
+            user=self.user,
+            status=Member.Status.JOINED,
+        )
+        deleted = Project.objects.create(
+            name="Deleted Project",
+            description="삭제된 프로젝트",
+            status=Project.Status.DELETED,
+        )
+        Member.objects.create(
+            project=deleted,
+            user=self.user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        )
+
+        default_response = self.client.get("/api/v1/projects/")
+        self.client.force_login(self.user)
+        finished_response = self.client.get("/api/v1/projects/?finished=true")
+
+        self.assertEqual(
+            [project["name"] for project in default_response.json()["data"]],
+            ["SOSP"],
+        )
+        self.assertEqual(finished_response.status_code, 200)
+        self.assertEqual(
+            {
+                project["name"]: project["membershipRole"]
+                for project in finished_response.json()["data"]
+            },
+            {
+                "Finished Owned Project": "OWNER",
+                "Finished Joined Project": "MEMBER",
+            },
+        )
+
+    def test_finished_project_list_requires_login(self):
+        response = self.client.get("/api/v1/projects/?finished=true")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+
     def test_project_detail_response_shape(self):
         response = self.client.get(f"/api/v1/projects/{self.project.pk}")
 
@@ -717,6 +790,15 @@ class ProjectApiTests(TestCase):
         self.assertNotIn("canApply", body["data"])
         self.assertNotIn("applicationStatus", body["data"])
         self.assertIsNone(body["data"]["members"])
+
+    def test_deleted_project_detail_is_not_available(self):
+        self.project.status = Project.Status.DELETED
+        self.project.save(update_fields=("status", "updated_at"))
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["status"], "PROJECT_NOT_FOUND")
 
     def test_project_detail_uses_normalized_repository_data(self):
         RepositorySnapshot.objects.create(
@@ -1927,6 +2009,18 @@ class ProjectApiTests(TestCase):
         self.assertIn("updatedAt", body["data"][0])
 
     def test_project_membership_history_returns_empty_list(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/api/v1/projects/members")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"], [])
+
+    def test_project_membership_history_hides_deleted_projects(self):
+        self.project.status = Project.Status.DELETED
+        self.project.save(update_fields=("status", "updated_at"))
+        self.member.is_leader = False
+        self.member.save(update_fields=("is_leader", "updated_at"))
         self.client.force_login(self.user)
 
         response = self.client.get("/api/v1/projects/members")

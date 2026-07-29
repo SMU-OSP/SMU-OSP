@@ -13,6 +13,12 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import ProjectLeaveDialog from "../components/ProjectLeaveDialog";
 import ProjectMemberManagementDialog from "../components/ProjectMemberManagementDialog";
 import { Button } from "../components/ui/button";
+import {
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+} from "../components/ui/menu";
 import useUser from "../lib/useUser";
 import {
   DialogActionTrigger,
@@ -417,6 +423,7 @@ export default function ProjectDetailPage() {
           queryKey: ["project-application-history"],
         }),
       ]);
+      navigate("/projects?scope=finished");
     },
   });
 
@@ -573,46 +580,61 @@ export default function ProjectDetailPage() {
                 {applicationMutation.isPending ? "신청 중..." : "참가 신청"}
               </Button>
             )}
-            {project.canEdit && (
-              <Button
-                variant="outline"
-                disabled={finishProjectMutation.isPending}
-                onClick={() => {
-                  if (window.confirm("프로젝트를 완료하시겠습니까?")) {
-                    setProjectActionMessage("");
-                    finishProjectMutation.mutate();
-                  }
-                }}
-              >
-                프로젝트 완료
-              </Button>
-            )}
-            {canDeleteProject && (
-              <Button
-                colorPalette="red"
-                variant="outline"
-                disabled={deleteProjectMutation.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "프로젝트를 삭제하시겠습니까? 삭제 후 복구할 수 없습니다."
-                    )
-                  ) {
-                    setProjectActionMessage("");
-                    deleteProjectMutation.mutate();
-                  }
-                }}
-              >
-                프로젝트 삭제
-              </Button>
-            )}
-            {project.canEdit && (
-              <Button
-                bg={"smu.blue"}
-                onClick={() => navigate(`/projects/${project.id}/edit`)}
-              >
-                프로젝트 수정
-              </Button>
+            {(project.canEdit || canDeleteProject) && (
+              <MenuRoot>
+                <MenuTrigger asChild>
+                  <Button variant="outline">프로젝트 관리</Button>
+                </MenuTrigger>
+                <MenuContent>
+                  {project.canEdit && (
+                    <MenuItem
+                      value="edit"
+                      cursor="pointer"
+                      onClick={() => navigate(`/projects/${project.id}/edit`)}
+                    >
+                      프로젝트 수정
+                    </MenuItem>
+                  )}
+                  {project.canEdit && (
+                    <MenuItem
+                      value="finish"
+                      cursor="pointer"
+                      disabled={finishProjectMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "프로젝트를 완료하시겠습니까? 완료 후 프로젝트 수정과 참여 신청이 제한됩니다."
+                          )
+                        ) {
+                          setProjectActionMessage("");
+                          finishProjectMutation.mutate();
+                        }
+                      }}
+                    >
+                      프로젝트 완료
+                    </MenuItem>
+                  )}
+                  {canDeleteProject && (
+                    <MenuItem
+                      value="delete"
+                      cursor="pointer"
+                      disabled={deleteProjectMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "프로젝트를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다."
+                          )
+                        ) {
+                          setProjectActionMessage("");
+                          deleteProjectMutation.mutate();
+                        }
+                      }}
+                    >
+                      <Text color="red.600">프로젝트 삭제</Text>
+                    </MenuItem>
+                  )}
+                </MenuContent>
+              </MenuRoot>
             )}
           </HStack>
         </HStack>

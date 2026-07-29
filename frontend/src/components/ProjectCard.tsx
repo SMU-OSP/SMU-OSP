@@ -67,9 +67,16 @@ export default function ProjectCard({ project, showMembershipRole }: Props) {
     >
       <VStack alignItems={"stretch"} gap={2} flex={1}>
         <HStack justifyContent={"space-between"} alignItems={"flex-start"}>
-          <Text fontWeight={"bold"} color={"smu.blue"} fontSize={"md"}>
-            {project.name}
-          </Text>
+          <RouterLink to={`/projects/${project.id}`}>
+            <Text
+              fontWeight={"bold"}
+              color={"smu.blue"}
+              fontSize={"md"}
+              _hover={{ textDecoration: "underline" }}
+            >
+              {project.name}
+            </Text>
+          </RouterLink>
           <HStack gap={1} flexWrap={"wrap"} justifyContent={"flex-end"}>
             {showMembershipRole && (
               <MembershipRolePill role={project.membershipRole} />

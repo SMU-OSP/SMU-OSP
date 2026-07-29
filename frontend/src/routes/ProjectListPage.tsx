@@ -11,7 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { LuArrowUpDown, LuFilter, LuSearch } from "react-icons/lu";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import ProjectApplicationHistory from "../components/ProjectApplicationHistory";
 import ProjectCard, {
   MembershipRolePill,
@@ -26,7 +26,20 @@ import { getPageWindow } from "../utils/pagination";
 const CARD_PAGE_SIZE = 12;
 const BOARD_PAGE_SIZE = 20;
 const PAGE_WINDOW_SIZE = 10;
-type ProjectScope = "all" | "owned" | "joined" | "applications";
+type ProjectScope =
+  | "all"
+  | "owned"
+  | "joined"
+  | "finished"
+  | "applications";
+
+const PROJECT_SCOPES: ProjectScope[] = [
+  "all",
+  "owned",
+  "joined",
+  "finished",
+  "applications",
+];
 
 const SCOPE_CONTENT: Record<
   ProjectScope,
@@ -46,6 +59,11 @@ const SCOPE_CONTENT: Record<
     title: "참여 중인 프로젝트",
     description: "내가 팀원으로 참여 중인 프로젝트를 확인해 보세요.",
     emptyMessage: "참여 중인 프로젝트가 없습니다.",
+  },
+  finished: {
+    title: "완료된 프로젝트",
+    description: "내가 팀장 또는 팀원으로 참여했던 완료 프로젝트입니다.",
+    emptyMessage: "완료된 프로젝트가 없습니다.",
   },
   applications: {
     title: "참여 신청 내역",
@@ -92,8 +110,18 @@ function ProjectTreeItem({
 export default function ProjectListPage() {
   const { isLoggedIn, userLoading } = useUser();
   const [viewMode, setViewMode] = useState<"cards" | "board">("cards");
-  const [projectScope, setProjectScope] = useState<ProjectScope>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  const scopeParam = searchParams.get("scope");
+  const projectScope: ProjectScope = PROJECT_SCOPES.includes(
+    scopeParam as ProjectScope
+  )
+    ? (scopeParam as ProjectScope)
+    : "all";
+  const selectScope = (scope: ProjectScope) => {
+    setSearchParams(scope === "all" ? {} : { scope });
+    setPage(1);
+  };
 
   const pageSize = viewMode === "cards" ? CARD_PAGE_SIZE : BOARD_PAGE_SIZE;
   const start = (page - 1) * pageSize;
@@ -106,6 +134,7 @@ export default function ProjectListPage() {
         limit: pageSize,
         owned: projectScope === "owned",
         joined: projectScope === "joined",
+        finished: projectScope === "finished",
       }),
     enabled: projectScope !== "applications",
   });
@@ -146,10 +175,7 @@ export default function ProjectListPage() {
               <VStack alignItems={"stretch"} gap={1}>
                 <ProjectTreeItem
                   active={projectScope === "all"}
-                  onClick={() => {
-                    setProjectScope("all");
-                    setPage(1);
-                  }}
+                  onClick={() => selectScope("all")}
                 >
                   전체 프로젝트
                 </ProjectTreeItem>
@@ -170,31 +196,28 @@ export default function ProjectListPage() {
                 >
                   <VStack alignItems={"stretch"} gap={1}>
                     <ProjectTreeItem
+                      active={projectScope === "applications"}
+                      onClick={() => selectScope("applications")}
+                    >
+                      참여 신청 내역
+                    </ProjectTreeItem>
+                    <ProjectTreeItem
                       active={projectScope === "owned"}
-                      onClick={() => {
-                        setProjectScope("owned");
-                        setPage(1);
-                      }}
+                      onClick={() => selectScope("owned")}
                     >
                       운영 중인 프로젝트
                     </ProjectTreeItem>
                     <ProjectTreeItem
                       active={projectScope === "joined"}
-                      onClick={() => {
-                        setProjectScope("joined");
-                        setPage(1);
-                      }}
+                      onClick={() => selectScope("joined")}
                     >
                       참여 중인 프로젝트
                     </ProjectTreeItem>
                     <ProjectTreeItem
-                      active={projectScope === "applications"}
-                      onClick={() => {
-                        setProjectScope("applications");
-                        setPage(1);
-                      }}
+                      active={projectScope === "finished"}
+                      onClick={() => selectScope("finished")}
                     >
-                      참여 신청 내역
+                      완료된 프로젝트
                     </ProjectTreeItem>
                   </VStack>
                 </Box>
@@ -386,7 +409,9 @@ export default function ProjectListPage() {
                       <Box as="tr" key={p.id}>
                         <Box as="td" p={3} borderBottomWidth={1} borderBottomColor={"smu.gray"}>
                           <Text fontWeight={"bold"} color={"smu.blue"}>
-                            {p.name}
+                            <RouterLink to={`/projects/${p.id}`}>
+                              {p.name}
+                            </RouterLink>
                           </Text>
                           <Text fontSize={"xs"} color={"smu.darkGray"} lineClamp={1}>
                             {p.description}

@@ -102,6 +102,7 @@ class Projects(APIView):
             start, limit = parse_pagination(request.query_params)
             joined = parse_boolean_filter(request.query_params, "joined")
             owned = parse_boolean_filter(request.query_params, "owned")
+            finished = parse_boolean_filter(request.query_params, "finished")
         except ValueError as error:
             error_code, message = error.args
             return Response(
@@ -113,7 +114,7 @@ class Projects(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (joined or owned) and not request.user.is_authenticated:
+        if (joined or owned or finished) and not request.user.is_authenticated:
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -144,13 +145,22 @@ class Projects(APIView):
             .all()
             .order_by("-updated_at", "-pk")
         )
+        projects = projects.exclude(status=Project.Status.DELETED)
 
-        if joined or owned:
+        if finished:
+            projects = projects.filter(
+                status=Project.Status.FINISHED,
+                members__user=request.user,
+                members__status=Member.Status.JOINED,
+            ).distinct()
+        elif joined or owned:
             projects = projects.filter(
                 members__user=request.user,
                 members__status=Member.Status.JOINED,
                 members__is_leader=owned,
-            ).distinct()
+            ).exclude(status=Project.Status.FINISHED).distinct()
+        else:
+            projects = projects.exclude(status=Project.Status.FINISHED)
 
         if request.user.is_authenticated:
             projects = projects.prefetch_related(
@@ -281,6 +291,7 @@ class ProjectDetail(APIView):
                         to_attr="serialized_languages",
                     ),
                 )
+                .exclude(status=Project.Status.DELETED)
                 .get(pk=pk)
             )
         except Project.DoesNotExist:
@@ -512,6 +523,7 @@ class ProjectMemberships(APIView):
         memberships = (
             Member.objects.select_related("project")
             .filter(user=request.user, is_leader=False)
+            .exclude(project__status=Project.Status.DELETED)
             .order_by("-created_at", "-pk")
         )
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
