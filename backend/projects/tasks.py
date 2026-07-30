@@ -288,10 +288,7 @@ def _save_collection(
             pk=repository.project_id
         )
         project.repository = repository
-        if project.status in {
-            Project.Status.FINISHED,
-            Project.Status.DELETED,
-        }:
+        if project.status != Project.Status.ACTIVE:
             if status is not None:
                 status.last_status_code = REFRESH_SKIPPED
                 status.save(
@@ -442,10 +439,7 @@ def refresh_repository(
         )
     except Repository.DoesNotExist:
         return False
-    if repository.project.status in {
-        Project.Status.FINISHED,
-        Project.Status.DELETED,
-    }:
+    if repository.project.status != Project.Status.ACTIVE:
         _mark_collection_skipped(repository_id, refresh_requested_at)
         return False
 

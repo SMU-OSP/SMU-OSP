@@ -268,8 +268,9 @@ class RepositoryRefreshTaskTests(TestCase):
         )
 
     @patch("projects.tasks.requests.get")
-    def test_refresh_skips_finished_and_deleted_projects(self, request_get):
+    def test_refresh_skips_non_active_projects(self, request_get):
         for project_status in (
+            Project.Status.INACTIVE,
             Project.Status.FINISHED,
             Project.Status.DELETED,
         ):
@@ -284,6 +285,22 @@ class RepositoryRefreshTaskTests(TestCase):
                 )
 
         request_get.assert_not_called()
+
+    @patch("projects.tasks._collect_repository")
+    def test_refresh_skips_save_when_project_becomes_inactive(
+        self,
+        collect_repository,
+    ):
+        def deactivate_project(repository):
+            Project.objects.filter(pk=repository.project_id).update(
+                status=Project.Status.INACTIVE
+            )
+            return {}
+
+        collect_repository.side_effect = deactivate_project
+
+        self.assertFalse(refresh_repository(self.repository.pk, "2026-07-28"))
+        self.assertFalse(self.repository.snapshots.exists())
 
     @patch("projects.tasks.requests.get")
     def test_skipped_refresh_clears_current_pending_status(self, request_get):
