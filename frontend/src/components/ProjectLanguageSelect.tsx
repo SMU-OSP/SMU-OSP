@@ -35,15 +35,19 @@ export default function ProjectLanguageSelect({
     const search = languageSearch.trim().toLocaleLowerCase();
     const languages =
       query.data?.status === "SUCCESS" ? query.data.data : [];
+    const selected = new Set(value);
     return createListCollection({
-      items: languages
-        .filter(
+      items: [
+        ...value.filter((name) => languages.includes(name)),
+        ...languages.filter(
           (name) =>
-            !search || name.toLocaleLowerCase().includes(search)
-        )
+            !selected.has(name) &&
+            (!search || name.toLocaleLowerCase().includes(search))
+        ),
+      ]
         .map((name) => ({ label: name, value: name })),
     });
-  }, [languageSearch, query.data]);
+  }, [languageSearch, query.data, value]);
 
   return (
     <Combobox.Root
@@ -57,7 +61,10 @@ export default function ProjectLanguageSelect({
       inputValue={languageSearch}
       disabled={disabled || query.isLoading}
       onInputValueChange={({ inputValue }) => setLanguageSearch(inputValue)}
-      onValueChange={({ value: nextValue }) => onChange(nextValue)}
+      onValueChange={({ value: nextValue }) => {
+        onChange(nextValue);
+        setLanguageSearch("");
+      }}
       onOpenChange={({ open }) => {
         if (!open) setLanguageSearch("");
       }}
