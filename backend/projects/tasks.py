@@ -233,7 +233,7 @@ def _collect_repository(repository):
     }
 
 
-def _calculate_streaks(repository):
+def _calculate_streaks(repository: Repository) -> tuple[int, int]:
     current_streak = 0
     max_streak = 0
     previous_date = None
@@ -304,15 +304,29 @@ def _save_collection(
         previous_languages = dict(
             repository.languages.values_list("language", "bytes")
         )
+        repository_status = status or RepositoryStatus.objects.filter(
+            repository=repository
+        ).first()
+        stored_current_streak = (
+            repository_status.current_streak if repository_status else 0
+        )
+        stored_max_streak = (
+            repository_status.max_streak if repository_status else 0
+        )
         existing_snapshot = repository.snapshots.filter(
             date=snapshot_date
         ).first()
+        previous_snapshot = (
+            repository.snapshots.filter(date__lt=snapshot_date)
+            .order_by("-date")
+            .first()
+        )
         if existing_snapshot:
             has_code_changed = (
                 existing_snapshot.has_code_changed
                 or previous_languages != collection["languages"]
             )
-        elif repository.snapshots.exists():
+        elif previous_snapshot:
             has_code_changed = previous_languages != collection["languages"]
         else:
             has_code_changed = collection["has_commit_history"]
@@ -346,7 +360,29 @@ def _save_collection(
                 defaults={"bytes": byte_count},
             )
 
-        current_streak, max_streak = _calculate_streaks(repository)
+        if (
+            existing_snapshot
+            and not existing_snapshot.has_code_changed
+            and has_code_changed
+        ):
+            current_streak, max_streak = _calculate_streaks(repository)
+        elif existing_snapshot:
+            current_streak = stored_current_streak
+            max_streak = stored_max_streak
+        elif has_code_changed:
+            continues_streak = (
+                previous_snapshot is not None
+                and previous_snapshot.has_code_changed
+                and previous_snapshot.date
+                == snapshot_date - timedelta(days=1)
+            )
+            current_streak = (
+                stored_current_streak + 1 if continues_streak else 1
+            )
+            max_streak = max(stored_max_streak, current_streak)
+        else:
+            current_streak = 0
+            max_streak = stored_max_streak
         description = metadata.get("description")
         RepositoryStatus.objects.update_or_create(
             repository=repository,

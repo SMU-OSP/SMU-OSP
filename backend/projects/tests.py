@@ -424,6 +424,12 @@ class RepositoryRefreshTaskTests(TestCase):
             date=date(2026, 7, 27),
             has_code_changed=True,
         )
+        RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=SUCCESS,
+            current_streak=1,
+            max_streak=1,
+        )
         RepositoryLanguage.objects.create(
             repository=self.repository,
             language="Python",
@@ -437,6 +443,7 @@ class RepositoryRefreshTaskTests(TestCase):
 
         snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
         self.assertTrue(snapshot.has_code_changed)
+        self.repository.status.refresh_from_db()
         self.assertEqual(self.repository.status.current_streak, 2)
         self.assertEqual(self.repository.status.max_streak, 2)
         self.assertEqual(
@@ -465,6 +472,46 @@ class RepositoryRefreshTaskTests(TestCase):
 
         snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
         self.assertTrue(snapshot.has_code_changed)
+
+    @patch("projects.tasks.requests.get")
+    def test_same_day_code_change_recalculates_streak(self, request_get):
+        RepositorySnapshot.objects.bulk_create(
+            [
+                RepositorySnapshot(
+                    repository=self.repository,
+                    date=date(2026, 7, 26),
+                    has_code_changed=True,
+                ),
+                RepositorySnapshot(
+                    repository=self.repository,
+                    date=date(2026, 7, 27),
+                    has_code_changed=True,
+                ),
+                RepositorySnapshot(
+                    repository=self.repository,
+                    date=date(2026, 7, 28),
+                    has_code_changed=False,
+                ),
+            ]
+        )
+        RepositoryStatus.objects.create(
+            repository=self.repository,
+            last_status_code=SUCCESS,
+            current_streak=0,
+            max_streak=2,
+        )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Python",
+            bytes=100,
+        )
+        request_get.side_effect = self.successful_responses({"Python": 80})
+
+        self.assertTrue(refresh_repository(self.repository.pk, "2026-07-28"))
+
+        self.repository.status.refresh_from_db()
+        self.assertEqual(self.repository.status.current_streak, 3)
+        self.assertEqual(self.repository.status.max_streak, 3)
 
     @patch("projects.tasks.requests.get")
     def test_incomplete_pull_request_results_preserve_last_collection(
