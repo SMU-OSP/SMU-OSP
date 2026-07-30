@@ -2,7 +2,7 @@ from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from .models import Project, Repository
 from .tasks import enqueue_repository_refresh
@@ -153,7 +153,10 @@ def update_project_repository(
             previous_project_status == project.Status.INACTIVE
             and project.status == project.Status.ACTIVE
         ):
-            enqueue_repository_refresh(repository.pk)
+            transaction.on_commit(
+                lambda: enqueue_repository_refresh(repository.pk),
+                robust=True,
+            )
         return
     if not repository_url:
         return
@@ -177,4 +180,7 @@ def update_project_repository(
             "INTERNAL_SERVER_ERROR",
             REPOSITORY_SAVE_FAILED_MESSAGE,
         ) from error
-    enqueue_repository_refresh(repository.pk)
+    transaction.on_commit(
+        lambda: enqueue_repository_refresh(repository.pk),
+        robust=True,
+    )

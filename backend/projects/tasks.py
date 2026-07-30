@@ -266,9 +266,13 @@ def _save_collection(
     refresh_requested_at=None,
 ):
     with transaction.atomic():
-        repository = (
-            Repository.objects.select_for_update()
-            .get(pk=repository_id)
+        project_id = Repository.objects.values_list(
+            "project_id",
+            flat=True,
+        ).get(pk=repository_id)
+        project = Project.objects.select_for_update().get(pk=project_id)
+        repository = Repository.objects.select_for_update().get(
+            pk=repository_id
         )
         status = None
         if refresh_requested_at is not None:
@@ -284,9 +288,6 @@ def _save_collection(
             if status is None:
                 return False
 
-        project = Project.objects.select_for_update().get(
-            pk=repository.project_id
-        )
         project.repository = repository
         if project.status != Project.Status.ACTIVE:
             if status is not None:
@@ -452,7 +453,7 @@ def refresh_repository(
             collection,
             refresh_requested_at,
         )
-    except Repository.DoesNotExist:
+    except (Project.DoesNotExist, Repository.DoesNotExist):
         return False
     except GitHubCollectionError as error:
         _mark_collection_failed(

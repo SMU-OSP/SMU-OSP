@@ -1299,6 +1299,28 @@ class ProjectApiTests(TestCase):
         self.assertEqual(self.repository.status.last_status_code, PENDING)
         refresh_delay.assert_called_once_with(self.repository.pk, ANY, ANY)
 
+    @patch("projects.services.enqueue_repository_refresh")
+    def test_restoring_inactive_project_defers_refresh_until_commit(
+        self,
+        enqueue_refresh,
+    ):
+        self.project.status = Project.Status.INACTIVE
+        self.project.save(update_fields=("status", "updated_at"))
+        self.client.force_login(self.user)
+
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            response = self.client.put(
+                f"/api/v1/projects/{self.project.pk}",
+                data=self.project_update_payload(status=Project.Status.ACTIVE),
+                content_type="application/json",
+            )
+            enqueue_refresh.assert_not_called()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(callbacks), 1)
+        callbacks[0]()
+        enqueue_refresh.assert_called_once_with(self.repository.pk)
+
     def test_create_project_requires_login(self):
         response = self.client.post(
             "/api/v1/projects/",
