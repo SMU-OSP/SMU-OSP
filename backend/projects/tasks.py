@@ -35,10 +35,10 @@ class GitHubCollectionError(Exception):
 
 
 def _dispatch_repository_refresh(
-    repository_id,
-    snapshot_date=None,
-    refresh_requested_at=None,
-):
+    repository_id: int,
+    snapshot_date: str,
+    refresh_requested_at: str | None = None,
+) -> None:
     try:
         refresh_repository.delay(
             repository_id,
@@ -57,7 +57,15 @@ def _dispatch_repository_refresh(
         )
 
 
-def enqueue_repository_refresh(repository_id, snapshot_date=None):
+def _current_snapshot_date() -> date:
+    return datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
+
+
+def enqueue_repository_refresh(
+    repository_id: int,
+    snapshot_date: date | None = None,
+) -> bool:
+    target_date = snapshot_date or _current_snapshot_date()
     with transaction.atomic():
         try:
             repository = Repository.objects.select_for_update().get(
@@ -84,7 +92,7 @@ def enqueue_repository_refresh(repository_id, snapshot_date=None):
         transaction.on_commit(
             lambda: _dispatch_repository_refresh(
                 repository_id,
-                snapshot_date,
+                target_date.isoformat(),
                 refresh_requested_at,
             ),
             robust=True,
@@ -405,7 +413,7 @@ def _mark_collection_skipped(
 
 
 @shared_task
-def enqueue_daily_repository_refreshes(snapshot_date=None):
+def enqueue_daily_repository_refreshes(snapshot_date: str | None = None) -> int:
     target_date = (
         date.fromisoformat(snapshot_date)
         if snapshot_date
@@ -417,17 +425,17 @@ def enqueue_daily_repository_refreshes(snapshot_date=None):
         .values_list("pk", flat=True)
     )
     return sum(
-        enqueue_repository_refresh(repository_id, target_date.isoformat())
+        enqueue_repository_refresh(repository_id, target_date)
         for repository_id in repository_ids
     )
 
 
 @shared_task(rate_limit=settings.REPOSITORY_REFRESH_TASK_RATE_LIMIT)
 def refresh_repository(
-    repository_id,
-    snapshot_date=None,
-    refresh_requested_at=None,
-):
+    repository_id: int,
+    snapshot_date: str,
+    refresh_requested_at: str | None = None,
+) -> bool:
     try:
         repository = Repository.objects.select_related("project").get(
             pk=repository_id
@@ -441,11 +449,7 @@ def refresh_repository(
         _mark_collection_skipped(repository_id, refresh_requested_at)
         return False
 
-    target_date = (
-        date.fromisoformat(snapshot_date)
-        if snapshot_date
-        else datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
-    )
+    target_date = date.fromisoformat(snapshot_date)
     try:
         collection = _collect_repository(repository)
         return _save_collection(

@@ -279,7 +279,9 @@ class RepositoryRefreshTaskTests(TestCase):
                     update_fields=("status", "updated_at")
                 )
 
-                self.assertFalse(refresh_repository(self.repository.pk))
+                self.assertFalse(
+                    refresh_repository(self.repository.pk, "2026-07-28")
+                )
 
         request_get.assert_not_called()
 
@@ -296,7 +298,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertFalse(
             refresh_repository(
                 self.repository.pk,
-                None,
+                "2026-07-28",
                 requested_at,
             )
         )
@@ -1070,7 +1072,7 @@ class ProjectApiTests(TestCase):
             ).last_status_code,
             PENDING,
         )
-        refresh_delay.assert_called_once_with(repository.pk, None, ANY)
+        refresh_delay.assert_called_once_with(repository.pk, ANY, ANY)
 
     def test_create_project_without_repository_url_keeps_repository_empty(self):
         self.client.force_login(self.user)
@@ -1278,7 +1280,7 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.status, Project.Status.ACTIVE)
         self.assertEqual(self.repository.status.last_status_code, PENDING)
-        refresh_delay.assert_called_once_with(self.repository.pk, None, ANY)
+        refresh_delay.assert_called_once_with(self.repository.pk, ANY, ANY)
 
     def test_create_project_requires_login(self):
         response = self.client.post(
