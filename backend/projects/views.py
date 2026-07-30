@@ -204,31 +204,43 @@ class Projects(APIView):
             projects = projects.exclude(status=Project.Status.FINISHED)
 
         if keyword:
+            project_language_matches = ProjectLanguage.objects.filter(
+                projects=OuterRef("pk"),
+                name__icontains=keyword,
+            )
             language_matches = RepositoryLanguage.objects.filter(
                 repository__project_id=OuterRef("pk"),
                 language__icontains=keyword,
             )
             projects = projects.annotate(
-                has_matching_language=Exists(language_matches)
+                has_matching_project_language=Exists(project_language_matches),
+                has_matching_language=Exists(language_matches),
             ).filter(
                 Q(name__icontains=keyword)
                 | Q(description__icontains=keyword)
-                | Q(tech_stack__icontains=keyword)
+                | Q(has_matching_project_language=True)
                 | Q(has_matching_language=True)
             )
         if tech_stacks:
-            tech_stack_query = Q()
+            project_language_query = Q()
             language_query = Q()
             for tech_stack in tech_stacks:
-                tech_stack_query |= Q(tech_stack__icontains=tech_stack)
-                language_query |= Q(language__icontains=tech_stack)
+                project_language_query |= Q(name__iexact=tech_stack)
+                language_query |= Q(language__iexact=tech_stack)
+            project_language_matches = ProjectLanguage.objects.filter(
+                projects=OuterRef("pk")
+            ).filter(project_language_query)
             language_matches = RepositoryLanguage.objects.filter(
                 repository__project_id=OuterRef("pk")
             ).filter(language_query)
             projects = projects.annotate(
+                has_matching_filtered_project_language=Exists(
+                    project_language_matches
+                ),
                 has_matching_filtered_language=Exists(language_matches)
             ).filter(
-                tech_stack_query | Q(has_matching_filtered_language=True)
+                Q(has_matching_filtered_project_language=True)
+                | Q(has_matching_filtered_language=True)
             )
         if project_status:
             projects = projects.filter(status=project_status)

@@ -1799,15 +1799,15 @@ class ProjectApiTests(TestCase):
         alpha = Project.objects.create(
             name="Alpha Tools",
             description="Python helper project",
-            tech_stack=["FastAPI", "Python"],
             status=Project.Status.INACTIVE,
         )
+        alpha.languages.add(ProjectLanguage.objects.get(name="Go"))
         finished = Project.objects.create(
             name="Finished React",
             description="Completed frontend project",
-            tech_stack=["React"],
             status=Project.Status.FINISHED,
         )
+        finished.languages.add(ProjectLanguage.objects.get(name="TypeScript"))
         RepositoryLanguage.objects.create(
             repository=self.repository,
             language="TypeScript",
@@ -1821,11 +1821,11 @@ class ProjectApiTests(TestCase):
 
         keyword_response = self.client.get("/api/v1/projects/?keyword=python")
         stack_response = self.client.get(
-            "/api/v1/projects/?techStack=types,fast&sort=name"
+            "/api/v1/projects/?techStack=TypeScript,Go&sort=name"
         )
         status_response = self.client.get("/api/v1/projects/?status=finished")
         combined_response = self.client.get(
-            "/api/v1/projects/?keyword=python&techStack=FastAPI"
+            "/api/v1/projects/?keyword=python&techStack=Go"
         )
 
         self.assertEqual(

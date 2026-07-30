@@ -19,6 +19,7 @@ import ProjectApplicationHistory from "../components/ProjectApplicationHistory";
 import ProjectCard, {
   MembershipRolePill,
 } from "../components/ProjectCard";
+import ProjectLanguageSelect from "../components/ProjectLanguageSelect";
 import { Button } from "../components/ui/button";
 import { InputGroup } from "../components/ui/input-group";
 import useUser from "../lib/useUser";
@@ -145,7 +146,8 @@ export default function ProjectListPage() {
   const projectSort: ProjectSort =
     searchParams.get("sort") === "name" ? "name" : "latest";
   const [keywordInput, setKeywordInput] = useState(keyword);
-  const [techStackInput, setTechStackInput] = useState(techStack);
+  const [techStackInput, setTechStackInput] =
+    useState<string[]>(techStack.split(",").filter(Boolean));
   const projectScope: ProjectScope = PROJECT_SCOPES.includes(
     scopeParam as ProjectScope
   )
@@ -156,7 +158,7 @@ export default function ProjectListPage() {
 
   useEffect(() => {
     setKeywordInput(keyword);
-    setTechStackInput(techStack);
+    setTechStackInput(techStack.split(",").filter(Boolean));
   }, [keyword, techStack]);
 
   const selectScope = (scope: ProjectScope) => {
@@ -176,14 +178,7 @@ export default function ProjectListPage() {
   };
   const applyTextFilters = () => {
     const nextParams = new URLSearchParams(searchParams);
-    const normalizedTechStack = Array.from(
-      new Set(
-        techStackInput
-          .split(",")
-          .map((stack) => stack.trim())
-          .filter(Boolean)
-      )
-    ).join(",");
+    const normalizedTechStack = techStackInput.join(",");
     if (keywordInput.trim()) nextParams.set("keyword", keywordInput.trim());
     else nextParams.delete("keyword");
     if (normalizedTechStack) nextParams.set("techStack", normalizedTechStack);
@@ -386,16 +381,18 @@ export default function ProjectListPage() {
                   onChange={(event) => setKeywordInput(event.target.value)}
                 />
               </InputGroup>
-              <Input
-                size="sm"
+              <Box
                 width={{ base: "100%", sm: "220px", lg: "auto" }}
                 minWidth={{ lg: "150px" }}
                 flex={{ lg: "1 1 160px" }}
-                placeholder="기술 스택·언어 (쉼표로 구분)"
-                value={techStackInput}
-                maxLength={500}
-                onChange={(event) => setTechStackInput(event.target.value)}
-              />
+              >
+                <ProjectLanguageSelect
+                  size="sm"
+                  value={techStackInput}
+                  onChange={setTechStackInput}
+                  placeholder="사용 언어"
+                />
+              </Box>
               {projectScope !== "finished" && (
                 <Select.Root
                   size="sm"
