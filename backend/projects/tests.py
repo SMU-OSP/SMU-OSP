@@ -267,7 +267,7 @@ class RepositoryRefreshTaskTests(TestCase):
             settings.REPOSITORY_REFRESH_TASK_RATE_LIMIT,
         )
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_refresh_skips_non_active_projects(self, request_get):
         for project_status in (
             Project.Status.INACTIVE,
@@ -286,13 +286,13 @@ class RepositoryRefreshTaskTests(TestCase):
 
         request_get.assert_not_called()
 
-    @patch("projects.tasks._collect_repository")
+    @patch("projects.tasks.collect_repository")
     def test_refresh_skips_save_when_project_becomes_inactive(
         self,
         collect_repository,
     ):
-        def deactivate_project(repository):
-            Project.objects.filter(pk=repository.project_id).update(
+        def deactivate_project(_full_name, _github_id):
+            Project.objects.filter(pk=self.repository.project_id).update(
                 status=Project.Status.INACTIVE
             )
             return {}
@@ -302,7 +302,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertFalse(refresh_repository(self.repository.pk, "2026-07-28"))
         self.assertFalse(self.repository.snapshots.exists())
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_skipped_refresh_clears_current_pending_status(self, request_get):
         repository_status = RepositoryStatus.objects.create(
             repository=self.repository,
@@ -327,7 +327,7 @@ class RepositoryRefreshTaskTests(TestCase):
         )
         request_get.assert_not_called()
 
-    @patch("projects.tasks.requests.get", side_effect=requests.RequestException)
+    @patch("projects.github_client.requests.get", side_effect=requests.RequestException)
     def test_superseded_failure_does_not_overwrite_newer_status(
         self,
         request_get,
@@ -353,7 +353,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(repository_status.last_status_code, PENDING)
         request_get.assert_called_once()
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_superseded_success_does_not_overwrite_newer_request(
         self,
         request_get,
@@ -380,7 +380,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(repository_status.last_status_code, PENDING)
         self.assertFalse(self.repository.snapshots.exists())
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_refresh_saves_normalized_collection(self, request_get):
         request_get.side_effect = self.successful_responses(
             {"Python": 100, "JavaScript": 50}
@@ -417,7 +417,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(status.max_streak, 1)
         self.assertIsNotNone(status.fetched_at)
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_refresh_detects_language_change_and_updates_streak(self, request_get):
         RepositorySnapshot.objects.create(
             repository=self.repository,
@@ -451,7 +451,7 @@ class RepositoryRefreshTaskTests(TestCase):
             {"Python": 80, "Go": 20},
         )
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_same_day_refresh_does_not_erase_detected_code_change(
         self,
         request_get,
@@ -473,7 +473,7 @@ class RepositoryRefreshTaskTests(TestCase):
         snapshot = self.repository.snapshots.get(date=date(2026, 7, 28))
         self.assertTrue(snapshot.has_code_changed)
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_same_day_code_change_recalculates_streak(self, request_get):
         RepositorySnapshot.objects.bulk_create(
             [
@@ -513,7 +513,7 @@ class RepositoryRefreshTaskTests(TestCase):
         self.assertEqual(self.repository.status.current_streak, 3)
         self.assertEqual(self.repository.status.max_streak, 3)
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_incomplete_pull_request_results_preserve_last_collection(
         self,
         request_get,
@@ -541,7 +541,7 @@ class RepositoryRefreshTaskTests(TestCase):
             GITHUB_API_FAILED,
         )
 
-    @patch("projects.tasks.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_refresh_failure_preserves_last_normal_collection(self, request_get):
         snapshot = RepositorySnapshot.objects.create(
             repository=self.repository,
@@ -1069,7 +1069,7 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Member.objects.filter(pk=member_id).exists())
 
     @patch("projects.tasks.refresh_repository.delay")
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_create_project_creates_leader_member_and_repository(
         self,
         request_get,
@@ -1159,7 +1159,7 @@ class ProjectApiTests(TestCase):
         self.assertFalse(Repository.objects.filter(project=project).exists())
         self.assertTrue(project.members.get().is_leader)
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_create_project_keeps_project_when_repository_lookup_fails(
         self,
         request_get,
@@ -1221,7 +1221,7 @@ class ProjectApiTests(TestCase):
             Repository.objects.filter(project=project).exists()
         )
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_deleted_project_repository_cannot_be_reused(self, request_get):
         self.project.status = Project.Status.DELETED
         self.project.save(update_fields=("status", "updated_at"))
@@ -1252,7 +1252,7 @@ class ProjectApiTests(TestCase):
         )
         request_get.assert_not_called()
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_project_without_repository_can_add_one(
         self,
         request_get,
@@ -1284,7 +1284,7 @@ class ProjectApiTests(TestCase):
             "https://github.com/example/new-project",
         )
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_project_update_rolls_back_when_repository_lookup_fails(
         self,
         request_get,
@@ -1311,7 +1311,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(self.project.name, "SOSP")
         self.assertFalse(Repository.objects.filter(project=self.project).exists())
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_unchanged_repository_does_not_request_github(self, request_get):
         self.client.force_login(self.user)
 
@@ -1423,7 +1423,7 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(Project.objects.filter(name="Rollback Project").exists())
 
-    @patch("projects.services.requests.get")
+    @patch("projects.github_client.requests.get")
     def test_create_project_keeps_project_when_repository_creation_fails(
         self,
         request_get,
