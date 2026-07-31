@@ -59,6 +59,11 @@ class ProjectListQuery:
     sort: str
 
 
+@dataclass(frozen=True)
+class ProjectMemberQuery:
+    manage: bool
+
+
 class ProjectListQueryForm(forms.Form):
     start = QueryIntegerField(default=0, min_value=0)
     limit = QueryIntegerField(default=10, min_value=1)
@@ -94,6 +99,8 @@ class ProjectListQueryForm(forms.Form):
                 "status",
                 forms.ValidationError("invalid", code="invalid_status"),
             )
+        else:
+            cleaned_data["status"] = project_status
 
         sort = cleaned_data.get("sort") or "latest"
         if sort not in PROJECT_SORTS:
@@ -101,10 +108,10 @@ class ProjectListQueryForm(forms.Form):
                 "sort",
                 forms.ValidationError("invalid", code="invalid_sort"),
             )
+        else:
+            cleaned_data["sort"] = sort
 
         cleaned_data["languages"] = tuple(languages)
-        cleaned_data["status"] = project_status
-        cleaned_data["sort"] = sort
         return cleaned_data
 
     def api_error(self) -> tuple[str, str]:
@@ -160,3 +167,8 @@ class ProjectListQueryForm(forms.Form):
 
 class ProjectMemberQueryForm(forms.Form):
     manage = QueryBooleanField(required=False)
+
+    def to_query(self) -> ProjectMemberQuery:
+        if not self.is_valid():
+            raise ValueError("유효한 입력만 ProjectMemberQuery로 변환할 수 있습니다.")
+        return ProjectMemberQuery(manage=self.cleaned_data["manage"])

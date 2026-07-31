@@ -31,7 +31,8 @@ from .services import (
     update_project_repository,
 )
 
-def prepare_projects_for_serialization(projects):
+
+def prepare_projects_for_serialization(projects: list[Project]) -> None:
     for project in projects:
         repository = getattr(project, "repository", None)
         if repository is None:
@@ -43,7 +44,11 @@ def prepare_projects_for_serialization(projects):
             repository.serialized_languages = []
 
 
-def pagination_detail(start, limit, count):
+def pagination_detail(
+    start: int,
+    limit: int,
+    count: int,
+) -> dict[str, dict[str, int | bool]]:
     total_pages = (count + limit - 1) // limit if count else 1
     current_page = (start // limit) + 1
 
@@ -537,7 +542,7 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        manage = query_form.cleaned_data["manage"]
+        manage = query_form.to_query().manage
 
         requester = (
             Member.objects.filter(
