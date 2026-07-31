@@ -1,6 +1,9 @@
+from dataclasses import dataclass
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.http import QueryDict
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
@@ -39,6 +42,14 @@ PROJECT_FILTER_STATUSES = {
     Project.Status.FINISHED,
 }
 PROJECT_SORTS = {"latest", "name"}
+
+
+@dataclass(frozen=True)
+class ProjectFilters:
+    keyword: str
+    languages: tuple[str, ...]
+    status: str
+    sort: str
 
 
 def prepare_projects_for_serialization(projects):
@@ -102,9 +113,9 @@ def parse_boolean_filter(query_params, name):
     )
 
 
-def parse_project_filters(query_params):
+def parse_project_filters(query_params: QueryDict) -> ProjectFilters:
     keyword = query_params.get("keyword", "").strip()
-    tech_stacks = [
+    languages = [
         stack.strip()
         for value in query_params.getlist("techStack")
         for stack in value.split(",")
@@ -113,8 +124,8 @@ def parse_project_filters(query_params):
     project_status = query_params.get("status", "").strip().upper()
     sort = query_params.get("sort", "latest").strip() or "latest"
 
-    if len(keyword) > 100 or len(tech_stacks) > 20 or any(
-        len(stack) > 50 for stack in tech_stacks
+    if len(keyword) > 100 or len(languages) > 20 or any(
+        len(stack) > 50 for stack in languages
     ):
         raise ValueError(
             "INVALID_PROJECT_FILTER",
@@ -131,7 +142,12 @@ def parse_project_filters(query_params):
             "지원하지 않는 정렬 방식입니다.",
         )
 
-    return keyword, tech_stacks, project_status, sort
+    return ProjectFilters(
+        keyword=keyword,
+        languages=tuple(languages),
+        status=project_status,
+        sort=sort,
+    )
 
 
 class Projects(APIView):
@@ -141,9 +157,7 @@ class Projects(APIView):
             joined = parse_boolean_filter(request.query_params, "joined")
             owned = parse_boolean_filter(request.query_params, "owned")
             finished = parse_boolean_filter(request.query_params, "finished")
-            keyword, tech_stacks, project_status, sort = parse_project_filters(
-                request.query_params
-            )
+            filters = parse_project_filters(request.query_params)
         except ValueError as error:
             error_code, message = error.args
             return Response(
@@ -200,33 +214,33 @@ class Projects(APIView):
                 members__status=Member.Status.JOINED,
                 members__is_leader=owned,
             ).exclude(status=Project.Status.FINISHED).distinct()
-        elif not project_status:
+        elif not filters.status:
             projects = projects.exclude(status=Project.Status.FINISHED)
 
-        if keyword:
+        if filters.keyword:
             project_language_matches = ProjectLanguage.objects.filter(
                 projects=OuterRef("pk"),
-                name__icontains=keyword,
+                name__icontains=filters.keyword,
             )
             language_matches = RepositoryLanguage.objects.filter(
                 repository__project_id=OuterRef("pk"),
-                language__icontains=keyword,
+                language__icontains=filters.keyword,
             )
             projects = projects.annotate(
                 has_matching_project_language=Exists(project_language_matches),
                 has_matching_language=Exists(language_matches),
             ).filter(
-                Q(name__icontains=keyword)
-                | Q(description__icontains=keyword)
+                Q(name__icontains=filters.keyword)
+                | Q(description__icontains=filters.keyword)
                 | Q(has_matching_project_language=True)
                 | Q(has_matching_language=True)
             )
-        if tech_stacks:
+        if filters.languages:
             project_language_query = Q()
             language_query = Q()
-            for tech_stack in tech_stacks:
-                project_language_query |= Q(name__iexact=tech_stack)
-                language_query |= Q(language__iexact=tech_stack)
+            for language in filters.languages:
+                project_language_query |= Q(name__iexact=language)
+                language_query |= Q(language__iexact=language)
             project_language_matches = ProjectLanguage.objects.filter(
                 projects=OuterRef("pk")
             ).filter(project_language_query)
@@ -242,9 +256,9 @@ class Projects(APIView):
                 Q(has_matching_filtered_project_language=True)
                 | Q(has_matching_filtered_language=True)
             )
-        if project_status:
-            projects = projects.filter(status=project_status)
-        if sort == "name":
+        if filters.status:
+            projects = projects.filter(status=filters.status)
+        if filters.sort == "name":
             projects = projects.order_by("name", "pk")
 
         if request.user.is_authenticated:

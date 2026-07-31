@@ -38,6 +38,7 @@ import {
   deleteProject,
   finishProject,
   getProject,
+  getProjectApplicationAvailability,
   leaveProject,
   listProjectApplications,
   listProjectMembers,
@@ -51,7 +52,6 @@ import {
 import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
 
-const MAX_REAPPLICATIONS = 5;
 function Section({
   title,
   children,
@@ -593,32 +593,16 @@ export default function ProjectDetailPage() {
   const hasLoadedApplicationHistory =
     applicationHistoryQuery.data?.status === "SUCCESS";
   const latestApplication = applicationHistory[0];
-  const hasActiveApplication =
-    latestApplication?.status === "PENDING" ||
-    latestApplication?.status === "JOINED";
-  const canApply =
-    isLoggedIn &&
-    hasLoadedApplicationHistory &&
-    project.status === "ACTIVE" &&
-    project.membershipRole == null &&
-    !hasActiveApplication &&
-    applicationHistory.length <= MAX_REAPPLICATIONS &&
-    project.memberCount < project.maxMembers;
-  const applicationUnavailableReason = userLoading
-    ? null
-    : !isLoggedIn
-      ? "로그인 후 참가 신청할 수 있습니다."
-      : !hasLoadedApplicationHistory ||
-          project.membershipRole != null ||
-          hasActiveApplication
-        ? null
-        : project.status !== "ACTIVE"
-          ? "현재 참가 신청을 받지 않는 프로젝트입니다."
-          : applicationHistory.length > MAX_REAPPLICATIONS
-            ? "현재 참가 신청할 수 없습니다."
-            : project.memberCount >= project.maxMembers
-              ? "현재 참여 인원이 가득 차 참가 신청할 수 없습니다."
-              : null;
+  const {
+    canApply,
+    unavailableReason: applicationUnavailableReason,
+  } = getProjectApplicationAvailability({
+    project,
+    applicationHistory,
+    isLoggedIn,
+    userLoading,
+    hasLoadedApplicationHistory,
+  });
   const managedMembersResponse = managedMembersQuery.data;
   const pendingCount =
     managedMembersResponse?.status === "SUCCESS"

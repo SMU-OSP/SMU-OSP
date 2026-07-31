@@ -165,7 +165,9 @@ export default function ProjectListPage() {
     const nextParams = new URLSearchParams(searchParams);
     if (scope === "all") nextParams.delete("scope");
     else nextParams.set("scope", scope);
-    if (scope === "finished") nextParams.delete("status");
+    if (scope !== "all" && nextParams.get("status") === "FINISHED") {
+      nextParams.delete("status");
+    }
     setSearchParams(nextParams);
     setPage(1);
   };
