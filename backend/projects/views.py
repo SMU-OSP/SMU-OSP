@@ -156,7 +156,6 @@ class Projects(APIView):
             start, limit = parse_pagination(request.query_params)
             joined = parse_boolean_filter(request.query_params, "joined")
             owned = parse_boolean_filter(request.query_params, "owned")
-            finished = parse_boolean_filter(request.query_params, "finished")
             filters = parse_project_filters(request.query_params)
         except ValueError as error:
             error_code, message = error.args
@@ -169,7 +168,7 @@ class Projects(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (joined or owned or finished) and not request.user.is_authenticated:
+        if (joined or owned) and not request.user.is_authenticated:
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -202,38 +201,23 @@ class Projects(APIView):
         )
         projects = projects.exclude(status=Project.Status.DELETED)
 
-        if finished:
-            projects = projects.filter(
-                status=Project.Status.FINISHED,
+        if joined or owned:
+            membership_filter = Q(
                 members__user=request.user,
                 members__status=Member.Status.JOINED,
-            ).distinct()
-        elif joined or owned:
-            projects = projects.filter(
-                members__user=request.user,
-                members__status=Member.Status.JOINED,
-                members__is_leader=owned,
-            ).exclude(status=Project.Status.FINISHED).distinct()
+            )
+            if joined != owned:
+                membership_filter &= Q(members__is_leader=owned)
+            projects = projects.filter(membership_filter).distinct()
+            if not filters.status:
+                projects = projects.exclude(status=Project.Status.FINISHED)
         elif not filters.status:
             projects = projects.exclude(status=Project.Status.FINISHED)
 
         if filters.keyword:
-            project_language_matches = ProjectLanguage.objects.filter(
-                projects=OuterRef("pk"),
-                name__icontains=filters.keyword,
-            )
-            language_matches = RepositoryLanguage.objects.filter(
-                repository__project_id=OuterRef("pk"),
-                language__icontains=filters.keyword,
-            )
-            projects = projects.annotate(
-                has_matching_project_language=Exists(project_language_matches),
-                has_matching_language=Exists(language_matches),
-            ).filter(
+            projects = projects.filter(
                 Q(name__icontains=filters.keyword)
                 | Q(description__icontains=filters.keyword)
-                | Q(has_matching_project_language=True)
-                | Q(has_matching_language=True)
             )
         if filters.languages:
             project_language_query = Q()

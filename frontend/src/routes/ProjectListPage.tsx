@@ -27,8 +27,7 @@ import { listProjects } from "../services/projectService";
 import { formatDateKST } from "../utils/date";
 import { getPageWindow } from "../utils/pagination";
 
-const CARD_PAGE_SIZE = 12;
-const BOARD_PAGE_SIZE = 20;
+const PROJECT_PAGE_SIZE = 12;
 const PAGE_WINDOW_SIZE = 10;
 type ProjectScope =
   | "all"
@@ -131,8 +130,10 @@ export default function ProjectListPage() {
   const { isLoggedIn, userLoading } = useUser();
   const [viewMode, setViewMode] = useState<"cards" | "board">("cards");
   const [searchParams, setSearchParams] = useSearchParams();
-  const [page, setPage] = useState(1);
   const scopeParam = searchParams.get("scope");
+  const parsedPage = Number(searchParams.get("page"));
+  const page =
+    Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const keyword = searchParams.get("keyword") ?? "";
   const techStack = searchParams.get("techStack") ?? "";
   const statusParam = searchParams.get("status");
@@ -154,7 +155,7 @@ export default function ProjectListPage() {
     ? (scopeParam as ProjectScope)
     : "all";
   const effectiveStatus =
-    projectScope === "finished" ? "" : projectStatus;
+    projectScope === "finished" ? "FINISHED" : projectStatus;
 
   useEffect(() => {
     setKeywordInput(keyword);
@@ -168,15 +169,15 @@ export default function ProjectListPage() {
     if (scope !== "all" && nextParams.get("status") === "FINISHED") {
       nextParams.delete("status");
     }
+    nextParams.delete("page");
     setSearchParams(nextParams);
-    setPage(1);
   };
   const updateFilter = (name: string, value: string) => {
     const nextParams = new URLSearchParams(searchParams);
     if (value) nextParams.set(name, value);
     else nextParams.delete(name);
+    nextParams.delete("page");
     setSearchParams(nextParams);
-    setPage(1);
   };
   const applyTextFilters = () => {
     const nextParams = new URLSearchParams(searchParams);
@@ -185,24 +186,28 @@ export default function ProjectListPage() {
     else nextParams.delete("keyword");
     if (normalizedTechStack) nextParams.set("techStack", normalizedTechStack);
     else nextParams.delete("techStack");
+    nextParams.delete("page");
     setSearchParams(nextParams);
-    setPage(1);
   };
   const resetFilters = () => {
     const nextParams = new URLSearchParams();
     if (projectScope !== "all") nextParams.set("scope", projectScope);
     setSearchParams(nextParams);
-    setPage(1);
+  };
+  const updatePage = (nextPage: number) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextPage <= 1) nextParams.delete("page");
+    else nextParams.set("page", String(nextPage));
+    setSearchParams(nextParams);
   };
 
-  const pageSize = viewMode === "cards" ? CARD_PAGE_SIZE : BOARD_PAGE_SIZE;
+  const pageSize = PROJECT_PAGE_SIZE;
   const start = (page - 1) * pageSize;
 
   const { data, isLoading } = useQuery({
     queryKey: [
       "projects",
       projectScope,
-      viewMode,
       start,
       pageSize,
       keyword,
@@ -214,9 +219,10 @@ export default function ProjectListPage() {
       listProjects({
         start,
         limit: pageSize,
-        owned: projectScope === "owned",
-        joined: projectScope === "joined",
-        finished: projectScope === "finished",
+        owned:
+          projectScope === "owned" || projectScope === "finished",
+        joined:
+          projectScope === "joined" || projectScope === "finished",
         keyword,
         techStack,
         status: effectiveStatus || undefined,
@@ -235,7 +241,7 @@ export default function ProjectListPage() {
   const hasFilters =
     !!keyword ||
     !!techStack ||
-    !!effectiveStatus ||
+    (projectScope !== "finished" && !!effectiveStatus) ||
     projectSort !== "latest";
 
   return (
@@ -495,10 +501,7 @@ export default function ProjectListPage() {
                 size={"sm"}
                 minW={"72px"}
                 variant={viewMode === "cards" ? "solid" : "ghost"}
-                onClick={() => {
-                  setViewMode("cards");
-                  setPage(1);
-                }}
+                onClick={() => setViewMode("cards")}
               >
                 카드
               </Button>
@@ -506,10 +509,7 @@ export default function ProjectListPage() {
                 size={"sm"}
                 minW={"72px"}
                 variant={viewMode === "board" ? "solid" : "ghost"}
-                onClick={() => {
-                  setViewMode("board");
-                  setPage(1);
-                }}
+                onClick={() => setViewMode("board")}
               >
                 게시판
               </Button>
@@ -668,7 +668,7 @@ export default function ProjectListPage() {
                 size={"sm"}
                 variant={"outline"}
                 disabled={!pagination?.hasPrevious}
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                onClick={() => updatePage(Math.max(1, page - 1))}
               >
                 이전
               </Button>
@@ -676,7 +676,7 @@ export default function ProjectListPage() {
                 <Button
                   size={"sm"}
                   variant={"outline"}
-                  onClick={() => setPage(pageNumbers[0] - 1)}
+                  onClick={() => updatePage(pageNumbers[0] - 1)}
                 >
                   이전 10
                 </Button>
@@ -686,7 +686,7 @@ export default function ProjectListPage() {
                   key={pageNumber}
                   size={"sm"}
                   variant={pageNumber === page ? "solid" : "outline"}
-                  onClick={() => setPage(pageNumber)}
+                  onClick={() => updatePage(pageNumber)}
                 >
                   {pageNumber}
                 </Button>
@@ -695,7 +695,9 @@ export default function ProjectListPage() {
                 <Button
                   size={"sm"}
                   variant={"outline"}
-                  onClick={() => setPage(pageNumbers[pageNumbers.length - 1] + 1)}
+                  onClick={() =>
+                    updatePage(pageNumbers[pageNumbers.length - 1] + 1)
+                  }
                 >
                   다음 10
                 </Button>
@@ -704,7 +706,7 @@ export default function ProjectListPage() {
                 size={"sm"}
                 variant={"outline"}
                 disabled={!pagination?.hasNext}
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                onClick={() => updatePage(Math.min(totalPages, page + 1))}
               >
                 다음
               </Button>

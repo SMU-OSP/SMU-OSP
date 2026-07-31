@@ -749,7 +749,15 @@ class ProjectApiTests(TestCase):
 
         default_response = self.client.get("/api/v1/projects/")
         self.client.force_login(self.user)
-        finished_response = self.client.get("/api/v1/projects/?finished=true")
+        finished_response = self.client.get(
+            "/api/v1/projects/?joined=true&owned=true&status=FINISHED"
+        )
+        finished_owned_response = self.client.get(
+            "/api/v1/projects/?owned=true&status=FINISHED"
+        )
+        finished_joined_response = self.client.get(
+            "/api/v1/projects/?joined=true&status=FINISHED"
+        )
 
         self.assertEqual(
             [project["name"] for project in default_response.json()["data"]],
@@ -766,9 +774,25 @@ class ProjectApiTests(TestCase):
                 "Finished Joined Project": "MEMBER",
             },
         )
+        self.assertEqual(
+            [
+                project["name"]
+                for project in finished_owned_response.json()["data"]
+            ],
+            ["Finished Owned Project"],
+        )
+        self.assertEqual(
+            [
+                project["name"]
+                for project in finished_joined_response.json()["data"]
+            ],
+            ["Finished Joined Project"],
+        )
 
     def test_finished_project_list_requires_login(self):
-        response = self.client.get("/api/v1/projects/?finished=true")
+        response = self.client.get(
+            "/api/v1/projects/?joined=true&owned=true&status=FINISHED"
+        )
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
@@ -1830,19 +1854,15 @@ class ProjectApiTests(TestCase):
 
         self.assertEqual(
             [project["id"] for project in keyword_response.json()["data"]],
-            [alpha.pk, self.project.pk],
-        )
-        self.assertEqual(
-            keyword_response.json()["data"][1]["repository"]["language"],
-            "TypeScript",
-        )
-        self.assertEqual(
-            keyword_response.json()["data"][1]["repository"]["languages"],
-            ["TypeScript", "Python"],
+            [alpha.pk],
         )
         self.assertEqual(
             [project["id"] for project in stack_response.json()["data"]],
             [alpha.pk, self.project.pk],
+        )
+        self.assertEqual(
+            stack_response.json()["data"][1]["repository"]["languages"],
+            ["TypeScript", "Python"],
         )
         self.assertEqual(
             [project["id"] for project in status_response.json()["data"]],

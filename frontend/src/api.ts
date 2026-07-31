@@ -71,7 +71,6 @@ export const getProjects = ({
   limit = null,
   joined = null,
   owned = null,
-  finished = null,
   keyword = null,
   techStack = null,
   status = null,
@@ -81,7 +80,6 @@ export const getProjects = ({
   limit?: number | null;
   joined?: boolean | null;
   owned?: boolean | null;
-  finished?: boolean | null;
   keyword?: string | null;
   techStack?: string | null;
   status?: "ACTIVE" | "INACTIVE" | "FINISHED" | null;
@@ -94,7 +92,6 @@ export const getProjects = ({
         ...(limit !== null && { limit }),
         ...(joined !== null && { joined }),
         ...(owned !== null && { owned }),
-        ...(finished !== null && { finished }),
         ...(keyword && { keyword }),
         ...(techStack && { techStack }),
         ...(status && { status }),

@@ -96,7 +96,6 @@ export interface ListParams {
   limit?: number;
   joined?: boolean;
   owned?: boolean;
-  finished?: boolean;
   keyword?: string;
   techStack?: string;
   status?: "ACTIVE" | "INACTIVE" | "FINISHED";
@@ -129,7 +128,6 @@ export async function listProjects(
       limit: params.limit ?? 10,
       joined: params.joined ?? null,
       owned: params.owned ?? null,
-      finished: params.finished ?? null,
       keyword: params.keyword?.trim() || null,
       techStack: params.techStack?.trim() || null,
       status: params.status || null,

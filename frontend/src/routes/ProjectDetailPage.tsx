@@ -279,7 +279,47 @@ function ProjectMemberRemoveDialog({
   );
 }
 
-type ProjectAction = "finish" | "delete";
+type ProjectAction = "apply" | "cancelApplication" | "finish" | "delete";
+
+const PROJECT_ACTION_CONTENT: Record<
+  ProjectAction,
+  {
+    title: string;
+    description: string;
+    confirmLabel: string;
+    loadingText: string;
+    destructive?: boolean;
+  }
+> = {
+  apply: {
+    title: "참가 신청",
+    description: "이 프로젝트에 참가 신청하시겠습니까?",
+    confirmLabel: "신청",
+    loadingText: "신청 중",
+  },
+  cancelApplication: {
+    title: "참가 신청 취소",
+    description: "참가 신청을 취소하시겠습니까?",
+    confirmLabel: "신청 취소",
+    loadingText: "취소 중",
+    destructive: true,
+  },
+  finish: {
+    title: "프로젝트 완료",
+    description:
+      "프로젝트를 완료하시겠습니까? 완료 후 프로젝트 수정과 참여 신청이 제한됩니다.",
+    confirmLabel: "완료",
+    loadingText: "완료 처리 중",
+  },
+  delete: {
+    title: "프로젝트 삭제",
+    description:
+      "프로젝트를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다.",
+    confirmLabel: "삭제",
+    loadingText: "삭제 중",
+    destructive: true,
+  },
+};
 
 function ProjectActionConfirmDialog({
   action,
@@ -292,7 +332,7 @@ function ProjectActionConfirmDialog({
   onConfirm: () => void;
   isPending: boolean;
 }) {
-  const isDelete = action === "delete";
+  const content = PROJECT_ACTION_CONTENT[action ?? "finish"];
 
   return (
     <DialogRoot
@@ -304,29 +344,23 @@ function ProjectActionConfirmDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {isDelete ? "프로젝트 삭제" : "프로젝트 완료"}
-          </DialogTitle>
+          <DialogTitle>{content.title}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <DialogDescription>
-            {isDelete
-              ? "프로젝트를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다."
-              : "프로젝트를 완료하시겠습니까? 완료 후 프로젝트 수정과 참여 신청이 제한됩니다."}
-          </DialogDescription>
+          <DialogDescription>{content.description}</DialogDescription>
         </DialogBody>
         <DialogFooter>
           <DialogActionTrigger asChild>
             <Button variant="outline">취소</Button>
           </DialogActionTrigger>
           <Button
-            colorPalette={isDelete ? "red" : undefined}
-            bg={isDelete ? undefined : "smu.blue"}
+            colorPalette={content.destructive ? "red" : undefined}
+            bg={content.destructive ? undefined : "smu.blue"}
             loading={isPending}
-            loadingText={isDelete ? "삭제 중" : "완료 처리 중"}
+            loadingText={content.loadingText}
             onClick={onConfirm}
           >
-            {isDelete ? "삭제" : "완료"}
+            {content.confirmLabel}
           </Button>
         </DialogFooter>
         <DialogCloseTrigger />
@@ -623,22 +657,6 @@ export default function ProjectDetailPage() {
     });
   };
 
-  const apply = () => {
-    setApplicationMessage("");
-    setApplicationMessageFailed(false);
-    if (window.confirm("이 프로젝트에 참가 신청하시겠습니까?")) {
-      applicationMutation.mutate(project.id);
-    }
-  };
-
-  const cancelApplication = () => {
-    setApplicationMessage("");
-    setApplicationMessageFailed(false);
-    if (window.confirm("참가 신청을 취소하시겠습니까?")) {
-      cancelApplicationMutation.mutate(project.id);
-    }
-  };
-
   const removeMember = (description: string) => {
     if (!removeTarget) return;
     removeMemberMutation.mutate({
@@ -651,8 +669,17 @@ export default function ProjectDetailPage() {
   const confirmProjectAction = () => {
     const action = projectAction;
     setProjectAction(null);
-    setProjectActionMessage("");
-    if (action === "finish") {
+    if (action === "apply" || action === "cancelApplication") {
+      setApplicationMessage("");
+      setApplicationMessageFailed(false);
+    } else {
+      setProjectActionMessage("");
+    }
+    if (action === "apply") {
+      applicationMutation.mutate(project.id);
+    } else if (action === "cancelApplication") {
+      cancelApplicationMutation.mutate(project.id);
+    } else if (action === "finish") {
       finishProjectMutation.mutate();
     } else if (action === "delete") {
       deleteProjectMutation.mutate();
@@ -681,7 +708,7 @@ export default function ProjectDetailPage() {
               <Button
                 bg={"smu.blue"}
                 disabled={applicationMutation.isPending}
-                onClick={apply}
+                onClick={() => setProjectAction("apply")}
               >
                 {applicationMutation.isPending ? "신청 중..." : "참가 신청"}
               </Button>
@@ -808,7 +835,10 @@ export default function ProjectDetailPage() {
           setAction={setProjectAction}
           onConfirm={confirmProjectAction}
           isPending={
-            finishProjectMutation.isPending || deleteProjectMutation.isPending
+            applicationMutation.isPending ||
+            cancelApplicationMutation.isPending ||
+            finishProjectMutation.isPending ||
+            deleteProjectMutation.isPending
           }
         />
 
@@ -840,7 +870,7 @@ export default function ProjectDetailPage() {
                     colorPalette="red"
                     variant="outline"
                     disabled={cancelApplicationMutation.isPending}
-                    onClick={cancelApplication}
+                    onClick={() => setProjectAction("cancelApplication")}
                   >
                     {cancelApplicationMutation.isPending
                       ? "취소 중..."
