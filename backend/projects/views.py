@@ -46,9 +46,9 @@ PROJECT_SORTS = {"latest", "name"}
 
 @dataclass(frozen=True)
 class ProjectFilters:
-    keyword: str
+    keyword: str | None
     languages: tuple[str, ...]
-    status: str
+    status: str | None
     sort: str
 
 
@@ -114,18 +114,23 @@ def parse_boolean_filter(query_params, name):
 
 
 def parse_project_filters(query_params: QueryDict) -> ProjectFilters:
-    keyword = query_params.get("keyword", "").strip()
+    keyword = query_params.get("keyword", "").strip() or None
     languages = [
         stack.strip()
         for value in query_params.getlist("techStack")
         for stack in value.split(",")
         if stack.strip()
     ]
-    project_status = query_params.get("status", "").strip().upper()
+    project_status = (
+        query_params.get("status", "").strip() or None
+    )
+    project_status = project_status.upper() if project_status else None
     sort = query_params.get("sort", "latest").strip() or "latest"
 
-    if len(keyword) > 100 or len(languages) > 20 or any(
-        len(stack) > 50 for stack in languages
+    if (
+        (keyword and len(keyword) > 100)
+        or len(languages) > 20
+        or any(len(stack) > 50 for stack in languages)
     ):
         raise ValueError(
             "INVALID_PROJECT_FILTER",
@@ -209,9 +214,8 @@ class Projects(APIView):
             if joined != owned:
                 membership_filter &= Q(members__is_leader=owned)
             projects = projects.filter(membership_filter).distinct()
-            if not filters.status:
-                projects = projects.exclude(status=Project.Status.FINISHED)
-        elif not filters.status:
+
+        if not filters.status:
             projects = projects.exclude(status=Project.Status.FINISHED)
 
         if filters.keyword:
