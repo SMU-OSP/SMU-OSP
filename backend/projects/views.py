@@ -221,25 +221,16 @@ class Projects(APIView):
             )
         if filters.languages:
             project_language_query = Q()
-            language_query = Q()
             for language in filters.languages:
                 project_language_query |= Q(name__iexact=language)
-                language_query |= Q(language__iexact=language)
             project_language_matches = ProjectLanguage.objects.filter(
                 projects=OuterRef("pk")
             ).filter(project_language_query)
-            language_matches = RepositoryLanguage.objects.filter(
-                repository__project_id=OuterRef("pk")
-            ).filter(language_query)
             projects = projects.annotate(
                 has_matching_filtered_project_language=Exists(
                     project_language_matches
-                ),
-                has_matching_filtered_language=Exists(language_matches)
-            ).filter(
-                Q(has_matching_filtered_project_language=True)
-                | Q(has_matching_filtered_language=True)
-            )
+                )
+            ).filter(has_matching_filtered_project_language=True)
         if filters.status:
             projects = projects.filter(status=filters.status)
         if filters.sort == "name":

@@ -1842,6 +1842,11 @@ class ProjectApiTests(TestCase):
             language="Python",
             bytes=100,
         )
+        RepositoryLanguage.objects.create(
+            repository=self.repository,
+            language="Rust",
+            bytes=50,
+        )
 
         keyword_response = self.client.get("/api/v1/projects/?keyword=python")
         stack_response = self.client.get(
@@ -1850,6 +1855,9 @@ class ProjectApiTests(TestCase):
         status_response = self.client.get("/api/v1/projects/?status=finished")
         combined_response = self.client.get(
             "/api/v1/projects/?keyword=python&techStack=Go"
+        )
+        repository_language_only_response = self.client.get(
+            "/api/v1/projects/?techStack=Rust"
         )
 
         self.assertEqual(
@@ -1862,7 +1870,7 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(
             stack_response.json()["data"][1]["repository"]["languages"],
-            ["TypeScript", "Python"],
+            ["TypeScript", "Python", "Rust"],
         )
         self.assertEqual(
             [project["id"] for project in status_response.json()["data"]],
@@ -1872,6 +1880,7 @@ class ProjectApiTests(TestCase):
             [project["id"] for project in combined_response.json()["data"]],
             [alpha.pk],
         )
+        self.assertEqual(repository_language_only_response.json()["data"], [])
 
     def test_project_list_rejects_invalid_search_filter(self):
         for query in ("status=DELETED", "sort=popular", f"keyword={'x' * 101}"):
