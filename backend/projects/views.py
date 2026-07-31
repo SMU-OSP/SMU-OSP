@@ -1,15 +1,13 @@
-from dataclasses import dataclass
-
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q
-from django.http import QueryDict
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
+from .forms import ProjectListQueryForm, ProjectMemberQueryForm
 from .models import (
     Member,
     Project,
@@ -33,25 +31,6 @@ from .services import (
     update_project_repository,
 )
 
-DEFAULT_PAGE_SIZE = 10
-TRUE_QUERY_VALUES = {"1", "true"}
-FALSE_QUERY_VALUES = {"0", "false"}
-PROJECT_FILTER_STATUSES = {
-    Project.Status.ACTIVE,
-    Project.Status.INACTIVE,
-    Project.Status.FINISHED,
-}
-PROJECT_SORTS = {"latest", "name"}
-
-
-@dataclass(frozen=True)
-class ProjectFilters:
-    keyword: str | None
-    languages: tuple[str, ...]
-    status: str | None
-    sort: str
-
-
 def prepare_projects_for_serialization(projects):
     for project in projects:
         repository = getattr(project, "repository", None)
@@ -62,21 +41,6 @@ def prepare_projects_for_serialization(projects):
             repository.serialized_snapshots = []
         if not hasattr(repository, "serialized_languages"):
             repository.serialized_languages = []
-
-
-def parse_pagination(query_params):
-    try:
-        start = int(query_params.get("start", 0))
-        limit = int(query_params.get("limit", DEFAULT_PAGE_SIZE))
-        if start < 0 or limit <= 0:
-            raise ValueError
-    except ValueError:
-        raise ValueError(
-            "INVALID_PAGINATION_PARAMETER",
-            "start는 0 이상, limit은 1 이상이어야 합니다.",
-        ) from None
-
-    return start, limit
 
 
 def pagination_detail(start, limit, count):
@@ -96,74 +60,11 @@ def pagination_detail(start, limit, count):
     }
 
 
-def parse_boolean_filter(query_params, name):
-    value = query_params.get(name)
-    if value is None:
-        return False
-
-    normalized = value.strip().lower()
-    if normalized in TRUE_QUERY_VALUES:
-        return True
-    if normalized in FALSE_QUERY_VALUES:
-        return False
-
-    raise ValueError(
-        "INVALID_PROJECT_FILTER",
-        f"{name}는 true 또는 false여야 합니다.",
-    )
-
-
-def parse_project_filters(query_params: QueryDict) -> ProjectFilters:
-    keyword = query_params.get("keyword", "").strip() or None
-    languages = [
-        stack.strip()
-        for value in query_params.getlist("techStack")
-        for stack in value.split(",")
-        if stack.strip()
-    ]
-    project_status = (
-        query_params.get("status", "").strip() or None
-    )
-    project_status = project_status.upper() if project_status else None
-    sort = query_params.get("sort", "latest").strip() or "latest"
-
-    if (
-        (keyword and len(keyword) > 100)
-        or len(languages) > 20
-        or any(len(stack) > 50 for stack in languages)
-    ):
-        raise ValueError(
-            "INVALID_PROJECT_FILTER",
-            "프로젝트 검색 조건을 확인해주세요.",
-        )
-    if project_status and project_status not in PROJECT_FILTER_STATUSES:
-        raise ValueError(
-            "INVALID_PROJECT_FILTER",
-            "지원하지 않는 프로젝트 상태입니다.",
-        )
-    if sort not in PROJECT_SORTS:
-        raise ValueError(
-            "INVALID_PROJECT_FILTER",
-            "지원하지 않는 정렬 방식입니다.",
-        )
-
-    return ProjectFilters(
-        keyword=keyword,
-        languages=tuple(languages),
-        status=project_status,
-        sort=sort,
-    )
-
-
 class Projects(APIView):
     def get(self, request):
-        try:
-            start, limit = parse_pagination(request.query_params)
-            joined = parse_boolean_filter(request.query_params, "joined")
-            owned = parse_boolean_filter(request.query_params, "owned")
-            filters = parse_project_filters(request.query_params)
-        except ValueError as error:
-            error_code, message = error.args
+        query_form = ProjectListQueryForm(request.query_params)
+        if not query_form.is_valid():
+            error_code, message = query_form.api_error()
             return Response(
                 fail(
                     error_code,
@@ -172,8 +73,9 @@ class Projects(APIView):
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        query = query_form.to_query()
 
-        if (joined or owned) and not request.user.is_authenticated:
+        if (query.joined or query.owned) and not request.user.is_authenticated:
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -206,26 +108,26 @@ class Projects(APIView):
         )
         projects = projects.exclude(status=Project.Status.DELETED)
 
-        if joined or owned:
+        if query.joined or query.owned:
             membership_filter = Q(
                 members__user=request.user,
                 members__status=Member.Status.JOINED,
             )
-            if joined != owned:
-                membership_filter &= Q(members__is_leader=owned)
+            if query.joined != query.owned:
+                membership_filter &= Q(members__is_leader=query.owned)
             projects = projects.filter(membership_filter).distinct()
 
-        if not filters.status:
+        if not query.status:
             projects = projects.exclude(status=Project.Status.FINISHED)
 
-        if filters.keyword:
+        if query.keyword:
             projects = projects.filter(
-                Q(name__icontains=filters.keyword)
-                | Q(description__icontains=filters.keyword)
+                Q(name__icontains=query.keyword)
+                | Q(description__icontains=query.keyword)
             )
-        if filters.languages:
+        if query.languages:
             project_language_query = Q()
-            for language in filters.languages:
+            for language in query.languages:
                 project_language_query |= Q(name__iexact=language)
             project_language_matches = ProjectLanguage.objects.filter(
                 projects=OuterRef("pk")
@@ -235,9 +137,9 @@ class Projects(APIView):
                     project_language_matches
                 )
             ).filter(has_matching_filtered_project_language=True)
-        if filters.status:
-            projects = projects.filter(status=filters.status)
-        if filters.sort == "name":
+        if query.status:
+            projects = projects.filter(status=query.status)
+        if query.sort == "name":
             projects = projects.order_by("name", "pk")
 
         if request.user.is_authenticated:
@@ -253,14 +155,19 @@ class Projects(APIView):
             )
 
         count = projects.count()
-        projects = list(projects[start : start + limit])
+        projects = list(
+            projects[query.start : query.start + query.limit]
+        )
         prepare_projects_for_serialization(projects)
         serializer = ProjectSerializer(
             projects,
             many=True,
         )
         return Response(
-            success(serializer.data, pagination_detail(start, limit, count)),
+            success(
+                serializer.data,
+                pagination_detail(query.start, query.limit, count),
+            ),
             status=status.HTTP_200_OK,
         )
 
@@ -620,9 +527,8 @@ class ProjectMembers(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        try:
-            manage = parse_boolean_filter(request.query_params, "manage")
-        except ValueError:
+        query_form = ProjectMemberQueryForm(request.query_params)
+        if not query_form.is_valid():
             return Response(
                 fail(
                     "INVALID_MEMBER_FILTER",
@@ -631,6 +537,7 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        manage = query_form.cleaned_data["manage"]
 
         requester = (
             Member.objects.filter(

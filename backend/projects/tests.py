@@ -1710,6 +1710,7 @@ class ProjectApiTests(TestCase):
         invalid_queries = (
             "start=-1&limit=10",
             "start=abc&limit=10",
+            "start=&limit=10",
             "start=0&limit=0",
         )
         for query in invalid_queries:
@@ -2346,6 +2347,20 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(managed_members[pending.pk]["description"])
         self.assertIn("createdAt", managed_members[pending.pk])
         self.assertIsNone(managed_members[pending.pk]["joinedAt"])
+
+    def test_project_members_reject_invalid_manage_filter(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            f"/api/v1/projects/{self.project.pk}/members?manage=yes"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_MEMBER_FILTER")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "manage는 true 또는 false여야 합니다.",
+        )
 
     def test_non_member_cannot_list_project_members(self):
         outsider = get_user_model().objects.create_user(
