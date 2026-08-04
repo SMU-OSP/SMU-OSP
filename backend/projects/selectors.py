@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 
-from .forms import ProjectListQuery
 from .models import (
     Member,
     Project,
@@ -22,7 +21,14 @@ class ProjectDetailSelection:
 
 def list_projects(
     *,
-    query: ProjectListQuery,
+    start: int,
+    limit: int,
+    joined: bool,
+    owned: bool,
+    keyword: str | None,
+    languages: tuple[str, ...],
+    status: str | None,
+    sort: str,
     user_id: int | None,
 ) -> tuple[list[Project], int]:
     projects = (
@@ -47,25 +53,25 @@ def list_projects(
         .order_by("-updated_at", "-pk")
     )
 
-    if query.joined or query.owned:
+    if joined or owned:
         membership_filter = Q(
             members__user_id=user_id,
             members__status=Member.Status.JOINED,
         )
-        if query.joined != query.owned:
-            membership_filter &= Q(members__is_leader=query.owned)
+        if joined != owned:
+            membership_filter &= Q(members__is_leader=owned)
         projects = projects.filter(membership_filter).distinct()
 
-    if not query.status:
+    if not status:
         projects = projects.exclude(status=Project.Status.FINISHED)
-    if query.keyword:
+    if keyword:
         projects = projects.filter(
-            Q(name__icontains=query.keyword)
-            | Q(description__icontains=query.keyword)
+            Q(name__icontains=keyword)
+            | Q(description__icontains=keyword)
         )
-    if query.languages:
+    if languages:
         language_filter = Q()
-        for language in query.languages:
+        for language in languages:
             language_filter |= Q(name__iexact=language)
         project_language_matches = ProjectLanguage.objects.filter(
             projects=OuterRef("pk")
@@ -73,9 +79,9 @@ def list_projects(
         projects = projects.annotate(
             has_matching_filtered_project_language=Exists(project_language_matches)
         ).filter(has_matching_filtered_project_language=True)
-    if query.status:
-        projects = projects.filter(status=query.status)
-    if query.sort == "name":
+    if status:
+        projects = projects.filter(status=status)
+    if sort == "name":
         projects = projects.order_by("name", "pk")
 
     if user_id is not None:
@@ -91,7 +97,7 @@ def list_projects(
         )
 
     count = projects.count()
-    projects = list(projects[query.start : query.start + query.limit])
+    projects = list(projects[start : start + limit])
     return projects, count
 
 

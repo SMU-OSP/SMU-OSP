@@ -95,7 +95,14 @@ class Projects(APIView):
             )
 
         projects, count = list_projects(
-            query=query,
+            start=query.start,
+            limit=query.limit,
+            joined=query.joined,
+            owned=query.owned,
+            keyword=query.keyword,
+            languages=query.languages,
+            status=query.status,
+            sort=query.sort,
             user_id=request.user.pk if request.user.is_authenticated else None,
         )
         _prepare_projects_for_serialization(projects)
