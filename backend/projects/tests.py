@@ -1712,11 +1712,27 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["detail"]["pagination"]["limit"], 100)
 
+    def test_project_list_blank_pagination_uses_defaults(self):
+        response = self.client.get("/api/v1/projects/?start=&limit=")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["detail"]["pagination"],
+            {
+                "start": 0,
+                "limit": 12,
+                "count": 1,
+                "currentPage": 1,
+                "totalPages": 1,
+                "hasPrevious": False,
+                "hasNext": False,
+            },
+        )
+
     def test_project_list_invalid_pagination_parameter(self):
         invalid_queries = (
             "start=-1&limit=10",
             "start=abc&limit=10",
-            "start=&limit=10",
             "start=0&limit=0",
             "start=0&limit=101",
         )

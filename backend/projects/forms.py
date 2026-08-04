@@ -16,42 +16,27 @@ PROJECT_FILTER_STATUSES = {
 PROJECT_SORTS = {"latest", "name"}
 
 
-class QueryBooleanField(forms.Field):
+class QueryBooleanField(forms.BooleanField):
+    widget = forms.TextInput
+
     def to_python(self, value: Any) -> bool:
         if value is None:
-            return False
+            return super().to_python(value)
 
         normalized = str(value).strip().lower()
-        if normalized in TRUE_QUERY_VALUES:
-            return True
-        if normalized in FALSE_QUERY_VALUES:
-            return False
-        raise forms.ValidationError("invalid", code="invalid")
+        if normalized not in TRUE_QUERY_VALUES | FALSE_QUERY_VALUES:
+            raise forms.ValidationError("invalid", code="invalid")
+        return super().to_python(normalized)
 
 
 class QueryIntegerField(forms.IntegerField):
-    def __init__(
-        self,
-        *,
-        default: int,
-        min_value: int,
-        max_value: int | None = None,
-    ) -> None:
-        super().__init__(
-            required=False,
-            min_value=min_value,
-            max_value=max_value,
-        )
+    def __init__(self, *, default: int, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.default = default
 
     def to_python(self, value: Any) -> int:
-        if value is None:
-            return self.default
-
         parsed = super().to_python(value)
-        if parsed is None:
-            raise forms.ValidationError("invalid", code="invalid")
-        return parsed
+        return self.default if parsed is None else parsed
 
 
 @dataclass(frozen=True)
@@ -121,8 +106,13 @@ class ProjectListQueryForm(ApiQueryForm):
         ),
     }
 
-    start = QueryIntegerField(default=0, min_value=0)
-    limit = QueryIntegerField(default=10, min_value=1, max_value=100)
+    start = QueryIntegerField(default=0, required=False, min_value=0)
+    limit = QueryIntegerField(
+        default=12,
+        required=False,
+        min_value=1,
+        max_value=100,
+    )
     joined = QueryBooleanField(required=False)
     owned = QueryBooleanField(required=False)
     keyword = forms.CharField(

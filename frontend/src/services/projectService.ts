@@ -125,7 +125,7 @@ export async function listProjects(
   try {
     return (await getProjects({
       start: params.start ?? 0,
-      limit: params.limit ?? 10,
+      limit: params.limit ?? 12,
       joined: params.joined ?? null,
       owned: params.owned ?? null,
       keyword: params.keyword?.trim() || null,
