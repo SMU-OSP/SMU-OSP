@@ -130,7 +130,7 @@ class ProjectListQueryForm(forms.Form):
                 "INVALID_PROJECT_FILTER",
                 "owned는 true 또는 false여야 합니다.",
             )
-        if "keyword" in self.errors or "__all__" in self.errors:
+        if "keyword" in self.errors:
             return (
                 "INVALID_PROJECT_FILTER",
                 "프로젝트 검색 조건을 확인해주세요.",
