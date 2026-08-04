@@ -1,6 +1,6 @@
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Exists, OuterRef, Q
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
@@ -12,8 +12,6 @@ from .models import (
     Member,
     Project,
     ProjectLanguage,
-    RepositoryLanguage,
-    RepositorySnapshot,
 )
 from .serializers import (
     ProjectCreateSerializer,
@@ -30,7 +28,12 @@ from .services import (
     prepare_project_repository_update,
     update_project_repository,
 )
-from .selectors import list_projects
+from .selectors import (
+    get_project_detail,
+    list_memberships_for_user,
+    list_project_members,
+    list_projects,
+)
 
 
 def _prepare_projects_for_serialization(projects: list[Project]) -> None:
@@ -181,40 +184,10 @@ class Projects(APIView):
 
 class ProjectDetail(APIView):
     def get(self, request, pk):
-        joined_members = (
-            Member.objects.filter(status=Member.Status.JOINED)
-            .select_related("user")
-            .order_by("-is_leader", "created_at", "pk")
-        )
         try:
-            project = (
-                Project.objects.select_related(
-                    "repository",
-                    "repository__status",
-                )
-                .prefetch_related(
-                    "languages",
-                    Prefetch(
-                        "members",
-                        queryset=joined_members,
-                        to_attr="joined_members",
-                    ),
-                    Prefetch(
-                        "repository__snapshots",
-                        queryset=RepositorySnapshot.objects.order_by("-date")[:1],
-                        to_attr="serialized_snapshots",
-                    ),
-                    Prefetch(
-                        "repository__languages",
-                        queryset=RepositoryLanguage.objects.order_by(
-                            "-bytes",
-                            "language",
-                        ),
-                        to_attr="serialized_languages",
-                    ),
-                )
-                .exclude(status=Project.Status.DELETED)
-                .get(pk=pk)
+            selection = get_project_detail(
+                project_id=pk,
+                user_id=(request.user.pk if request.user.is_authenticated else None),
             )
         except Project.DoesNotExist:
             return Response(
@@ -226,30 +199,12 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        current_member = next(
-            (
-                member
-                for member in project.joined_members
-                if request.user.is_authenticated
-                and member.user_id == request.user.pk
-            ),
-            None,
-        )
-        can_view_members = current_member is not None
-        can_edit = (
-            can_view_members
-            and current_member.is_leader
-            and project.status == Project.Status.ACTIVE
-        )
-        project.request_user_memberships = (
-            [current_member] if current_member is not None else []
-        )
-        _prepare_projects_for_serialization([project])
+        _prepare_projects_for_serialization([selection.project])
         serializer = ProjectDetailSerializer(
-            project,
+            selection.project,
             context={
-                "can_view_members": can_view_members,
-                "can_edit": can_edit,
+                "can_view_members": selection.can_view_members,
+                "can_edit": selection.can_edit,
             },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)
@@ -442,12 +397,7 @@ class ProjectMemberships(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        memberships = (
-            Member.objects.select_related("project")
-            .filter(user=request.user, is_leader=False)
-            .exclude(project__status=Project.Status.DELETED)
-            .order_by("-created_at", "-pk")
-        )
+        memberships = list_memberships_for_user(user_id=request.user.pk)
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
@@ -477,16 +427,13 @@ class ProjectMembers(APIView):
             )
         manage = query_form.to_query().manage
 
-        requester = (
-            Member.objects.filter(
+        try:
+            members = list_project_members(
                 project_id=pk,
-                user=request.user,
-                status=Member.Status.JOINED,
+                user_id=request.user.pk,
+                manage=manage,
             )
-            .order_by("-is_leader", "-created_at", "-pk")
-            .first()
-        )
-        if not requester or (manage and not requester.is_leader):
+        except PermissionDenied:
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -496,10 +443,6 @@ class ProjectMembers(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        members = Member.objects.filter(project_id=pk).select_related("user")
-        if not manage:
-            members = members.filter(status=Member.Status.JOINED)
-        members = members.order_by("-is_leader", "-created_at", "-pk")
         return Response(
             success(ProjectMemberSerializer(members, many=True).data),
             status=status.HTTP_200_OK,
