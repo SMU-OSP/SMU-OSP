@@ -30,7 +30,19 @@ from .services import (
     prepare_project_repository_update,
     update_project_repository,
 )
-from .selectors import list_projects, prepare_projects_for_serialization
+from .selectors import list_projects
+
+
+def _prepare_projects_for_serialization(projects: list[Project]) -> None:
+    for project in projects:
+        repository = getattr(project, "repository", None)
+        if repository is None:
+            continue
+        repository.serialized_status = getattr(repository, "status", None)
+        if not hasattr(repository, "serialized_snapshots"):
+            repository.serialized_snapshots = []
+        if not hasattr(repository, "serialized_languages"):
+            repository.serialized_languages = []
 
 
 def pagination_detail(
@@ -83,6 +95,7 @@ class Projects(APIView):
             query=query,
             user_id=request.user.pk if request.user.is_authenticated else None,
         )
+        _prepare_projects_for_serialization(projects)
         serializer = ProjectSerializer(
             projects,
             many=True,
@@ -159,7 +172,7 @@ class Projects(APIView):
                 }
             }
 
-        prepare_projects_for_serialization([project])
+        _prepare_projects_for_serialization([project])
         return Response(
             success(ProjectSerializer(project).data, detail),
             status=status.HTTP_201_CREATED,
@@ -231,7 +244,7 @@ class ProjectDetail(APIView):
         project.request_user_memberships = (
             [current_member] if current_member is not None else []
         )
-        prepare_projects_for_serialization([project])
+        _prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(
             project,
             context={

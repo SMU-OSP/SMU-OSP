@@ -82,17 +82,4 @@ def list_projects(
 
     count = projects.count()
     projects = list(projects[query.start : query.start + query.limit])
-    prepare_projects_for_serialization(projects)
     return projects, count
-
-
-def prepare_projects_for_serialization(projects: list[Project]) -> None:
-    for project in projects:
-        repository = getattr(project, "repository", None)
-        if repository is None:
-            continue
-        repository.serialized_status = getattr(repository, "status", None)
-        if not hasattr(repository, "serialized_snapshots"):
-            repository.serialized_snapshots = []
-        if not hasattr(repository, "serialized_languages"):
-            repository.serialized_languages = []
