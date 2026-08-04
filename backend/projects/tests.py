@@ -1706,12 +1706,19 @@ class ProjectApiTests(TestCase):
         self.assertFalse(body["detail"]["pagination"]["hasNext"])
         self.assertTrue(body["detail"]["pagination"]["hasPrevious"])
 
+    def test_project_list_accepts_maximum_page_size(self):
+        response = self.client.get("/api/v1/projects/?start=0&limit=100")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["detail"]["pagination"]["limit"], 100)
+
     def test_project_list_invalid_pagination_parameter(self):
         invalid_queries = (
             "start=-1&limit=10",
             "start=abc&limit=10",
             "start=&limit=10",
             "start=0&limit=0",
+            "start=0&limit=101",
         )
         for query in invalid_queries:
             with self.subTest(query=query):
@@ -1722,7 +1729,7 @@ class ProjectApiTests(TestCase):
                 self.assertEqual(body["status"], "INVALID_PAGINATION_PARAMETER")
                 self.assertEqual(
                     body["detail"]["message"],
-                    "start는 0 이상, limit은 1 이상이어야 합니다.",
+                    "start는 0 이상, limit은 1 이상 100 이하여야 합니다.",
                 )
                 self.assertEqual(body["detail"]["httpStatus"], 400)
 
@@ -1823,6 +1830,17 @@ class ProjectApiTests(TestCase):
                     f"{field}는 true 또는 false여야 합니다.",
                 )
                 self.assertEqual(body["detail"]["httpStatus"], 400)
+
+    def test_project_list_accepts_numeric_boolean_filter(self):
+        self.client.force_login(self.user)
+
+        for value in ("0", "1"):
+            with self.subTest(value=value):
+                response = self.client.get(
+                    f"/api/v1/projects/?owned={value}"
+                )
+
+                self.assertEqual(response.status_code, 200)
 
     def test_project_list_searches_filters_and_sorts_projects(self):
         alpha = Project.objects.create(

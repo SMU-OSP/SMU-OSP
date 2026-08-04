@@ -17,11 +17,11 @@ PROJECT_SORTS = {"latest", "name"}
 
 
 class QueryBooleanField(forms.Field):
-    def clean(self, value: str | None) -> bool:
+    def to_python(self, value: Any) -> bool:
         if value is None:
             return False
 
-        normalized = value.strip().lower()
+        normalized = str(value).strip().lower()
         if normalized in TRUE_QUERY_VALUES:
             return True
         if normalized in FALSE_QUERY_VALUES:
@@ -29,20 +29,27 @@ class QueryBooleanField(forms.Field):
         raise forms.ValidationError("invalid", code="invalid")
 
 
-class QueryIntegerField(forms.Field):
-    def __init__(self, *, default: int, min_value: int) -> None:
-        super().__init__(required=False)
+class QueryIntegerField(forms.IntegerField):
+    def __init__(
+        self,
+        *,
+        default: int,
+        min_value: int,
+        max_value: int | None = None,
+    ) -> None:
+        super().__init__(
+            required=False,
+            min_value=min_value,
+            max_value=max_value,
+        )
         self.default = default
-        self.min_value = min_value
 
-    def clean(self, value: str | None) -> int:
+    def to_python(self, value: Any) -> int:
         if value is None:
             return self.default
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            raise forms.ValidationError("invalid", code="invalid") from None
-        if parsed < self.min_value:
+
+        parsed = super().to_python(value)
+        if parsed is None:
             raise forms.ValidationError("invalid", code="invalid")
         return parsed
 
@@ -86,11 +93,11 @@ class ProjectListQueryForm(ApiQueryForm):
     api_errors = {
         "start": QueryApiError(
             "INVALID_PAGINATION_PARAMETER",
-            "start는 0 이상, limit은 1 이상이어야 합니다.",
+            "start는 0 이상, limit은 1 이상 100 이하여야 합니다.",
         ),
         "limit": QueryApiError(
             "INVALID_PAGINATION_PARAMETER",
-            "start는 0 이상, limit은 1 이상이어야 합니다.",
+            "start는 0 이상, limit은 1 이상 100 이하여야 합니다.",
         ),
         "joined": QueryApiError(
             "INVALID_PROJECT_FILTER",
@@ -115,7 +122,7 @@ class ProjectListQueryForm(ApiQueryForm):
     }
 
     start = QueryIntegerField(default=0, min_value=0)
-    limit = QueryIntegerField(default=10, min_value=1)
+    limit = QueryIntegerField(default=10, min_value=1, max_value=100)
     joined = QueryBooleanField(required=False)
     owned = QueryBooleanField(required=False)
     keyword = forms.CharField(
