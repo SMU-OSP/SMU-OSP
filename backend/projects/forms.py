@@ -64,7 +64,56 @@ class ProjectMemberQuery:
     manage: bool
 
 
-class ProjectListQueryForm(forms.Form):
+@dataclass(frozen=True)
+class QueryApiError:
+    code: str
+    message: str
+
+
+class ApiQueryForm(forms.Form):
+    api_errors: dict[str, QueryApiError] = {}
+    default_api_error = QueryApiError(
+        "INVALID_PROJECT_FILTER",
+        "프로젝트 검색 조건을 확인해주세요.",
+    )
+
+    def api_error(self) -> QueryApiError:
+        error_field = next(iter(self.errors), None)
+        return self.api_errors.get(error_field, self.default_api_error)
+
+
+class ProjectListQueryForm(ApiQueryForm):
+    api_errors = {
+        "start": QueryApiError(
+            "INVALID_PAGINATION_PARAMETER",
+            "start는 0 이상, limit은 1 이상이어야 합니다.",
+        ),
+        "limit": QueryApiError(
+            "INVALID_PAGINATION_PARAMETER",
+            "start는 0 이상, limit은 1 이상이어야 합니다.",
+        ),
+        "joined": QueryApiError(
+            "INVALID_PROJECT_FILTER",
+            "joined는 true 또는 false여야 합니다.",
+        ),
+        "owned": QueryApiError(
+            "INVALID_PROJECT_FILTER",
+            "owned는 true 또는 false여야 합니다.",
+        ),
+        "keyword": QueryApiError(
+            "INVALID_PROJECT_FILTER",
+            "프로젝트 검색 조건을 확인해주세요.",
+        ),
+        "status": QueryApiError(
+            "INVALID_PROJECT_FILTER",
+            "지원하지 않는 프로젝트 상태입니다.",
+        ),
+        "sort": QueryApiError(
+            "INVALID_PROJECT_FILTER",
+            "지원하지 않는 정렬 방식입니다.",
+        ),
+    }
+
     start = QueryIntegerField(default=0, min_value=0)
     limit = QueryIntegerField(default=10, min_value=1)
     joined = QueryBooleanField(required=False)
@@ -114,42 +163,6 @@ class ProjectListQueryForm(forms.Form):
         cleaned_data["languages"] = tuple(languages)
         return cleaned_data
 
-    def api_error(self) -> tuple[str, str]:
-        if "start" in self.errors or "limit" in self.errors:
-            return (
-                "INVALID_PAGINATION_PARAMETER",
-                "start는 0 이상, limit은 1 이상이어야 합니다.",
-            )
-        if "joined" in self.errors:
-            return (
-                "INVALID_PROJECT_FILTER",
-                "joined는 true 또는 false여야 합니다.",
-            )
-        if "owned" in self.errors:
-            return (
-                "INVALID_PROJECT_FILTER",
-                "owned는 true 또는 false여야 합니다.",
-            )
-        if "keyword" in self.errors:
-            return (
-                "INVALID_PROJECT_FILTER",
-                "프로젝트 검색 조건을 확인해주세요.",
-            )
-        if "status" in self.errors:
-            return (
-                "INVALID_PROJECT_FILTER",
-                "지원하지 않는 프로젝트 상태입니다.",
-            )
-        if "sort" in self.errors:
-            return (
-                "INVALID_PROJECT_FILTER",
-                "지원하지 않는 정렬 방식입니다.",
-            )
-        return (
-            "INVALID_PROJECT_FILTER",
-            "프로젝트 검색 조건을 확인해주세요.",
-        )
-
     def to_query(self) -> ProjectListQuery:
         if not self.is_valid():
             raise ValueError("유효한 입력만 ProjectListQuery로 변환할 수 있습니다.")
@@ -165,7 +178,18 @@ class ProjectListQueryForm(forms.Form):
         )
 
 
-class ProjectMemberQueryForm(forms.Form):
+class ProjectMemberQueryForm(ApiQueryForm):
+    api_errors = {
+        "manage": QueryApiError(
+            "INVALID_MEMBER_FILTER",
+            "manage는 true 또는 false여야 합니다.",
+        ),
+    }
+    default_api_error = QueryApiError(
+        "INVALID_MEMBER_FILTER",
+        "manage는 true 또는 false여야 합니다.",
+    )
+
     manage = QueryBooleanField(required=False)
 
     def to_query(self) -> ProjectMemberQuery:

@@ -1809,16 +1809,20 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["detail"]["pagination"]["count"], 1)
 
     def test_project_list_rejects_invalid_boolean_filter(self):
-        response = self.client.get("/api/v1/projects/?joined=yes")
+        for field in ("joined", "owned"):
+            with self.subTest(field=field):
+                response = self.client.get(
+                    f"/api/v1/projects/?{field}=yes"
+                )
 
-        self.assertEqual(response.status_code, 400)
-        body = response.json()
-        self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
-        self.assertEqual(
-            body["detail"]["message"],
-            "joined는 true 또는 false여야 합니다.",
-        )
-        self.assertEqual(body["detail"]["httpStatus"], 400)
+                self.assertEqual(response.status_code, 400)
+                body = response.json()
+                self.assertEqual(body["status"], "INVALID_PROJECT_FILTER")
+                self.assertEqual(
+                    body["detail"]["message"],
+                    f"{field}는 true 또는 false여야 합니다.",
+                )
+                self.assertEqual(body["detail"]["httpStatus"], 400)
 
     def test_project_list_searches_filters_and_sorts_projects(self):
         alpha = Project.objects.create(
@@ -1884,7 +1888,12 @@ class ProjectApiTests(TestCase):
         self.assertEqual(repository_language_only_response.json()["data"], [])
 
     def test_project_list_rejects_invalid_search_filter(self):
-        for query in ("status=DELETED", "sort=popular", f"keyword={'x' * 101}"):
+        for query in (
+            "status=DELETED",
+            "sort=popular",
+            f"keyword={'x' * 101}",
+            f"techStack={'x' * 51}",
+        ):
             with self.subTest(query=query):
                 response = self.client.get(f"/api/v1/projects/?{query}")
 

@@ -30,18 +30,7 @@ from .services import (
     prepare_project_repository_update,
     update_project_repository,
 )
-
-
-def prepare_projects_for_serialization(projects: list[Project]) -> None:
-    for project in projects:
-        repository = getattr(project, "repository", None)
-        if repository is None:
-            continue
-        repository.serialized_status = getattr(repository, "status", None)
-        if not hasattr(repository, "serialized_snapshots"):
-            repository.serialized_snapshots = []
-        if not hasattr(repository, "serialized_languages"):
-            repository.serialized_languages = []
+from .selectors import list_projects, prepare_projects_for_serialization
 
 
 def pagination_detail(
@@ -69,11 +58,11 @@ class Projects(APIView):
     def get(self, request):
         query_form = ProjectListQueryForm(request.query_params)
         if not query_form.is_valid():
-            error_code, message = query_form.api_error()
+            query_error = query_form.api_error()
             return Response(
                 fail(
-                    error_code,
-                    message,
+                    query_error.code,
+                    query_error.message,
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
@@ -90,80 +79,10 @@ class Projects(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        projects = (
-            Project.objects.select_related("repository", "repository__status")
-            .prefetch_related(
-                "languages",
-                Prefetch(
-                    "repository__snapshots",
-                    queryset=RepositorySnapshot.objects.order_by("-date")[:1],
-                    to_attr="serialized_snapshots",
-                ),
-                Prefetch(
-                    "repository__languages",
-                    queryset=RepositoryLanguage.objects.order_by(
-                        "-bytes",
-                        "language",
-                    ),
-                    to_attr="serialized_languages",
-                ),
-            )
-            .all()
-            .order_by("-updated_at", "-pk")
+        projects, count = list_projects(
+            query=query,
+            user_id=request.user.pk if request.user.is_authenticated else None,
         )
-        projects = projects.exclude(status=Project.Status.DELETED)
-
-        if query.joined or query.owned:
-            membership_filter = Q(
-                members__user=request.user,
-                members__status=Member.Status.JOINED,
-            )
-            if query.joined != query.owned:
-                membership_filter &= Q(members__is_leader=query.owned)
-            projects = projects.filter(membership_filter).distinct()
-
-        if not query.status:
-            projects = projects.exclude(status=Project.Status.FINISHED)
-
-        if query.keyword:
-            projects = projects.filter(
-                Q(name__icontains=query.keyword)
-                | Q(description__icontains=query.keyword)
-            )
-        if query.languages:
-            project_language_query = Q()
-            for language in query.languages:
-                project_language_query |= Q(name__iexact=language)
-            project_language_matches = ProjectLanguage.objects.filter(
-                projects=OuterRef("pk")
-            ).filter(project_language_query)
-            projects = projects.annotate(
-                has_matching_filtered_project_language=Exists(
-                    project_language_matches
-                )
-            ).filter(has_matching_filtered_project_language=True)
-        if query.status:
-            projects = projects.filter(status=query.status)
-        if query.sort == "name":
-            projects = projects.order_by("name", "pk")
-
-        if request.user.is_authenticated:
-            projects = projects.prefetch_related(
-                Prefetch(
-                    "members",
-                    queryset=Member.objects.filter(
-                        user=request.user,
-                        status=Member.Status.JOINED,
-                    ).order_by("-is_leader"),
-                    to_attr="request_user_memberships",
-                )
-            )
-
-        count = projects.count()
-        projects = list(
-            projects[query.start : query.start + query.limit]
-        )
-        prepare_projects_for_serialization(projects)
         serializer = ProjectSerializer(
             projects,
             many=True,
@@ -534,10 +453,11 @@ class ProjectMembers(APIView):
 
         query_form = ProjectMemberQueryForm(request.query_params)
         if not query_form.is_valid():
+            query_error = query_form.api_error()
             return Response(
                 fail(
-                    "INVALID_MEMBER_FILTER",
-                    "manage는 true 또는 false여야 합니다.",
+                    query_error.code,
+                    query_error.message,
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
