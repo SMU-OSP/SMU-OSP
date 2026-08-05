@@ -38,8 +38,8 @@ export default function ProjectMemberManagementDialog({
     const [descriptions, setDescriptions] = useState<Record<number, string>>({});
 
     const membersQuery = useQuery({
-        queryKey: ["project-members", projectId, "manage"],
-        queryFn: () => listProjectMembers(projectId, true),
+        queryKey: ["project-members", projectId, "manage", "PENDING"],
+        queryFn: () => listProjectMembers(projectId, true, "PENDING"),
         enabled: open,
     });
 
@@ -80,8 +80,7 @@ export default function ProjectMemberManagementDialog({
     });
 
     const response = membersQuery.data;
-    const members = response?.status === "SUCCESS" ? response.data : [];
-    const pendingMembers = members.filter((member) => member.status === "PENDING");
+    const pendingMembers = response?.status === "SUCCESS" ? response.data : [];
 
     const changeStatus = (memberId: number, approve: boolean) => {
         const action = approve ? "승인" : "반려";

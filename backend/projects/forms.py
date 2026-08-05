@@ -3,7 +3,7 @@ from typing import Any
 
 from django import forms
 
-from .models import Project
+from .models import Member, Project
 
 
 TRUE_QUERY_VALUES = {"1", "true"}
@@ -54,6 +54,7 @@ class ProjectListQuery:
 @dataclass(frozen=True)
 class ProjectMemberQuery:
     manage: bool
+    status: str | None
 
 
 @dataclass(frozen=True)
@@ -181,6 +182,10 @@ class ProjectMemberQueryForm(ApiQueryForm):
             "INVALID_MEMBER_FILTER",
             "manage는 true 또는 false여야 합니다.",
         ),
+        "status": QueryApiError(
+            "INVALID_MEMBER_FILTER",
+            "지원하지 않는 멤버 상태입니다.",
+        ),
     }
     default_api_error = QueryApiError(
         "INVALID_MEMBER_FILTER",
@@ -188,8 +193,15 @@ class ProjectMemberQueryForm(ApiQueryForm):
     )
 
     manage = QueryBooleanField(required=False)
+    status = forms.ChoiceField(
+        choices=Member.Status.choices,
+        required=False,
+    )
 
     def to_query(self) -> ProjectMemberQuery:
         if not self.is_valid():
             raise ValueError("유효한 입력만 ProjectMemberQuery로 변환할 수 있습니다.")
-        return ProjectMemberQuery(manage=self.cleaned_data["manage"])
+        return ProjectMemberQuery(
+            manage=self.cleaned_data["manage"],
+            status=self.cleaned_data["status"] or None,
+        )

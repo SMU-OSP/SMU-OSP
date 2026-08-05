@@ -1,4 +1,4 @@
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 
 from .models import (
     Member,
@@ -173,6 +173,12 @@ def get_project_detail(
             "repository",
             "repository__status",
         )
+        .annotate(
+            pending_member_count=Count(
+                "members",
+                filter=Q(members__status=Member.Status.PENDING),
+            )
+        )
         .prefetch_related(*prefetches)
         .exclude(status=Project.Status.DELETED)
         .get(pk=project_id)
@@ -203,16 +209,16 @@ def list_memberships_for_user(user_id: int) -> list[Member]:
 def list_project_members(
     *,
     project_id: int,
-    joined_only: bool,
+    status: str | None,
 ) -> list[Member]:
     """프로젝트 멤버를 팀장 우선, 최신순으로 반환한다.
 
-    joined_only=True이면 참여 중인 멤버만 반환하고, False이면 모든 멤버십
-    상태를 포함한다. 연관된 사용자도 함께 조회한다.
+    상태가 지정되면 해당 상태의 멤버만 반환하고, 없으면 모든 멤버십 상태를
+    포함한다. 연관된 사용자도 함께 조회한다.
 
     Args:
         project_id: 멤버를 조회할 프로젝트 ID.
-        joined_only: 참여 중인 멤버만 조회할지 여부.
+        status: 조회할 멤버 상태. 없으면 모든 상태를 조회한다.
 
     Returns:
         조회 기준에 맞는 프로젝트 멤버 목록.
@@ -220,6 +226,6 @@ def list_project_members(
     members = Member.objects.filter(project_id=project_id).select_related(
         "user"
     )
-    if joined_only:
-        members = members.filter(status=Member.Status.JOINED)
+    if status is not None:
+        members = members.filter(status=status)
     return list(members.order_by("-is_leader", "-created_at", "-pk"))

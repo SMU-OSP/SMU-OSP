@@ -429,6 +429,7 @@ class ProjectDetailSerializer(ProjectSerializer):
     canEdit = serializers.SerializerMethodField()
     canApply = serializers.SerializerMethodField()
     applicationStatus = serializers.SerializerMethodField()
+    pendingMemberCount = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
 
     class Meta(ProjectSerializer.Meta):
@@ -438,6 +439,7 @@ class ProjectDetailSerializer(ProjectSerializer):
             "canEdit",
             "canApply",
             "applicationStatus",
+            "pendingMemberCount",
             "members",
         )
 
@@ -456,6 +458,11 @@ class ProjectDetailSerializer(ProjectSerializer):
     def get_applicationStatus(self, obj):
         memberships = getattr(obj, "request_user_application_history", [])
         return memberships[0].status if memberships else None
+
+    def get_pendingMemberCount(self, obj):
+        if not self.get_canEdit(obj):
+            return 0
+        return obj.pending_member_count
 
     def get_members(self, obj):
         if not self.get_canViewMembers(obj):

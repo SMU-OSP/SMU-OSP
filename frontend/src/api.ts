@@ -2,6 +2,7 @@ import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser, PublicUserListResponse, TrendingRepositoryListResponse } from "./types";
 import type {
+    ProjectApplicationStatus,
     ProjectInput,
     ProjectMemberUpdateInput,
     ProjectRankingResponse,
@@ -127,10 +128,17 @@ export const getProjectRankings = (start: number, limit: number) =>
 export const getProjectMemberships = () =>
     instance.get("projects/members").then((response) => response.data);
 
-export const getProjectMembers = (projectId: string | number, manage = false) =>
+export const getProjectMembers = (
+    projectId: string | number,
+    manage = false,
+    status?: ProjectApplicationStatus,
+) =>
     instance
         .get(`projects/${projectId}/members`, {
-            params: manage ? { manage: true } : undefined,
+            params: {
+                ...(manage && { manage: true }),
+                ...(status && { status }),
+            },
         })
         .then((response) => response.data);
 

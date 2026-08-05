@@ -409,7 +409,8 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        manage = query_form.to_query().manage
+        query = query_form.to_query()
+        manage = query.manage
 
         try:
             require_project_access(
@@ -422,7 +423,9 @@ class ProjectMembers(APIView):
 
         members = list_project_members(
             project_id=pk,
-            joined_only=not manage,
+            status=(
+                query.status if manage else Member.Status.JOINED
+            ),
         )
 
         return Response(

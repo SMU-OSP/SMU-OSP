@@ -56,6 +56,7 @@ export interface ProjectDetail extends Project {
     canEdit: boolean;
     canApply: boolean;
     applicationStatus: ProjectApplicationStatus | null;
+    pendingMemberCount: number;
     members: ProjectDetailMember[] | null;
 }
 

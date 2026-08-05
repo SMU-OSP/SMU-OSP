@@ -813,7 +813,28 @@ class ProjectApiTests(TestCase):
         self.assertFalse(body["data"]["canEdit"])
         self.assertFalse(body["data"]["canApply"])
         self.assertIsNone(body["data"]["applicationStatus"])
+        self.assertEqual(body["data"]["pendingMemberCount"], 0)
         self.assertIsNone(body["data"]["members"])
+
+    def test_project_detail_returns_pending_count_only_to_leader(self):
+        applicant = get_user_model().objects.create_user(
+            username="pending-count-applicant",
+            github_email="pending-count-applicant@example.com",
+            name="대기 신청자",
+            student_id=302,
+            major="IT공학",
+        )
+        Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["pendingMemberCount"], 1)
 
     def test_project_detail_returns_only_current_application_state(self):
         applicant = get_user_model().objects.create_user(
@@ -2517,6 +2538,16 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(managed_members[pending.pk]["description"])
         self.assertIn("createdAt", managed_members[pending.pk])
         self.assertIsNone(managed_members[pending.pk]["joinedAt"])
+
+        pending_only = self.client.get(
+            f"/api/v1/projects/{self.project.pk}/members"
+            "?manage=true&status=PENDING"
+        )
+        self.assertEqual(pending_only.status_code, 200)
+        self.assertEqual(
+            [member["id"] for member in pending_only.json()["data"]],
+            [pending.pk],
+        )
 
     def test_project_members_reject_invalid_manage_filter(self):
         self.client.force_login(self.user)

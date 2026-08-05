@@ -15,6 +15,7 @@ import {
 import { ApiResponse, ERROR_CODES, PaginationDetail } from "../types/response";
 import {
     Project,
+    ProjectApplicationStatus,
     ProjectApplicationHistory,
     ProjectCreateDetail,
     ProjectDetail,
@@ -146,9 +147,10 @@ export async function listProjectApplications(): Promise<ApiResponse<ProjectAppl
 export async function listProjectMembers(
     projectId: number,
     manage = false,
+    status?: ProjectApplicationStatus,
 ): Promise<ApiResponse<ProjectDetailMember[]>> {
     try {
-        return await getProjectMembers(projectId, manage);
+        return await getProjectMembers(projectId, manage, status);
     } catch (e) {
         return toApiResponse<ProjectDetailMember[]>(
             e,

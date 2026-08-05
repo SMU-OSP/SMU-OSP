@@ -42,7 +42,6 @@ import {
   getProject,
   getProjectApplicationAvailability,
   leaveProject,
-  listProjectMembers,
   reactivateProject,
   removeProjectMember,
 } from "../services/projectService";
@@ -426,12 +425,6 @@ export default function ProjectDetailPage() {
     projectQuery.data?.status === "SUCCESS" ? projectQuery.data.data : null;
   const isRepositoryCollectionPending =
     managedProject?.repository?.fetchedAt === null;
-  const managedMembersQuery = useQuery({
-    queryKey: ["project-members", managedProject?.id, "manage"],
-    queryFn: () => listProjectMembers(managedProject!.id, true),
-    enabled: !!managedProject?.canEdit,
-  });
-
   const leaveMutation = useMutation({
     mutationFn: ({
       projectId,
@@ -620,13 +613,7 @@ export default function ProjectDetailPage() {
     isLoggedIn,
     userLoading,
   });
-  const managedMembersResponse = managedMembersQuery.data;
-  const pendingCount =
-    managedMembersResponse?.status === "SUCCESS"
-      ? managedMembersResponse.data.filter(
-           (member) => member.status === "PENDING"
-         ).length
-      : 0;
+  const pendingCount = project.pendingMemberCount;
   const repositoryName = project.repository?.fullName;
   const repositoryUrl = project.repository?.htmlUrl;
   const canReactivateProject = canReactivateProjectRepository(project);
