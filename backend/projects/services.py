@@ -38,6 +38,10 @@ class RepositoryRegistrationError(ValueError):
         super().__init__(message)
 
 
+class ProjectCreationError(ValueError):
+    """프로젝트 생성 중 예상 가능한 입력 충돌을 나타낸다."""
+
+
 @dataclass(frozen=True)
 class ProjectCreationResult:
     """프로젝트 생성 결과와 비치명적 Repository 등록 오류를 나타낸다.
@@ -50,7 +54,7 @@ class ProjectCreationResult:
 
     project: Project
     leader_member: Member
-    repository_error: ValueError | None
+    repository_error: RepositoryRegistrationError | None
 
 
 def _registration_error(
@@ -89,14 +93,20 @@ def prepare_repository_registration(
     except GitHubClientError as error:
         raise _registration_error(error) from error
     if Repository.objects.filter(full_name__iexact=full_name).exists():
-        raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
+        raise RepositoryRegistrationError(
+            "INVALID_PROJECT_INPUT",
+            REPOSITORY_ALREADY_LINKED_MESSAGE,
+        )
 
     try:
         data = fetch_repository_identity(full_name)
     except GitHubClientError as error:
         raise _registration_error(error) from error
     if Repository.objects.filter(github_id=data.github_id).exists():
-        raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
+        raise RepositoryRegistrationError(
+            "INVALID_PROJECT_INPUT",
+            REPOSITORY_ALREADY_LINKED_MESSAGE,
+        )
     return data
 
 
@@ -139,9 +149,15 @@ def update_project_repository(
 
     data = repository_data or prepare_repository_registration(repository_url)
     if Repository.objects.filter(full_name__iexact=data.full_name).exists():
-        raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
+        raise RepositoryRegistrationError(
+            "INVALID_PROJECT_INPUT",
+            REPOSITORY_ALREADY_LINKED_MESSAGE,
+        )
     if Repository.objects.filter(github_id=data.github_id).exists():
-        raise ValueError(REPOSITORY_ALREADY_LINKED_MESSAGE)
+        raise RepositoryRegistrationError(
+            "INVALID_PROJECT_INPUT",
+            REPOSITORY_ALREADY_LINKED_MESSAGE,
+        )
 
     try:
         repository = Repository.objects.create(
@@ -190,15 +206,21 @@ def create_project(
         생성된 프로젝트와 Repository 등록 오류를 담은 결과.
 
     Raises:
-        IntegrityError: 프로젝트 또는 팀장 멤버십 저장에 실패한 경우.
+        ProjectCreationError: 이미 등록된 프로젝트명인 경우.
+        IntegrityError: 언어 또는 팀장 멤버십 저장에 실패한 경우.
     """
     with transaction.atomic():
-        project = Project.objects.create(
-            name=name,
-            description=description,
-            demo_url=demo_url,
-            presentation_url=presentation_url,
-        )
+        try:
+            project = Project.objects.create(
+                name=name,
+                description=description,
+                demo_url=demo_url,
+                presentation_url=presentation_url,
+            )
+        except IntegrityError as error:
+            raise ProjectCreationError(
+                "이미 등록된 프로젝트명입니다."
+            ) from error
         project.languages.set(languages)
         leader_member = Member.objects.create(
             project=project,
@@ -207,10 +229,10 @@ def create_project(
             status=Member.Status.JOINED,
         )
 
-    repository_error: ValueError | None = None
+    repository_error: RepositoryRegistrationError | None = None
     try:
         update_project_repository(project, repository_url)
-    except ValueError as error:
+    except RepositoryRegistrationError as error:
         repository_error = error
 
     return ProjectCreationResult(

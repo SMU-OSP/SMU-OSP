@@ -1567,6 +1567,10 @@ class ProjectApiTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            "프로젝트를 생성하지 못했습니다.",
+        )
         self.assertFalse(Project.objects.filter(name="Rollback Project").exists())
 
     @patch("projects.github_client.requests.get")

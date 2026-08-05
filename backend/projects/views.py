@@ -26,6 +26,7 @@ from .serializers import (
     ProjectUpdateSerializer,
 )
 from .services import (
+    ProjectCreationError,
     RepositoryRegistrationError,
     create_project,
     prepare_project_repository_update,
@@ -148,11 +149,20 @@ class Projects(APIView):
                 presentation_url=data.get("presentation_url"),
                 languages=data.get("languages", []),
             )
+        except ProjectCreationError as error:
+            return Response(
+                fail(
+                    "INVALID_PROJECT_INPUT",
+                    str(error),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError:
             return Response(
                 fail(
                     "INVALID_PROJECT_INPUT",
-                    "이미 등록된 프로젝트명입니다.",
+                    "프로젝트를 생성하지 못했습니다.",
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
@@ -166,7 +176,7 @@ class Projects(APIView):
             detail = {
                 "repositoryRegistration": {
                     "status": "FAILED",
-                    "code": getattr(error, "code", "INVALID_PROJECT_INPUT"),
+                    "code": error.code,
                     "message": str(error),
                 }
             }
