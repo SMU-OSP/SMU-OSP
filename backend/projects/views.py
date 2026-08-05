@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Q
@@ -96,14 +98,7 @@ class Projects(APIView):
             )
 
         projects, count = list_projects(
-            start=query.start,
-            limit=query.limit,
-            joined=query.joined,
-            owned=query.owned,
-            keyword=query.keyword,
-            languages=query.languages,
-            status=query.status,
-            sort=query.sort,
+            **asdict(query),
             user_id=request.user.pk if request.user.is_authenticated else None,
         )
         _prepare_projects_for_serialization(projects)
@@ -193,9 +188,7 @@ class Projects(APIView):
 class ProjectDetail(APIView):
     def get(self, request, pk):
         try:
-            project = get_project_detail(
-                project_id=pk,
-            )
+            project = get_project_detail(pk)
         except Project.DoesNotExist:
             return Response(
                 fail(
@@ -419,7 +412,7 @@ class ProjectMemberships(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        memberships = list_memberships_for_user(user_id=request.user.pk)
+        memberships = list_memberships_for_user(request.user.pk)
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
@@ -465,7 +458,7 @@ class ProjectMembers(APIView):
 
         members = list_project_members(
             project_id=pk,
-            manage=manage,
+            joined_only=not manage,
         )
 
         return Response(

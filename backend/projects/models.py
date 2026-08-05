@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import timedelta
 from typing import Final
 
@@ -119,7 +121,15 @@ class Project(CommonModel):
     )
     max_members = models.PositiveIntegerField(default=get_default_max_members)
 
-    def can_be_edited_by(self, member: "Member | None") -> bool:
+    def can_be_edited_by(self, member: Member | None) -> bool:
+        """멤버가 진행 중인 프로젝트를 수정할 수 있는지 반환한다.
+
+        Args:
+            member: 수정 권한을 확인할 참여 중 멤버십.
+
+        Returns:
+            같은 프로젝트의 팀장 멤버십이면 True, 아니면 False.
+        """
         return bool(
             member
             and member.project_id == self.pk
