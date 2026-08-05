@@ -23,10 +23,7 @@ def list_projects(
 ) -> tuple[list[Project], int]:
     """필터링된 프로젝트 한 페이지와 전체 결과 수를 반환한다.
 
-    삭제된 프로젝트는 항상 제외하고, status가 없으면 완료된 프로젝트도
-    제외한다. joined는 일반 팀원 프로젝트, owned는 팀장 프로젝트를 선택하며
-    둘 다 참이면 두 범위를 모두 포함한다. 여러 languages 조건은 OR로
-    결합한다. sort='name'이면 이름순, 그 외 허용값은 최신 수정순이다.
+    삭제된 프로젝트는 항상 제외한다.
 
     Args:
         start: 조회를 시작할 결과 위치.
@@ -118,8 +115,7 @@ def get_project_detail(project_id: int) -> Project:
     """삭제되지 않은 프로젝트와 상세 응답에 필요한 관계를 조회한다.
 
     참여 중인 멤버, 프로젝트 언어, Repository 상태, 최신 Snapshot과
-    Repository 언어를 함께 조회한다. 프로젝트가 없거나 삭제된 상태라면
-    Project.DoesNotExist를 발생시킨다.
+    Repository 언어를 함께 조회한다.
 
     Args:
         project_id: 조회할 프로젝트 ID.
