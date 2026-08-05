@@ -470,11 +470,4 @@ class ProjectDetailSerializer(ProjectSerializer):
         return ProjectMemberSerializer(self._joined_members(obj), many=True).data
 
     def _joined_members(self, obj):
-        joined_members = getattr(obj, "joined_members", None)
-        if joined_members is not None:
-            return joined_members
-        return list(
-            obj.members.filter(status=Member.Status.JOINED)
-            .select_related("user")
-            .order_by("-is_leader", "created_at", "pk")
-        )
+        return getattr(obj, "joined_members", [])

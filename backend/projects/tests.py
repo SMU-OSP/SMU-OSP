@@ -18,7 +18,7 @@ from .models import (
     RepositorySnapshot,
     RepositoryStatus,
 )
-from .serializers import RepositorySerializer
+from .serializers import ProjectDetailSerializer, RepositorySerializer
 from .tasks import (
     GITHUB_API_FAILED,
     PENDING,
@@ -815,6 +815,17 @@ class ProjectApiTests(TestCase):
         self.assertIsNone(body["data"]["applicationStatus"])
         self.assertEqual(body["data"]["pendingMemberCount"], 0)
         self.assertIsNone(body["data"]["members"])
+
+    def test_project_detail_serializer_does_not_query_member_fallback(self):
+        serializer = ProjectDetailSerializer(
+            self.project,
+            context={"can_view_members": True},
+        )
+
+        with self.assertNumQueries(0):
+            members = serializer.get_members(self.project)
+
+        self.assertEqual(members, [])
 
     def test_project_detail_returns_pending_count_only_to_leader(self):
         applicant = get_user_model().objects.create_user(
