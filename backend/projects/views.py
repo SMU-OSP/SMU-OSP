@@ -192,9 +192,8 @@ class Projects(APIView):
 class ProjectDetail(APIView):
     def get(self, request, pk):
         try:
-            selection = get_project_detail(
+            project = get_project_detail(
                 project_id=pk,
-                user_id=(request.user.pk if request.user.is_authenticated else None),
             )
         except Project.DoesNotExist:
             return Response(
@@ -206,12 +205,31 @@ class ProjectDetail(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        _prepare_projects_for_serialization([selection.project])
+        current_member = next(
+            (
+                member
+                for member in project.joined_members
+                if request.user.is_authenticated
+                and member.user_id == request.user.pk
+            ),
+            None,
+        )
+        project.request_user_memberships = (
+            [current_member] if current_member is not None else []
+        )
+        can_view_members = current_member is not None
+        can_edit = (
+            can_view_members
+            and current_member.is_leader
+            and project.status == Project.Status.ACTIVE
+        )
+
+        _prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(
-            selection.project,
+            project,
             context={
-                "can_view_members": selection.can_view_members,
-                "can_edit": selection.can_edit,
+                "can_view_members": can_view_members,
+                "can_edit": can_edit,
             },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)

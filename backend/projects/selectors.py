@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 
@@ -10,14 +8,6 @@ from .models import (
     RepositoryLanguage,
     RepositorySnapshot,
 )
-
-
-@dataclass(frozen=True)
-class ProjectDetailSelection:
-    project: Project
-    can_view_members: bool
-    can_edit: bool
-
 
 def list_projects(
     *,
@@ -104,8 +94,7 @@ def list_projects(
 def get_project_detail(
     *,
     project_id: int,
-    user_id: int | None,
-) -> ProjectDetailSelection:
+) -> Project:
     joined_members = (
         Member.objects.filter(status=Member.Status.JOINED)
         .select_related("user")
@@ -141,28 +130,7 @@ def get_project_detail(
         .get(pk=project_id)
     )
 
-    current_member = next(
-        (
-            member
-            for member in project.joined_members
-            if user_id is not None and member.user_id == user_id
-        ),
-        None,
-    )
-    project.request_user_memberships = (
-        [current_member] if current_member is not None else []
-    )
-
-    can_view_members = current_member is not None
-    return ProjectDetailSelection(
-        project=project,
-        can_view_members=can_view_members,
-        can_edit=(
-            can_view_members
-            and current_member.is_leader
-            and project.status == Project.Status.ACTIVE
-        ),
-    )
+    return project
 
 
 def list_memberships_for_user(*, user_id: int) -> QuerySet[Member]:
