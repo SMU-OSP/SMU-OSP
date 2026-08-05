@@ -2282,7 +2282,8 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["status"], "SUCCESS")
-        self.assertIsNone(body["detail"])
+        self.assertEqual(body["detail"]["pagination"]["count"], 2)
+        self.assertEqual(body["detail"]["pagination"]["limit"], 12)
         self.assertEqual(
             [membership["id"] for membership in body["data"]],
             [pending.pk, declined.pk],
@@ -2297,6 +2298,14 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["data"][0]["userId"], self.user.pk)
         self.assertIn("createdAt", body["data"][0])
         self.assertIn("updatedAt", body["data"][0])
+
+        filtered = self.client.get(
+            "/api/v1/projects/members"
+            "?start=0&limit=1&status=DECLINED&sort=oldest"
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.json()["data"][0]["id"], declined.pk)
+        self.assertEqual(filtered.json()["detail"]["pagination"]["count"], 1)
 
     def test_project_membership_history_returns_empty_list(self):
         self.client.force_login(self.user)

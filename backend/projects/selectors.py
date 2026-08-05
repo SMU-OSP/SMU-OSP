@@ -187,23 +187,43 @@ def get_project_detail(
     return project
 
 
-def list_memberships_for_user(user_id: int) -> list[Member]:
-    """사용자의 팀장 이외 멤버십 이력을 최신순으로 반환한다.
+def list_memberships_for_user(
+    *,
+    user_id: int,
+    start: int,
+    limit: int,
+    statuses: tuple[str, ...],
+    sort: str,
+) -> tuple[list[Member], int]:
+    """사용자의 팀장 이외 멤버십 이력 한 페이지를 반환한다.
 
-    삭제된 프로젝트의 멤버십은 제외하고, 연관된 프로젝트를 함께 조회한다.
+    삭제된 프로젝트의 멤버십은 제외하고, 상태와 정렬 조건을 적용한다.
+    연관된 프로젝트는 직렬화 중 추가 조회가 없도록 함께 조회한다.
 
     Args:
         user_id: 멤버십 이력을 조회할 사용자 ID.
+        start: 조회를 시작할 결과 위치.
+        limit: 반환할 최대 멤버십 수.
+        statuses: 조회할 멤버 상태 목록. 비어 있으면 모두 조회한다.
+        sort: 최신순 또는 오래된 순 정렬 기준.
 
     Returns:
-        팀장 이외의 멤버십 이력 목록.
+        현재 페이지의 멤버십 이력과 전체 결과 수.
     """
-    return list(
+    memberships = (
         Member.objects.select_related("project")
         .filter(user_id=user_id, is_leader=False)
         .exclude(project__status=Project.Status.DELETED)
-        .order_by("-created_at", "-pk")
     )
+    if statuses:
+        memberships = memberships.filter(status__in=statuses)
+    order_prefix = "" if sort == "oldest" else "-"
+    memberships = memberships.order_by(
+        f"{order_prefix}created_at",
+        f"{order_prefix}pk",
+    )
+    count = memberships.count()
+    return list(memberships[start : start + limit]), count
 
 
 def list_project_members(

@@ -125,8 +125,12 @@ export const getProjectRankings = (start: number, limit: number) =>
         .get<ProjectRankingResponse>("rankings/projects", { params: { start, limit } })
         .then((response) => response.data);
 
-export const getProjectMemberships = () =>
-    instance.get("projects/members").then((response) => response.data);
+export const getProjectMemberships = (params: {
+    start: number;
+    limit: number;
+    status?: string;
+    sort: "latest" | "oldest";
+}) => instance.get("projects/members", { params }).then((response) => response.data);
 
 export const getProjectMembers = (
     projectId: string | number,

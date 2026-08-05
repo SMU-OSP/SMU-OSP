@@ -11,7 +11,11 @@ from common.authentication import api_login_required
 from common.pagination import pagination_detail
 from common.responses import fail, success
 
-from .forms import ProjectListQueryForm, ProjectMemberQueryForm
+from .forms import (
+    MembershipHistoryQueryForm,
+    ProjectListQueryForm,
+    ProjectMemberQueryForm,
+)
 from .models import (
     Member,
     Project,
@@ -390,9 +394,33 @@ class ProjectLanguages(APIView):
 class ProjectMemberships(APIView):
     @api_login_required
     def get(self, request):
-        memberships = list_memberships_for_user(request.user.pk)
+        query_form = MembershipHistoryQueryForm(request.query_params)
+        if not query_form.is_valid():
+            query_error = query_form.api_error()
+            return Response(
+                fail(
+                    query_error.code,
+                    query_error.message,
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        query = query_form.to_query()
+        memberships, count = list_memberships_for_user(
+            user_id=request.user.pk,
+            start=query.start,
+            limit=query.limit,
+            statuses=query.statuses,
+            sort=query.sort,
+        )
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
-        return Response(success(serializer.data), status=status.HTTP_200_OK)
+        return Response(
+            success(
+                serializer.data,
+                pagination_detail(query.start, query.limit, count),
+            ),
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProjectMembers(APIView):
