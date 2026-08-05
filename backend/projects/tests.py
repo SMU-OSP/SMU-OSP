@@ -2583,6 +2583,23 @@ class ProjectApiTests(TestCase):
             "manage는 true 또는 false여야 합니다.",
         )
 
+    def test_project_members_reject_status_filter_without_manage(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            f"/api/v1/projects/{self.project.pk}/members?status=PENDING"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "INVALID_MEMBER_FILTER")
+        self.assertEqual(
+            response.json()["detail"]["message"],
+            (
+                "status는 유효한 멤버 상태이며 manage=true일 때만 "
+                "사용할 수 있습니다."
+            ),
+        )
+
     def test_non_member_cannot_list_project_members(self):
         outsider = get_user_model().objects.create_user(
             username="outsider",
