@@ -29,6 +29,7 @@ from .services import (
     update_project_repository,
 )
 from .selectors import (
+    get_joined_project_member,
     get_project_detail,
     list_memberships_for_user,
     list_project_members,
@@ -448,13 +449,11 @@ class ProjectMembers(APIView):
             )
         manage = query_form.to_query().manage
 
-        try:
-            members = list_project_members(
-                project_id=pk,
-                user_id=request.user.pk,
-                manage=manage,
-            )
-        except PermissionDenied:
+        requester = get_joined_project_member(
+            project_id=pk,
+            user_id=request.user.pk,
+        )
+        if requester is None or (manage and not requester.is_leader):
             return Response(
                 fail(
                     "PERMISSION_DENIED",
@@ -463,6 +462,11 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        members = list_project_members(
+            project_id=pk,
+            manage=manage,
+        )
 
         return Response(
             success(ProjectMemberSerializer(members, many=True).data),

@@ -1,4 +1,3 @@
-from django.core.exceptions import PermissionDenied
 from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 
 from .models import (
@@ -142,13 +141,12 @@ def list_memberships_for_user(*, user_id: int) -> QuerySet[Member]:
     )
 
 
-def list_project_members(
+def get_joined_project_member(
     *,
     project_id: int,
     user_id: int,
-    manage: bool,
-) -> QuerySet[Member]:
-    requester = (
+) -> Member | None:
+    return (
         Member.objects.filter(
             project_id=project_id,
             user_id=user_id,
@@ -157,9 +155,13 @@ def list_project_members(
         .order_by("-is_leader", "-created_at", "-pk")
         .first()
     )
-    if not requester or (manage and not requester.is_leader):
-        raise PermissionDenied
 
+
+def list_project_members(
+    *,
+    project_id: int,
+    manage: bool,
+) -> QuerySet[Member]:
     members = Member.objects.filter(project_id=project_id).select_related("user")
     if not manage:
         members = members.filter(status=Member.Status.JOINED)
