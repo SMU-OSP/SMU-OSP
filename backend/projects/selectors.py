@@ -20,6 +20,11 @@ def list_projects(
     sort: str,
     user_id: int | None,
 ) -> tuple[list[Project], int]:
+    """필터링된 프로젝트 한 페이지와 전체 결과 수를 반환한다.
+
+    삭제된 프로젝트는 항상 제외하고, status가 없으면 완료된 프로젝트도 제외한다. joined는 일반 팀원 프로젝트, owned는 팀장 프로젝트를 선택하며 둘 다 참이면 두 범위를 모두 포함한다. 
+    여러 languages 조건은 OR로 결합한다. sort='name'이면 이름순, 그 외 허용값은 최신 수정순이다.
+    """
     projects = (
         Project.objects.select_related("repository", "repository__status")
         .prefetch_related(
@@ -94,6 +99,10 @@ def get_project_detail(
     *,
     project_id: int,
 ) -> Project:
+    """삭제되지 않은 프로젝트와 상세 응답에 필요한 관계를 조회한다.
+
+    참여 중인 멤버, 프로젝트 언어, Repository 상태, 최신 Snapshot과 Repository 언어를 함께 조회한다. 프로젝트가 없거나 삭제된 상태라면 Project.DoesNotExist를 발생시킨다.
+    """
     joined_members = (
         Member.objects.filter(status=Member.Status.JOINED)
         .select_related("user")
@@ -133,6 +142,10 @@ def get_project_detail(
 
 
 def list_memberships_for_user(*, user_id: int) -> list[Member]:
+    """사용자의 팀장 이외 멤버십 이력을 최신순으로 반환한다.
+
+    삭제된 프로젝트의 멤버십은 제외하고, 연관된 프로젝트를 함께 조회한다.
+    """
     return list(
         Member.objects.select_related("project")
         .filter(user_id=user_id, is_leader=False)
@@ -146,6 +159,10 @@ def get_joined_project_member(
     project_id: int,
     user_id: int,
 ) -> Member | None:
+    """프로젝트에 참여 중인 사용자의 멤버십을 반환한다.
+
+    참여 중인 행이 여러 개라면 팀장 행을 우선하고, 그 외에는 가장 최근 행을 반환한다. 참여 중인 멤버십이 없으면 None을 반환한다.
+    """
     return (
         Member.objects.filter(
             project_id=project_id,
@@ -162,6 +179,10 @@ def list_project_members(
     project_id: int,
     manage: bool,
 ) -> list[Member]:
+    """프로젝트 멤버를 팀장 우선, 최신순으로 반환한다.
+
+    manage=False이면 참여 중인 멤버만 반환하고, manage=True이면 관리 화면을 위해 모든 멤버십 상태를 포함한다. 연관된 사용자도 함께 조회한다.
+    """
     members = Member.objects.filter(project_id=project_id).select_related("user")
     if not manage:
         members = members.filter(status=Member.Status.JOINED)
