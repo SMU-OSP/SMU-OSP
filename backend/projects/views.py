@@ -218,11 +218,7 @@ class ProjectDetail(APIView):
             [current_member] if current_member is not None else []
         )
         can_view_members = current_member is not None
-        can_edit = (
-            can_view_members
-            and current_member.is_leader
-            and project.status == Project.Status.ACTIVE
-        )
+        can_edit = project.can_be_edited_by(current_member)
 
         _prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(

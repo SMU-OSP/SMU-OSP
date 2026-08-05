@@ -119,6 +119,15 @@ class Project(CommonModel):
     )
     max_members = models.PositiveIntegerField(default=get_default_max_members)
 
+    def can_be_edited_by(self, member: "Member | None") -> bool:
+        return bool(
+            member
+            and member.project_id == self.pk
+            and member.status == Member.Status.JOINED
+            and member.is_leader
+            and self.status == self.Status.ACTIVE
+        )
+
     def has_available_member_slot(self):
         joined_members = getattr(self, "joined_members", None)
         joined_count = (

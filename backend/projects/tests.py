@@ -893,6 +893,18 @@ class ProjectApiTests(TestCase):
         )
         self.assertEqual(data["members"][1]["description"], "프론트엔드")
 
+    def test_inactive_project_leader_cannot_edit_project(self):
+        self.project.status = Project.Status.INACTIVE
+        self.project.save(update_fields=("status", "updated_at"))
+        self.client.force_login(self.user)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertTrue(data["canViewMembers"])
+        self.assertFalse(data["canEdit"])
+
     def test_applicant_can_only_view_joined_member_count(self):
         applicant = get_user_model().objects.create_user(
             username="applicant",
