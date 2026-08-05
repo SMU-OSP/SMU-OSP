@@ -1,4 +1,4 @@
-from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
+from django.db.models import Exists, OuterRef, Prefetch, Q
 
 from .models import (
     Member,
@@ -132,8 +132,8 @@ def get_project_detail(
     return project
 
 
-def list_memberships_for_user(*, user_id: int) -> QuerySet[Member]:
-    return (
+def list_memberships_for_user(*, user_id: int) -> list[Member]:
+    return list(
         Member.objects.select_related("project")
         .filter(user_id=user_id, is_leader=False)
         .exclude(project__status=Project.Status.DELETED)
@@ -161,8 +161,8 @@ def list_project_members(
     *,
     project_id: int,
     manage: bool,
-) -> QuerySet[Member]:
+) -> list[Member]:
     members = Member.objects.filter(project_id=project_id).select_related("user")
     if not manage:
         members = members.filter(status=Member.Status.JOINED)
-    return members.order_by("-is_leader", "-created_at", "-pk")
+    return list(members.order_by("-is_leader", "-created_at", "-pk"))
