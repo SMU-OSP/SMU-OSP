@@ -125,10 +125,11 @@ class Project(CommonModel):
         """멤버가 진행 중인 프로젝트를 수정할 수 있는지 반환한다.
 
         Args:
-            member: 수정 권한을 확인할 참여 중 멤버십.
+            member: 수정 권한을 확인할 멤버십. 멤버십이 없으면 None.
 
         Returns:
-            같은 프로젝트의 팀장 멤버십이면 True, 아니면 False.
+            프로젝트가 진행 중이고 같은 프로젝트의 참여 중 팀장이면 True,
+            아니면 False.
         """
         return bool(
             member
