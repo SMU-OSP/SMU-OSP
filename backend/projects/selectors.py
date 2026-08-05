@@ -111,7 +111,10 @@ def list_projects(
     return projects, count
 
 
-def get_project_detail(project_id: int) -> Project:
+def get_project_detail(
+    project_id: int,
+    user_id: int | None = None,
+) -> Project:
     """삭제되지 않은 프로젝트와 상세 응답에 필요한 관계를 조회한다.
 
     참여 중인 멤버, 프로젝트 언어, Repository 상태, 최신 Snapshot과
@@ -119,6 +122,7 @@ def get_project_detail(project_id: int) -> Project:
 
     Args:
         project_id: 조회할 프로젝트 ID.
+        user_id: 현재 프로젝트의 신청 상태를 함께 조회할 사용자 ID.
 
     Returns:
         상세 응답에 필요한 관계가 미리 조회된 프로젝트.
@@ -131,32 +135,45 @@ def get_project_detail(project_id: int) -> Project:
         .select_related("user")
         .order_by("-is_leader", "created_at", "pk")
     )
+    prefetches = [
+        "languages",
+        Prefetch(
+            "members",
+            queryset=joined_members,
+            to_attr="joined_members",
+        ),
+        Prefetch(
+            "repository__snapshots",
+            queryset=RepositorySnapshot.objects.order_by("-date")[:1],
+            to_attr="serialized_snapshots",
+        ),
+        Prefetch(
+            "repository__languages",
+            queryset=RepositoryLanguage.objects.order_by(
+                "-bytes",
+                "language",
+            ),
+            to_attr="serialized_languages",
+        ),
+    ]
+    if user_id is not None:
+        prefetches.append(
+            Prefetch(
+                "members",
+                queryset=Member.objects.filter(user_id=user_id).order_by(
+                    "-created_at",
+                    "-pk",
+                ),
+                to_attr="request_user_application_history",
+            )
+        )
+
     project = (
         Project.objects.select_related(
             "repository",
             "repository__status",
         )
-        .prefetch_related(
-            "languages",
-            Prefetch(
-                "members",
-                queryset=joined_members,
-                to_attr="joined_members",
-            ),
-            Prefetch(
-                "repository__snapshots",
-                queryset=RepositorySnapshot.objects.order_by("-date")[:1],
-                to_attr="serialized_snapshots",
-            ),
-            Prefetch(
-                "repository__languages",
-                queryset=RepositoryLanguage.objects.order_by(
-                    "-bytes",
-                    "language",
-                ),
-                to_attr="serialized_languages",
-            ),
-        )
+        .prefetch_related(*prefetches)
         .exclude(status=Project.Status.DELETED)
         .get(pk=project_id)
     )

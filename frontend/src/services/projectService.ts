@@ -24,36 +24,22 @@ import {
     ProjectUpdateInput,
 } from "../types/project";
 
-const MAX_REAPPLICATIONS = 5;
-
 export function canReactivateProjectRepository(project: ProjectDetail): boolean {
     return project.status === "INACTIVE" && project.membershipRole === "OWNER";
 }
 
 export function getProjectApplicationAvailability({
     project,
-    applicationHistory,
     isLoggedIn,
     userLoading,
-    hasLoadedApplicationHistory,
 }: {
     project: ProjectDetail;
-    applicationHistory: ProjectApplicationHistory[];
     isLoggedIn: boolean;
     userLoading: boolean;
-    hasLoadedApplicationHistory: boolean;
 }): { canApply: boolean; unavailableReason: string | null } {
-    const latestApplication = applicationHistory[0];
     const hasActiveApplication =
-        latestApplication?.status === "PENDING" || latestApplication?.status === "JOINED";
-    const canApply =
-        isLoggedIn &&
-        hasLoadedApplicationHistory &&
-        project.status === "ACTIVE" &&
-        project.membershipRole == null &&
-        !hasActiveApplication &&
-        applicationHistory.length <= MAX_REAPPLICATIONS &&
-        project.memberCount < project.maxMembers;
+        project.applicationStatus === "PENDING" || project.applicationStatus === "JOINED";
+    const canApply = isLoggedIn && !userLoading && project.canApply;
 
     if (userLoading) return { canApply, unavailableReason: null };
     if (!isLoggedIn) {
@@ -62,7 +48,7 @@ export function getProjectApplicationAvailability({
             unavailableReason: "로그인 후 참가 신청할 수 있습니다.",
         };
     }
-    if (!hasLoadedApplicationHistory || project.membershipRole != null || hasActiveApplication) {
+    if (project.membershipRole != null || hasActiveApplication) {
         return { canApply, unavailableReason: null };
     }
     if (project.status !== "ACTIVE") {
@@ -71,19 +57,16 @@ export function getProjectApplicationAvailability({
             unavailableReason: "현재 참가 신청을 받지 않는 프로젝트입니다.",
         };
     }
-    if (applicationHistory.length > MAX_REAPPLICATIONS) {
-        return {
-            canApply,
-            unavailableReason: "현재 참가 신청할 수 없습니다.",
-        };
-    }
     if (project.memberCount >= project.maxMembers) {
         return {
             canApply,
             unavailableReason: "현재 참여 인원이 가득 차 참가 신청할 수 없습니다.",
         };
     }
-    return { canApply, unavailableReason: null };
+    return {
+        canApply,
+        unavailableReason: canApply ? null : "현재 참가 신청할 수 없습니다.",
+    };
 }
 
 export interface ListParams {

@@ -42,7 +42,6 @@ import {
   getProject,
   getProjectApplicationAvailability,
   leaveProject,
-  listProjectApplications,
   listProjectMembers,
   reactivateProject,
   removeProjectMember,
@@ -423,12 +422,6 @@ export default function ProjectDetailPage() {
     queryFn: () => getProject(id),
     enabled: !!id,
   });
-  const applicationHistoryQuery = useQuery({
-    queryKey: ["project-application-history"],
-    queryFn: listProjectApplications,
-    enabled: !userLoading && isLoggedIn,
-    retry: false,
-  });
   const managedProject =
     projectQuery.data?.status === "SUCCESS" ? projectQuery.data.data : null;
   const isRepositoryCollectionPending =
@@ -619,24 +612,13 @@ export default function ProjectDetailPage() {
   const repositoryLanguages =
     project.repository?.languages ??
     (project.repository?.language ? [project.repository.language] : []);
-  const applicationHistory =
-    applicationHistoryQuery.data?.status === "SUCCESS"
-      ? applicationHistoryQuery.data.data.filter(
-          (application) => application.projectId === project.id
-        )
-      : [];
-  const hasLoadedApplicationHistory =
-    applicationHistoryQuery.data?.status === "SUCCESS";
-  const latestApplication = applicationHistory[0];
   const {
     canApply,
     unavailableReason: applicationUnavailableReason,
   } = getProjectApplicationAvailability({
     project,
-    applicationHistory,
     isLoggedIn,
     userLoading,
-    hasLoadedApplicationHistory,
   });
   const managedMembersResponse = managedMembersQuery.data;
   const pendingCount =
@@ -852,7 +834,7 @@ export default function ProjectDetailPage() {
           }
         />
 
-        {(applicationMessage || latestApplication?.status === "PENDING") && (
+        {(applicationMessage || project.applicationStatus === "PENDING") && (
           <StatusMessagePanel
             role={
               applicationMessage && applicationMessageFailed
@@ -864,7 +846,7 @@ export default function ProjectDetailPage() {
             }
             actions={
               <HStack flexShrink={0}>
-                {latestApplication?.status === "PENDING" && (
+                {project.applicationStatus === "PENDING" && (
                   <Button
                     size="sm"
                     colorPalette="red"

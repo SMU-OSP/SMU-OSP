@@ -811,9 +811,45 @@ class ProjectApiTests(TestCase):
         self.assertEqual(body["data"]["memberCount"], 1)
         self.assertFalse(body["data"]["canViewMembers"])
         self.assertFalse(body["data"]["canEdit"])
-        self.assertNotIn("canApply", body["data"])
-        self.assertNotIn("applicationStatus", body["data"])
+        self.assertFalse(body["data"]["canApply"])
+        self.assertIsNone(body["data"]["applicationStatus"])
         self.assertIsNone(body["data"]["members"])
+
+    def test_project_detail_returns_only_current_application_state(self):
+        applicant = get_user_model().objects.create_user(
+            username="detail-applicant",
+            github_email="detail-applicant@example.com",
+            name="신청자",
+            student_id=301,
+            major="IT공학",
+        )
+        other_project = Project.objects.create(
+            name="Other Application Project",
+            description="다른 프로젝트",
+        )
+        Member.objects.create(
+            project=other_project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.CANCELED,
+        )
+        latest_application = Member.objects.create(
+            project=self.project,
+            user=applicant,
+            status=Member.Status.PENDING,
+        )
+        self.client.force_login(applicant)
+
+        response = self.client.get(f"/api/v1/projects/{self.project.pk}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertEqual(data["applicationStatus"], latest_application.status)
+        self.assertFalse(data["canApply"])
 
     def test_deleted_project_detail_is_not_available(self):
         self.project.status = Project.Status.DELETED

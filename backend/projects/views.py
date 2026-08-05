@@ -186,7 +186,12 @@ class Projects(APIView):
 class ProjectDetail(APIView):
     def get(self, request, pk):
         try:
-            project = get_project_detail(pk)
+            project = get_project_detail(
+                pk,
+                user_id=(
+                    request.user.pk if request.user.is_authenticated else None
+                ),
+            )
         except Project.DoesNotExist:
             return Response(
                 fail(
@@ -215,6 +220,15 @@ class ProjectDetail(APIView):
             if current_member is not None
             else False
         )
+        application_history = getattr(
+            project,
+            "request_user_application_history",
+            [],
+        )
+        can_apply = bool(
+            request.user.is_authenticated
+            and project.can_apply_for_membership(application_history)
+        )
 
         _prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(
@@ -222,6 +236,7 @@ class ProjectDetail(APIView):
             context={
                 "can_view_members": can_view_members,
                 "can_edit": can_edit,
+                "can_apply": can_apply,
             },
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)

@@ -130,7 +130,10 @@ class Project(CommonModel):
         )
         return joined_count < self.max_members
 
-    def validate_membership_application(self, memberships):
+    def validate_membership_application(
+        self,
+        memberships: list[Member],
+    ) -> None:
         if self.status != self.Status.ACTIVE:
             raise ValidationError(
                 "진행 중인 프로젝트에만 참가 신청할 수 있습니다.",
@@ -154,6 +157,21 @@ class Project(CommonModel):
                 "프로젝트 정원이 가득 차 참가 신청할 수 없습니다.",
                 code="project_capacity_reached",
             )
+
+    def can_apply_for_membership(self, memberships: list[Member]) -> bool:
+        """현재 멤버십 이력으로 참가 신청이 가능한지 반환한다.
+
+        Args:
+            memberships: 동일 사용자와 프로젝트 조합의 멤버십 이력.
+
+        Returns:
+            기존 참가 신청 검증을 통과하면 True, 그렇지 않으면 False.
+        """
+        try:
+            self.validate_membership_application(memberships)
+        except ValidationError:
+            return False
+        return True
 
     def set_status(self, status):
         allowed_transitions = {
