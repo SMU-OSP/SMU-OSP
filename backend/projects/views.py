@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.responses import fail, success
+from .decorators import project_login_required
 from .forms import ProjectListQueryForm, ProjectMemberQueryForm
 from .models import (
     Member,
@@ -116,17 +117,8 @@ class Projects(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @project_login_required
     def post(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         serializer = ProjectCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
@@ -404,34 +396,16 @@ class ProjectLanguages(APIView):
 
 
 class ProjectMemberships(APIView):
+    @project_login_required
     def get(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         memberships = list_memberships_for_user(request.user.pk)
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
 
 class ProjectMembers(APIView):
+    @project_login_required
     def get(self, request, pk):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         query_form = ProjectMemberQueryForm(request.query_params)
         if not query_form.is_valid():
             query_error = query_form.api_error()
@@ -469,17 +443,8 @@ class ProjectMembers(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @project_login_required
     def post(self, request, pk):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         try:
             project = Project.objects.get(pk=pk)
         except Project.DoesNotExist:
@@ -520,17 +485,8 @@ class ProjectMembers(APIView):
             status=status.HTTP_201_CREATED,
         )
 
+    @project_login_required
     def delete(self, request, pk):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         if not Project.objects.filter(pk=pk).exists():
             return Response(
                 fail(
@@ -601,17 +557,8 @@ class ProjectMembers(APIView):
 
 
 class ProjectMemberDetail(APIView):
+    @project_login_required
     def put(self, request, pk, member_id):
-        if not request.user.is_authenticated:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "로그인이 필요합니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         leader_members = Member.objects.filter(
             project=OuterRef("pk"),
             user=request.user,

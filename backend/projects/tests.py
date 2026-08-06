@@ -1959,6 +1959,32 @@ class ProjectApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
 
+    def test_login_required_project_endpoints_keep_error_contract(self):
+        responses = (
+            self.client.post("/api/v1/projects/"),
+            self.client.get("/api/v1/projects/members"),
+            self.client.get(f"/api/v1/projects/{self.project.pk}/members"),
+            self.client.post(f"/api/v1/projects/{self.project.pk}/members"),
+            self.client.delete(f"/api/v1/projects/{self.project.pk}/members"),
+            self.client.put(
+                f"/api/v1/projects/{self.project.pk}/members/{self.member.pk}",
+                data={"status": Member.Status.JOINED},
+                content_type="application/json",
+            ),
+        )
+
+        for response in responses:
+            with self.subTest(path=response.request["PATH_INFO"]):
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+                self.assertEqual(
+                    response.json()["detail"],
+                    {
+                        "message": "로그인이 필요합니다.",
+                        "httpStatus": 403,
+                    },
+                )
+
     def test_project_membership_application_creates_pending_history(self):
         applicant = get_user_model().objects.create_user(
             username="applicant",
