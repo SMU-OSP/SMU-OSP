@@ -9,16 +9,16 @@ from rest_framework.response import Response
 from common.responses import fail
 
 
-def project_login_required(
+def api_login_required(
     view_method: Callable[..., Response],
 ) -> Callable[..., Response]:
-    """프로젝트 API의 기존 로그인 실패 응답을 유지한다.
+    """인증된 사용자만 APIView 메서드를 실행한다.
 
     Args:
         view_method: 인증 이후 실행할 APIView 메서드.
 
     Returns:
-        로그인 확인이 추가된 APIView 메서드.
+        미인증 요청에 403 응답을 반환하는 APIView 메서드.
     """
 
     @wraps(view_method)

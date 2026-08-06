@@ -8,8 +8,8 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.authentication import api_login_required
 from common.responses import fail, success
-from .decorators import project_login_required
 from .forms import ProjectListQueryForm, ProjectMemberQueryForm
 from .models import (
     Member,
@@ -117,7 +117,7 @@ class Projects(APIView):
             status=status.HTTP_200_OK,
         )
 
-    @project_login_required
+    @api_login_required
     def post(self, request):
         serializer = ProjectCreateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -396,7 +396,7 @@ class ProjectLanguages(APIView):
 
 
 class ProjectMemberships(APIView):
-    @project_login_required
+    @api_login_required
     def get(self, request):
         memberships = list_memberships_for_user(request.user.pk)
         serializer = ProjectMembershipHistorySerializer(memberships, many=True)
@@ -404,7 +404,7 @@ class ProjectMemberships(APIView):
 
 
 class ProjectMembers(APIView):
-    @project_login_required
+    @api_login_required
     def get(self, request, pk):
         query_form = ProjectMemberQueryForm(request.query_params)
         if not query_form.is_valid():
@@ -443,7 +443,7 @@ class ProjectMembers(APIView):
             status=status.HTTP_200_OK,
         )
 
-    @project_login_required
+    @api_login_required
     def post(self, request, pk):
         try:
             project = Project.objects.get(pk=pk)
@@ -485,7 +485,7 @@ class ProjectMembers(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-    @project_login_required
+    @api_login_required
     def delete(self, request, pk):
         if not Project.objects.filter(pk=pk).exists():
             return Response(
@@ -557,7 +557,7 @@ class ProjectMembers(APIView):
 
 
 class ProjectMemberDetail(APIView):
-    @project_login_required
+    @api_login_required
     def put(self, request, pk, member_id):
         leader_members = Member.objects.filter(
             project=OuterRef("pk"),
