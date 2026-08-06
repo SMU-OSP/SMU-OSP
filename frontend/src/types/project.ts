@@ -6,7 +6,6 @@ export type ProjectApplicationStatus = "PENDING" | "JOINED" | "DECLINED" | "LEFT
 
 export interface ProjectDetailMember {
     id: number;
-    userId?: number | null;
     username?: string | null;
     name: string;
     role: ProjectMemberRole;
@@ -22,9 +21,6 @@ export interface ProjectMemberUpdateInput {
 }
 
 export interface Repository {
-    id: number;
-    githubId: number;
-    name: string;
     fullName: string;
     description?: string | null;
     stars: number;
@@ -65,7 +61,6 @@ export interface ProjectApplicationHistory {
     projectName: string;
     projectStatus: ProjectStatus;
     id: number;
-    userId: number | null;
     status: ProjectApplicationStatus;
     description?: string | null;
     joinedAt: string | null;

@@ -14,7 +14,6 @@ MAX_LIST_ITEM_LENGTH = 100
 
 
 class RepositorySerializer(serializers.ModelSerializer):
-    githubId = serializers.IntegerField(source="github_id")
     fullName = serializers.CharField(source="full_name")
     htmlUrl = serializers.URLField(source="html_url")
     description = serializers.SerializerMethodField()
@@ -64,9 +63,6 @@ class RepositorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Repository
         fields = (
-            "id",
-            "githubId",
-            "name",
             "fullName",
             "description",
             "stars",
@@ -343,7 +339,6 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
-    userId = serializers.IntegerField(source="user_id", allow_null=True)
     username = serializers.CharField(source="user.username", allow_null=True)
     name = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
@@ -354,7 +349,6 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = (
             "id",
-            "userId",
             "username",
             "name",
             "role",
@@ -402,7 +396,6 @@ class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
     projectId = serializers.IntegerField(source="project_id")
     projectName = serializers.CharField(source="project.name")
     projectStatus = serializers.CharField(source="project.status")
-    userId = serializers.IntegerField(source="user_id", allow_null=True)
     joinedAt = serializers.DateTimeField(source="joined_at", allow_null=True)
     createdAt = serializers.DateTimeField(source="created_at")
     updatedAt = serializers.DateTimeField(source="updated_at")
@@ -414,7 +407,6 @@ class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
             "projectName",
             "projectStatus",
             "id",
-            "userId",
             "status",
             "description",
             "joinedAt",
