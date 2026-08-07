@@ -20,6 +20,7 @@ import ProjectCard, {
   MembershipRolePill,
 } from "../components/ProjectCard";
 import ProjectLanguageSelect from "../components/ProjectLanguageSelect";
+import ProjectRequestStatePanel from "../components/ProjectRequestStatePanel";
 import { Button } from "../components/ui/button";
 import { InputGroup } from "../components/ui/input-group";
 import useUser from "../lib/useUser";
@@ -204,7 +205,7 @@ export default function ProjectListPage() {
   const pageSize = PROJECT_PAGE_SIZE;
   const start = (page - 1) * pageSize;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
       "projects",
       projectScope,
@@ -231,6 +232,10 @@ export default function ProjectListPage() {
     enabled: projectScope !== "applications",
   });
 
+  const listFailed =
+    projectScope !== "applications" &&
+    !isLoading &&
+    data?.status !== "SUCCESS";
   const projects = data?.status === "SUCCESS" ? data.data : [];
   const pagination = data?.status === "SUCCESS" ? data.detail.pagination : null;
   const totalPages = pagination?.totalPages ?? 1;
@@ -520,21 +525,32 @@ export default function ProjectListPage() {
           <Box display={"flex"} justifyContent={"center"} p={10}>
             <Spinner />
           </Box>
+        ) : listFailed ? (
+          <ProjectRequestStatePanel tone="error">
+            <Text fontWeight="bold" color="#a32222">
+              프로젝트 목록을 불러오지 못했습니다.
+            </Text>
+            <Text mt={1} fontSize="sm" color="smu.darkGray">
+              {data?.detail.message || "잠시 후 다시 시도해주세요."}
+            </Text>
+            <Button
+              mt={4}
+              size="sm"
+              variant="outline"
+              disabled={isFetching}
+              onClick={() => void refetch()}
+            >
+              {isFetching ? "다시 조회 중" : "다시 시도"}
+            </Button>
+          </ProjectRequestStatePanel>
         ) : projects.length === 0 ? (
-          <Box
-            p={10}
-            textAlign={"center"}
-            borderWidth={1}
-            borderColor={"smu.gray"}
-            borderRadius={"lg"}
-            bg={"#f7f7f7"}
-          >
+          <ProjectRequestStatePanel>
             <Text color={"smu.darkGray"}>
               {hasFilters
                 ? "검색 조건에 맞는 프로젝트가 없습니다."
                 : scopeContent.emptyMessage}
             </Text>
-          </Box>
+          </ProjectRequestStatePanel>
         ) : (
           <>
             {viewMode === "cards" ? (

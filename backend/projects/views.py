@@ -41,6 +41,10 @@ from .selectors import (
     list_projects,
 )
 
+PROJECT_NOT_FOUND_MESSAGE = (
+    "요청한 프로젝트가 없거나 삭제되었을 수 있습니다."
+)
+
 
 def _prepare_projects_for_serialization(projects: list[Project]) -> None:
     for project in projects:
@@ -188,7 +192,7 @@ class ProjectDetail(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
@@ -280,7 +284,7 @@ class ProjectDetail(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
@@ -360,7 +364,7 @@ class ProjectDetail(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
@@ -451,7 +455,7 @@ class ProjectMembers(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
@@ -491,7 +495,7 @@ class ProjectMembers(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,
@@ -610,7 +614,7 @@ class ProjectMemberDetail(APIView):
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
-                    f"id={pk}에 해당하는 프로젝트를 찾을 수 없습니다.",
+                    PROJECT_NOT_FOUND_MESSAGE,
                     status.HTTP_404_NOT_FOUND,
                 ),
                 status=status.HTTP_404_NOT_FOUND,

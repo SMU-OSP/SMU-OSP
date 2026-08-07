@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import ProjectLeaveDialog from "../components/ProjectLeaveDialog";
 import ProjectMemberManagementDialog from "../components/ProjectMemberManagementDialog";
+import ProjectNotFoundPanel from "../components/ProjectNotFoundPanel";
 import { Button } from "../components/ui/button";
 import {
   MenuContent,
@@ -570,6 +571,7 @@ export default function ProjectDetailPage() {
         setProjectActionMessage(response.detail.message);
         return;
       }
+      navigate("/projects");
       queryClient.removeQueries({
         queryKey: ["project", id],
         exact: true,
@@ -580,11 +582,10 @@ export default function ProjectDetailPage() {
           queryKey: ["project-application-history"],
         }),
       ]);
-      navigate("/projects");
     },
   });
 
-  if (projectQuery.isLoading) {
+  if (projectQuery.isLoading || deleteProjectMutation.isSuccess) {
     return (
       <Box display={"flex"} justifyContent={"center"} p={10}>
         <Spinner />
@@ -594,6 +595,9 @@ export default function ProjectDetailPage() {
 
   const resp = projectQuery.data;
   if (!resp || resp.status !== "SUCCESS") {
+    if (resp?.status === "PROJECT_NOT_FOUND") {
+      return <ProjectNotFoundPanel />;
+    }
     return (
       <Box px={{ base: 4, md: 10 }} py={6} maxW={"800px"} mx={"auto"}>
         <Box
@@ -604,9 +608,11 @@ export default function ProjectDetailPage() {
           borderRadius={"lg"}
         >
           <Text fontWeight={"bold"} color={"smu.orange"}>
-            [{resp?.status || "UNKNOWN"}]
+            프로젝트를 불러올 수 없습니다.
           </Text>
-          <Text>{resp?.detail.message || "프로젝트를 불러올 수 없습니다."}</Text>
+          <Text mt={1}>
+            {resp?.detail.message || "잠시 후 다시 시도해주세요."}
+          </Text>
           <Box mt={4}>
             <RouterLink to={"/projects"}>
               <Button variant={"outline"}>목록으로</Button>
@@ -618,6 +624,9 @@ export default function ProjectDetailPage() {
   }
 
   const project = resp.data;
+  const repositoryLanguages =
+    project.repository?.languages ??
+    (project.repository?.language ? [project.repository.language] : []);
   const applicationHistory =
     applicationHistoryQuery.data?.status === "SUCCESS"
       ? applicationHistoryQuery.data.data.filter(
@@ -1095,6 +1104,15 @@ export default function ProjectDetailPage() {
                       value={formatDateTimeKST(project.repository.fetchedAt)}
                     />
                   </SimpleGrid>
+                )}
+                {repositoryLanguages.length > 0 && (
+                  <HStack flexWrap="wrap" gap={1} mb={3}>
+                    {repositoryLanguages.map((language) => (
+                      <Pill key={language} bg="smu.lightBlue" color="white">
+                        {language}
+                      </Pill>
+                    ))}
+                  </HStack>
                 )}
                 <ExternalTextLink href={repositoryUrl}>
                   Repository 열기

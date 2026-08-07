@@ -21,9 +21,42 @@ const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_DESCRIPTION_LENGTH = 2000;
 const MAX_PROJECT_URL_LENGTH = 500;
 
+type FieldErrors = {
+  name?: string;
+  description?: string;
+  repositoryUrl?: string;
+};
+
 function optionalUrl(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function Field({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Text fontSize={"xs"} color={"smu.darkGray"} mb={1}>
+        {label}
+        {required ? " *" : ""}
+      </Text>
+      {children}
+      {error ? (
+        <Text mt={1} fontSize={"xs"} color={"smu.orange"} fontWeight={"bold"}>
+          {error}
+        </Text>
+      ) : null}
+    </Box>
+  );
 }
 
 export default function ProjectCreatePage() {
@@ -37,18 +70,34 @@ export default function ProjectCreatePage() {
   const [demoUrl, setDemoUrl] = useState("");
   const [presentationUrl, setPresentationUrl] = useState("");
   const [techStack, setTechStack] = useState<string[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState("");
 
   const mutation = useMutation({
     mutationFn: createProject,
     onSuccess: async (response) => {
       if (response.status !== "SUCCESS") {
-        setErrorMessage(response.detail.message);
+        const message = response.detail.message;
+        if (
+          response.status === "INVALID_GITHUB_URL" ||
+          response.status === "GITHUB_REPOSITORY_NOT_FOUND" ||
+          response.status === "PRIVATE_REPOSITORY" ||
+          response.status === "GITHUB_API_FAILED" ||
+          response.status === "GITHUB_RATE_LIMIT_EXCEEDED"
+        ) {
+          setFieldErrors({ repositoryUrl: message });
+          setFormError("");
+          return;
+        }
+        setFieldErrors({});
+        setFormError(message);
         return;
       }
 
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project", `${response.data.id}`] });
+      queryClient.invalidateQueries({
+        queryKey: ["project", `${response.data.id}`],
+      });
       const repositoryFailure = response.detail?.repositoryRegistration;
       if (repositoryFailure?.status === "FAILED") {
         await queryClient.fetchQuery({
@@ -70,16 +119,22 @@ export default function ProjectCreatePage() {
 
   const handleSubmit = () => {
     if (mutation.isPending) return;
+
+    const nextFieldErrors: FieldErrors = {};
     if (!name.trim()) {
-      setErrorMessage("프로젝트명을 입력해주세요.");
-      return;
+      nextFieldErrors.name = "프로젝트명을 입력해주세요.";
     }
     if (!description.trim()) {
-      setErrorMessage("프로젝트 설명을 입력해주세요.");
+      nextFieldErrors.description = "프로젝트 설명을 입력해주세요.";
+    }
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setFormError("");
       return;
     }
 
-    setErrorMessage("");
+    setFieldErrors({});
+    setFormError("");
     mutation.mutate({
       name: name.trim(),
       description: description.trim(),
@@ -152,34 +207,65 @@ export default function ProjectCreatePage() {
           bg={"white"}
         >
           <VStack alignItems={"stretch"} gap={5}>
-            <Field label="프로젝트명" required>
+            <Field label="프로젝트명" required error={fieldErrors.name}>
               <Input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (fieldErrors.name) {
+                    setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                  }
+                }}
                 placeholder="프로젝트명을 입력하세요"
                 maxLength={MAX_PROJECT_NAME_LENGTH}
                 disabled={mutation.isPending}
+                aria-invalid={Boolean(fieldErrors.name)}
               />
             </Field>
 
-            <Field label="프로젝트 설명" required>
+            <Field
+              label="프로젝트 설명"
+              required
+              error={fieldErrors.description}
+            >
               <Textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (fieldErrors.description) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      description: undefined,
+                    }));
+                  }
+                }}
                 placeholder="프로젝트 목적과 결과물 설명을 입력하세요"
                 minH={"120px"}
                 maxLength={MAX_PROJECT_DESCRIPTION_LENGTH}
                 disabled={mutation.isPending}
+                aria-invalid={Boolean(fieldErrors.description)}
               />
             </Field>
 
-            <Field label="GitHub Repository URL">
+            <Field
+              label="GitHub Repository URL"
+              error={fieldErrors.repositoryUrl}
+            >
               <Input
                 value={repositoryUrl}
-                onChange={(e) => setRepositoryUrl(e.target.value)}
+                onChange={(e) => {
+                  setRepositoryUrl(e.target.value);
+                  if (fieldErrors.repositoryUrl) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      repositoryUrl: undefined,
+                    }));
+                  }
+                }}
                 placeholder="https://github.com/owner/repository"
                 maxLength={MAX_PROJECT_URL_LENGTH}
                 disabled={mutation.isPending}
+                aria-invalid={Boolean(fieldErrors.repositoryUrl)}
               />
               <Box mt={2} p={3} borderRadius={"md"} bg={"#f7f7f7"}>
                 <Text fontSize={"xs"} color={"smu.darkGray"}>
@@ -224,7 +310,7 @@ export default function ProjectCreatePage() {
               </Field>
             </SimpleGrid>
 
-            {errorMessage && (
+            {formError && (
               <Box
                 p={3}
                 borderWidth={1}
@@ -233,7 +319,7 @@ export default function ProjectCreatePage() {
                 bg={"#fff8ec"}
               >
                 <Text color={"smu.orange"} fontSize={"sm"} fontWeight={"bold"}>
-                  {errorMessage}
+                  {formError}
                 </Text>
               </Box>
             )}
@@ -257,26 +343,6 @@ export default function ProjectCreatePage() {
           </VStack>
         </Box>
       </VStack>
-    </Box>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Box>
-      <Text fontSize={"xs"} color={"smu.darkGray"} mb={1}>
-        {label}
-        {required ? " *" : ""}
-      </Text>
-      {children}
     </Box>
   );
 }

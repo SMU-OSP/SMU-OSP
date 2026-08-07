@@ -10,6 +10,8 @@ import { useMemo, useState } from "react";
 import { LuChevronDown } from "react-icons/lu";
 import { listProjectLanguages } from "../services/projectService";
 
+const EMPTY_LANGUAGES: string[] = [];
+
 interface ProjectLanguageSelectProps {
   value: string[];
   onChange: (value: string[]) => void;
@@ -31,10 +33,11 @@ export default function ProjectLanguageSelect({
     queryFn: listProjectLanguages,
     staleTime: Infinity,
   });
+  const languages =
+    query.data?.status === "SUCCESS" ? query.data.data : EMPTY_LANGUAGES;
+
   const collection = useMemo(() => {
     const search = languageSearch.trim().toLocaleLowerCase();
-    const languages =
-      query.data?.status === "SUCCESS" ? query.data.data : [];
     const selected = new Set(value);
     return createListCollection({
       items: [
@@ -47,7 +50,25 @@ export default function ProjectLanguageSelect({
       ]
         .map((name) => ({ label: name, value: name })),
     });
-  }, [languageSearch, query.data, value]);
+  }, [languageSearch, languages, value]);
+
+  const selectLanguageByEnter = () => {
+    const search = languageSearch.trim();
+    if (!search) return;
+
+    const selected = new Set(value);
+    const candidates = collection.items
+      .map((item) => item.value)
+      .filter((name) => !selected.has(name));
+    const exactMatch = candidates.find(
+      (name) => name.toLocaleLowerCase() === search.toLocaleLowerCase()
+    );
+    const nextLanguage = exactMatch ?? candidates[0];
+    if (!nextLanguage) return;
+
+    onChange([...value, nextLanguage]);
+    setLanguageSearch("");
+  };
 
   return (
     <Combobox.Root
@@ -75,6 +96,11 @@ export default function ProjectLanguageSelect({
             <Combobox.Input
               aria-label="사용 언어 검색 및 선택"
               placeholder={value.length ? value.join(", ") : placeholder}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                selectLanguageByEnter();
+              }}
             />
           </Input>
           <Box

@@ -33,25 +33,36 @@ export default function Header() {
       <Box bg={"smu.gray"}>
         <HStack
           justifyContent={"space-between"}
-          py={3}
-          px={10}
+          alignItems={"center"}
+          flexWrap={"wrap"}
+          gap={3}
+          py={{ base: 2, md: 3 }}
+          px={{ base: 3, sm: 4, md: 10 }}
           borderBottomWidth={1}
           borderBottomColor={"smu.darkGray"}
         >
-          <HStack spaceX={6}>
+          <HStack spaceX={{ base: 3, md: 6 }} minW={0} flex={1}>
             <Link to={"/"}>
-              <HStack spaceX={1}>
+              <HStack spaceX={1} minW={0}>
                 <Image
                   src="../../public/images/symbol.png"
                   objectFit={"contain"}
-                  h={"50px"}
+                  h={{ base: "36px", md: "50px" }}
+                  flexShrink={0}
                 />
-                <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={{ base: "md", md: "2xl" }}
+                  color={"smu.blue"}
+                  display={{ base: "none", sm: "block" }}
+                  truncate
+                  maxW={{ sm: "22ch", md: "none" }}
+                >
                   SMU Open-Source Platform
                 </Text>
               </HStack>
             </Link>
-            <HStack spaceX={3}>
+            <HStack spaceX={1} flexShrink={0}>
               <Link to={"/projects"}>
                 <Text
                   fontWeight={"bold"}
@@ -60,6 +71,7 @@ export default function Header() {
                   px={2}
                   py={1}
                   borderRadius={"md"}
+                  whiteSpace={"nowrap"}
                   _hover={{ bg: "smu.blue", color: "white" }}
                 >
                   프로젝트
@@ -73,6 +85,7 @@ export default function Header() {
                   px={2}
                   py={1}
                   borderRadius={"md"}
+                  whiteSpace={"nowrap"}
                   _hover={{ bg: "smu.blue", color: "white" }}
                 >
                   랭킹
@@ -82,7 +95,7 @@ export default function Header() {
           </HStack>
           {!userLoading ? (
             !isLoggedIn ? (
-              <Box>
+              <Box flexShrink={0}>
                 <LogInButton />
               </Box>
             ) : (
@@ -95,6 +108,7 @@ export default function Header() {
                     padding={"2"}
                     borderRadius={"lg"}
                     cursor={"pointer"}
+                    flexShrink={0}
                   >
                     <Text
                       fontWeight={"bold"}
