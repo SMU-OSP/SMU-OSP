@@ -8,6 +8,7 @@ import {
 } from "../services/projectService";
 import { PROJECT_APPLICATION_STATUS_LABEL } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
+import StatusMessagePanel from "./StatusMessagePanel";
 import { Button } from "./ui/button";
 import {
   DialogBody,
@@ -122,8 +123,8 @@ export default function ProjectMemberManagementDialog({
         </DialogHeader>
         <DialogBody pb={6}>
           {message && (
-            <Box role="status" p={3} mb={4} borderRadius="md" bg="#f0f5ff">
-              <Text fontSize="sm">{message}</Text>
+            <Box mb={4}>
+              <StatusMessagePanel role="status" description={message} />
             </Box>
           )}
 
@@ -132,9 +133,13 @@ export default function ProjectMemberManagementDialog({
               <Spinner />
             </Box>
           ) : response?.status !== "SUCCESS" ? (
-            <Box role="alert" p={4} borderRadius="md" bg="#fff8ec">
-              <Text>{response?.detail.message || "멤버를 불러올 수 없습니다."}</Text>
-            </Box>
+            <StatusMessagePanel
+              role="alert"
+              title="멤버를 불러올 수 없습니다."
+              description={
+                response?.detail.message || "잠시 후 다시 시도해주세요."
+              }
+            />
           ) : pendingMembers.length ? (
             <VStack alignItems="stretch" gap={3}>
               {pendingMembers.map((member) => (
@@ -202,7 +207,10 @@ export default function ProjectMemberManagementDialog({
               ))}
             </VStack>
           ) : (
-            <Text color="smu.darkGray">승인 대기 중인 신청자가 없습니다.</Text>
+            <StatusMessagePanel
+              title="승인 대기 신청이 없습니다."
+              description="현재 승인할 참가 신청이 없습니다."
+            />
           )}
         </DialogBody>
         <DialogCloseTrigger />

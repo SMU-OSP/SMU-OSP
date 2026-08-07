@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LogInButton from "../components/LogInButton";
 import ProjectLanguageSelect from "../components/ProjectLanguageSelect";
+import StatusMessagePanel from "../components/StatusMessagePanel";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
 import { createProject, getProject } from "../services/projectService";
@@ -155,30 +156,18 @@ export default function ProjectCreatePage() {
 
   if (!isLoggedIn) {
     return (
-      <Box px={{ base: 4, md: 10 }} py={6} maxW={"720px"} mx={"auto"}>
-        <Box
-          p={6}
-          borderWidth={1}
-          borderColor={"smu.gray"}
-          borderRadius={"lg"}
-          bg={"white"}
-        >
-          <VStack alignItems={"stretch"} gap={3}>
-            <Text fontSize={"xl"} fontWeight={"bold"} color={"smu.blue"}>
-              프로젝트 등록
-            </Text>
-            <Text color={"smu.darkGray"}>
-              프로젝트를 등록하려면 GitHub 로그인이 필요합니다.
-            </Text>
-            <HStack justifyContent={"flex-end"}>
-              <Button variant={"outline"} onClick={() => navigate("/projects")}>
-                목록으로
-              </Button>
-              <LogInButton bg={"smu.blue"} label="GitHub 로그인" />
-            </HStack>
-          </VStack>
-        </Box>
-      </Box>
+      <StatusMessagePanel
+        page
+        title="로그인이 필요합니다."
+        description="프로젝트를 등록하려면 GitHub 로그인이 필요합니다."
+      >
+        <HStack>
+          <Button variant={"outline"} onClick={() => navigate("/projects")}>
+            목록으로
+          </Button>
+          <LogInButton bg={"smu.blue"} label="GitHub 로그인" />
+        </HStack>
+      </StatusMessagePanel>
     );
   }
 
@@ -311,17 +300,10 @@ export default function ProjectCreatePage() {
             </SimpleGrid>
 
             {formError && (
-              <Box
-                p={3}
-                borderWidth={1}
-                borderColor={"smu.orange"}
-                borderRadius={"md"}
-                bg={"#fff8ec"}
-              >
-                <Text color={"smu.orange"} fontSize={"sm"} fontWeight={"bold"}>
-                  {formError}
-                </Text>
-              </Box>
+              <StatusMessagePanel
+                title="요청을 처리하지 못했습니다."
+                description={formError}
+              />
             )}
 
             <HStack justifyContent={"flex-end"}>

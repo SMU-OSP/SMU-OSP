@@ -20,7 +20,7 @@ import {
 } from "../types/project";
 import { ERROR_CODES } from "../types/response";
 import { formatDateKST } from "../utils/date";
-import ProjectRequestStatePanel from "./ProjectRequestStatePanel";
+import StatusMessagePanel from "./StatusMessagePanel";
 import { Button } from "./ui/button";
 
 type StatusFilter = "ALL" | "WAITING" | "JOINED" | "DECLINED" | "CLOSED";
@@ -85,16 +85,11 @@ export default function ProjectApplicationHistory() {
   return (
     <VStack alignItems="stretch" gap={4}>
       {cancelError && (
-        <Box
+        <StatusMessagePanel
           role="alert"
-          p={3}
-          borderWidth={1}
-          borderColor="#f3b1b1"
-          borderRadius="lg"
-          bg="#fff4f4"
-        >
-          <Text color="#a32222">{cancelError}</Text>
-        </Box>
+          title="신청을 취소하지 못했습니다."
+          description={cancelError}
+        />
       )}
       <Flex
         p={3}
@@ -149,25 +144,29 @@ export default function ProjectApplicationHistory() {
       </Flex>
 
       {isLoading ? (
-        <ProjectRequestStatePanel>
-          <Spinner />
-          <Text mt={3} color="smu.darkGray">
-            신청 내역을 불러오고 있습니다.
-          </Text>
-        </ProjectRequestStatePanel>
+        <StatusMessagePanel>
+          <VStack gap={3} alignItems="center">
+            <Spinner />
+            <Text fontSize="sm" color="smu.darkGray">
+              신청 내역을 불러오고 있습니다.
+            </Text>
+          </VStack>
+        </StatusMessagePanel>
       ) : data?.status !== "SUCCESS" ? (
-        <ProjectRequestStatePanel tone="error">
-          <Text fontWeight="bold" color="#a32222">
-            {isPermissionDenied
+        <StatusMessagePanel
+          title={
+            isPermissionDenied
+              ? "로그인이 필요합니다."
+              : "신청 내역을 불러오지 못했습니다."
+          }
+          description={
+            isPermissionDenied
               ? "로그인 후 신청 내역을 확인할 수 있습니다."
-              : "신청 내역을 불러오지 못했습니다."}
-          </Text>
-          <Text mt={1} fontSize="sm" color="smu.darkGray">
-            {data?.detail.message}
-          </Text>
-          {!isPermissionDenied && (
+              : data?.detail.message || "잠시 후 다시 시도해주세요."
+          }
+        >
+          {!isPermissionDenied ? (
             <Button
-              mt={4}
               size="sm"
               variant="outline"
               disabled={isFetching}
@@ -175,18 +174,18 @@ export default function ProjectApplicationHistory() {
             >
               {isFetching ? "다시 조회 중" : "다시 시도"}
             </Button>
-          )}
-        </ProjectRequestStatePanel>
+          ) : null}
+        </StatusMessagePanel>
       ) : data.data.length === 0 ? (
-        <ProjectRequestStatePanel>
-          <Text color="smu.darkGray">아직 프로젝트 신청 내역이 없습니다.</Text>
-        </ProjectRequestStatePanel>
+        <StatusMessagePanel
+          title="신청 내역이 없습니다."
+          description="아직 프로젝트 신청 내역이 없습니다."
+        />
       ) : applications.length === 0 ? (
-        <ProjectRequestStatePanel>
-          <Text color="smu.darkGray">
-            선택한 상태에 해당하는 신청 내역이 없습니다.
-          </Text>
-        </ProjectRequestStatePanel>
+        <StatusMessagePanel
+          title="검색 결과가 없습니다."
+          description="선택한 상태에 해당하는 신청 내역이 없습니다."
+        />
       ) : (
         <SimpleGrid columns={{ base: 1, lg: 2 }} gap={4}>
           {applications.map((application) => {

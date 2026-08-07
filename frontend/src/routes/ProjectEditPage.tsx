@@ -14,6 +14,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LogInButton from "../components/LogInButton";
 import ProjectLanguageSelect from "../components/ProjectLanguageSelect";
 import ProjectNotFoundPanel from "../components/ProjectNotFoundPanel";
+import StatusMessagePanel from "../components/StatusMessagePanel";
 import { Button } from "../components/ui/button";
 import useUser from "../lib/useUser";
 import { getProject, updateProject } from "../services/projectService";
@@ -57,31 +58,6 @@ function Field({
           {error}
         </Text>
       ) : null}
-    </Box>
-  );
-}
-
-function MessageCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Box px={{ base: 4, md: 10 }} py={6} maxW={"720px"} mx={"auto"}>
-      <Box
-        p={6}
-        borderWidth={1}
-        borderColor={"smu.gray"}
-        borderRadius={"lg"}
-        bg={"white"}
-      >
-        <Text fontSize={"xl"} fontWeight={"bold"} color={"smu.blue"} mb={2}>
-          {title}
-        </Text>
-        {children}
-      </Box>
     </Box>
   );
 }
@@ -184,11 +160,12 @@ export default function ProjectEditPage() {
 
   if (!isLoggedIn) {
     return (
-      <MessageCard title="로그인이 필요합니다.">
-        <Text color={"smu.darkGray"}>
-          프로젝트를 수정하려면 GitHub 로그인이 필요합니다.
-        </Text>
-        <HStack justifyContent={"flex-end"} mt={4}>
+      <StatusMessagePanel
+        page
+        title="로그인이 필요합니다."
+        description="프로젝트를 수정하려면 GitHub 로그인이 필요합니다."
+      >
+        <HStack>
           <Button
             variant={"outline"}
             onClick={() => navigate(`/projects/${id}`)}
@@ -197,7 +174,7 @@ export default function ProjectEditPage() {
           </Button>
           <LogInButton bg={"smu.blue"} label="GitHub 로그인" />
         </HStack>
-      </MessageCard>
+      </StatusMessagePanel>
     );
   }
 
@@ -207,30 +184,31 @@ export default function ProjectEditPage() {
 
   if (!projectResponse || projectResponse.status !== "SUCCESS") {
     return (
-      <MessageCard title="프로젝트를 불러올 수 없습니다.">
-        <Text color={"smu.darkGray"}>
-          {projectResponse?.detail.message || "잠시 후 다시 시도해주세요."}
-        </Text>
-      </MessageCard>
+      <StatusMessagePanel
+        page
+        title="프로젝트를 불러올 수 없습니다."
+        description={
+          projectResponse?.detail.message || "잠시 후 다시 시도해주세요."
+        }
+      />
     );
   }
 
   const project = projectResponse.data;
   if (!project.canEdit) {
     return (
-      <MessageCard title="수정 권한이 없습니다.">
-        <Text color={"smu.darkGray"}>
-          프로젝트 팀장만 프로젝트 정보를 수정할 수 있습니다.
-        </Text>
-        <HStack justifyContent={"flex-end"} mt={4}>
-          <Button
-            variant={"outline"}
-            onClick={() => navigate(`/projects/${id}`)}
-          >
-            돌아가기
-          </Button>
-        </HStack>
-      </MessageCard>
+      <StatusMessagePanel
+        page
+        title="수정 권한이 없습니다."
+        description="프로젝트 팀장만 프로젝트 정보를 수정할 수 있습니다."
+      >
+        <Button
+          variant={"outline"}
+          onClick={() => navigate(`/projects/${id}`)}
+        >
+          돌아가기
+        </Button>
+      </StatusMessagePanel>
     );
   }
   const hasRepository = !!project.repository;
@@ -387,17 +365,10 @@ export default function ProjectEditPage() {
             </SimpleGrid>
 
             {formError && (
-              <Box
-                p={3}
-                borderWidth={1}
-                borderColor={"smu.orange"}
-                borderRadius={"md"}
-                bg={"#fff8ec"}
-              >
-                <Text color={"smu.orange"} fontSize={"sm"} fontWeight={"bold"}>
-                  {formError}
-                </Text>
-              </Box>
+              <StatusMessagePanel
+                title="요청을 처리하지 못했습니다."
+                description={formError}
+              />
             )}
 
             <HStack justifyContent={"flex-end"}>
