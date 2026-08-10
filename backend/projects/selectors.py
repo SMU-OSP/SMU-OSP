@@ -229,23 +229,27 @@ def list_memberships_for_user(
 def list_project_members(
     *,
     project_id: int,
+    manage: bool,
     status: str | None,
 ) -> list[Member]:
-    """프로젝트 멤버를 팀장 우선, 최신순으로 반환한다.
+    """조회 조건에 맞는 프로젝트 멤버를 반환한다.
 
-    상태가 지정되면 해당 상태의 멤버만 반환하고, 없으면 모든 멤버십 상태를
-    포함한다. 연관된 사용자도 함께 조회한다.
+    일반 조회는 참여 중인 멤버만 반환한다. 관리 조회는 요청한 상태가 없으면
+    모든 멤버십 상태를 포함한다. 접근 권한은 호출 전에 확인한다.
 
     Args:
         project_id: 멤버를 조회할 프로젝트 ID.
-        status: 조회할 멤버 상태. 없으면 모든 상태를 조회한다.
+        manage: 팀장용 관리 조회 여부.
+        status: 관리 조회에 적용할 멤버 상태.
 
     Returns:
         조회 기준에 맞는 프로젝트 멤버 목록.
+
     """
+    effective_status = status if manage else Member.Status.JOINED
     members = Member.objects.filter(project_id=project_id).select_related(
         "user"
     )
-    if status is not None:
-        members = members.filter(status=status)
+    if effective_status is not None:
+        members = members.filter(status=effective_status)
     return list(members.order_by("-is_leader", "-created_at", "-pk"))

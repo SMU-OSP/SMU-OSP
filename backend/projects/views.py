@@ -438,22 +438,19 @@ class ProjectMembers(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         query = query_form.to_query()
-        manage = query.manage
-
         try:
             require_project_access(
                 project_id=pk,
                 user_id=request.user.pk,
-                manage=manage,
+                manage=query.manage,
             )
         except ProjectPermissionDenied as error:
             return _project_permission_denied_response(error)
 
         members = list_project_members(
             project_id=pk,
-            status=(
-                query.status if manage else Member.Status.JOINED
-            ),
+            manage=query.manage,
+            status=query.status,
         )
 
         return Response(
