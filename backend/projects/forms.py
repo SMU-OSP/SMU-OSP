@@ -5,7 +5,6 @@ from django import forms
 
 from .models import Member, Project
 
-
 TRUE_QUERY_VALUES = {"1", "true"}
 FALSE_QUERY_VALUES = {"0", "false"}
 PROJECT_FILTER_STATUSES = {

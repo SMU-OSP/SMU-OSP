@@ -425,7 +425,8 @@ class ProjectDetailSerializer(ProjectSerializer):
     members = serializers.SerializerMethodField()
 
     class Meta(ProjectSerializer.Meta):
-        fields = ProjectSerializer.Meta.fields + (
+        fields = (
+            *ProjectSerializer.Meta.fields,
             "memberCount",
             "canViewMembers",
             "canEdit",
