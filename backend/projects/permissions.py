@@ -23,7 +23,6 @@ def require_project_leader(
         denied_message: 권한이 없을 때 사용자에게 반환할 메시지.
 
     Raises:
-        Project.DoesNotExist: 프로젝트가 존재하지 않는 경우.
         ProjectPermissionDenied: 요청자가 프로젝트 팀장이 아닌 경우.
     """
     is_leader = Member.objects.filter(
@@ -32,11 +31,8 @@ def require_project_leader(
         status=Member.Status.JOINED,
         is_leader=True,
     ).exists()
-    if is_leader:
-        return
-    if not Project.objects.filter(pk=project_id).exists():
-        raise Project.DoesNotExist
-    raise ProjectPermissionDenied(denied_message)
+    if not is_leader:
+        raise ProjectPermissionDenied(denied_message)
 
 
 def require_project_member_access(

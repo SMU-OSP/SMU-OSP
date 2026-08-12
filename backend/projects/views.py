@@ -249,6 +249,8 @@ class ProjectDetail(APIView):
     @api_login_required
     def put(self, request, pk):
         try:
+            if not Project.objects.filter(pk=pk).exists():
+                raise Project.DoesNotExist
             require_project_leader(
                 project_id=pk,
                 user_id=request.user.pk,
@@ -348,6 +350,8 @@ class ProjectDetail(APIView):
     @api_login_required
     def delete(self, request, pk):
         try:
+            if not Project.objects.filter(pk=pk).exists():
+                raise Project.DoesNotExist
             require_project_leader(
                 project_id=pk,
                 user_id=request.user.pk,
@@ -549,24 +553,30 @@ class ProjectMembers(APIView):
 class ProjectMemberDetail(APIView):
     @api_login_required
     def put(self, request, pk, member_id):
-        serializer = ProjectMemberUpdateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                fail(
-                    "INVALID_MEMBER_INPUT",
-                    first_serializer_error(serializer.errors),
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
+        try:
+            if not Project.objects.filter(pk=pk).exists():
+                raise Project.DoesNotExist
+            require_project_leader(
+                project_id=pk,
+                user_id=request.user.pk,
+                denied_message="프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
             )
 
-        next_status = serializer.validated_data["status"]
-        try:
+            serializer = ProjectMemberUpdateSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(
+                    fail(
+                        "INVALID_MEMBER_INPUT",
+                        first_serializer_error(serializer.errors),
+                        status.HTTP_400_BAD_REQUEST,
+                    ),
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             change_project_member_status(
-                actor=request.user,
                 project_id=pk,
                 member_id=member_id,
-                next_status=next_status,
+                next_status=serializer.validated_data["status"],
                 description=serializer.validated_data.get("description"),
                 update_description="description" in serializer.validated_data,
             )
