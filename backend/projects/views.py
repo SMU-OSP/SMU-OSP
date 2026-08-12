@@ -590,7 +590,6 @@ class ProjectMemberDetail(APIView):
 
                 member = (
                     Member.objects.select_for_update()
-                    .select_related("user")
                     .get(project_id=pk, pk=member_id, is_leader=False)
                 )
                 member.project = project
