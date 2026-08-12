@@ -395,6 +395,7 @@ function ExternalTextLink({
   );
 }
 
+/** 프로젝트 상세 정보와 사용자 권한별 동작을 표시합니다. */
 export default function ProjectDetailPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
