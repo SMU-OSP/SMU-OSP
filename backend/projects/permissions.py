@@ -11,38 +11,63 @@ class ProjectPermissionDenied(PermissionDenied):
 
 def require_project_leader(
     *,
-    actor_is_leader: bool,
+    project_id: int,
+    user_id: int,
     denied_message: str,
 ) -> None:
-    """조회된 팀장 권한 결과를 검사한다.
+    """사용자의 프로젝트 팀장 권한을 확인한다.
 
     Args:
-        actor_is_leader: 요청자가 참여 중인 프로젝트 팀장인지 여부.
+        project_id: 권한을 확인할 프로젝트 ID.
+        user_id: 요청 사용자 ID.
         denied_message: 권한이 없을 때 사용자에게 반환할 메시지.
 
     Raises:
+        Project.DoesNotExist: 프로젝트가 존재하지 않는 경우.
         ProjectPermissionDenied: 요청자가 프로젝트 팀장이 아닌 경우.
     """
-    if not actor_is_leader:
-        raise ProjectPermissionDenied(denied_message)
+    is_leader = Member.objects.filter(
+        project_id=project_id,
+        user_id=user_id,
+        status=Member.Status.JOINED,
+        is_leader=True,
+    ).exists()
+    if is_leader:
+        return
+    if not Project.objects.filter(pk=project_id).exists():
+        raise Project.DoesNotExist
+    raise ProjectPermissionDenied(denied_message)
 
 
 def require_project_member_access(
     *,
-    member: Member | None,
+    project_id: int,
+    user_id: int,
     manage: bool,
 ) -> None:
     """프로젝트 멤버 목록 조회 권한을 확인한다.
 
     Args:
-        member: 요청자의 참여 중인 프로젝트 멤버십.
-        manage: 전체 멤버십 관리 목록을 요청하는지 여부.
+        project_id: 권한을 확인할 프로젝트 ID.
+        user_id: 요청 사용자 ID.
+        manage: 멤버 관리 목록을 요청하는지 여부.
 
     Raises:
-        ProjectPermissionDenied: 참여 중이 아니거나 관리 요청자가 팀장이
-            아닌 경우.
+        ProjectPermissionDenied: 멤버 조회 권한이 없는 경우.
     """
-    if member is None or (manage and not member.is_leader):
+    memberships = Member.objects.filter(
+        project_id=project_id,
+        project__status__in=(
+            Project.Status.ACTIVE,
+            Project.Status.INACTIVE,
+            Project.Status.FINISHED,
+        ),
+        user_id=user_id,
+        status=Member.Status.JOINED,
+    )
+    if manage:
+        memberships = memberships.filter(is_leader=True)
+    if not memberships.exists():
         raise ProjectPermissionDenied("프로젝트 멤버 조회 권한이 없습니다.")
 
 

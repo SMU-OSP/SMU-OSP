@@ -1045,6 +1045,24 @@ class ProjectApiTests(TestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.project.name, "SOSP")
 
+    def test_project_update_and_delete_require_login(self):
+        update_response = self.client.put(
+            f"/api/v1/projects/{self.project.pk}",
+            data=self.project_update_payload(name="익명 수정"),
+            content_type="application/json",
+        )
+        delete_response = self.client.delete(
+            f"/api/v1/projects/{self.project.pk}"
+        )
+
+        for response in (update_response, delete_response):
+            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.json()["status"], "PERMISSION_DENIED")
+            self.assertEqual(
+                response.json()["detail"]["message"],
+                "로그인이 필요합니다.",
+            )
+
     def test_anonymous_user_cannot_use_orphaned_leader_membership(self):
         Member.objects.create(
             project=self.project,

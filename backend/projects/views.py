@@ -23,8 +23,6 @@ from .permissions import (
     require_project_member_access,
 )
 from .selectors import (
-    get_actor_is_project_leader,
-    get_joined_project_member,
     get_project_detail,
     list_memberships_for_user,
     list_project_members,
@@ -43,6 +41,7 @@ from .serializers import (
 from .services import (
     ProjectCreationError,
     RepositoryRegistrationError,
+    change_project_member_status,
     create_project,
     prepare_project_repository_update,
     update_project_repository,
@@ -247,17 +246,12 @@ class ProjectDetail(APIView):
         )
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
+    @api_login_required
     def put(self, request, pk):
         try:
             require_project_leader(
-                actor_is_leader=get_actor_is_project_leader(
-                    project_id=pk,
-                    user_id=(
-                        request.user.pk
-                        if request.user.is_authenticated
-                        else None
-                    ),
-                ),
+                project_id=pk,
+                user_id=request.user.pk,
                 denied_message="프로젝트 팀장만 수정할 수 있습니다.",
             )
 
@@ -351,17 +345,12 @@ class ProjectDetail(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @api_login_required
     def delete(self, request, pk):
         try:
             require_project_leader(
-                actor_is_leader=get_actor_is_project_leader(
-                    project_id=pk,
-                    user_id=(
-                        request.user.pk
-                        if request.user.is_authenticated
-                        else None
-                    ),
-                ),
+                project_id=pk,
+                user_id=request.user.pk,
                 denied_message="프로젝트 팀장만 삭제할 수 있습니다.",
             )
             with transaction.atomic():
@@ -425,13 +414,10 @@ class ProjectMembers(APIView):
             )
         manage = query_form.to_query().manage
 
-        requester = get_joined_project_member(
-            project_id=pk,
-            user_id=request.user.pk,
-        )
         try:
             require_project_member_access(
-                member=requester,
+                project_id=pk,
+                user_id=request.user.pk,
                 manage=manage,
             )
         except ProjectPermissionDenied as error:
@@ -576,32 +562,14 @@ class ProjectMemberDetail(APIView):
 
         next_status = serializer.validated_data["status"]
         try:
-            require_project_leader(
-                actor_is_leader=get_actor_is_project_leader(
-                    project_id=pk,
-                    user_id=request.user.pk,
-                ),
-                denied_message=(
-                    "프로젝트 리더만 멤버 상태를 변경할 수 있습니다."
-                ),
+            change_project_member_status(
+                actor=request.user,
+                project_id=pk,
+                member_id=member_id,
+                next_status=next_status,
+                description=serializer.validated_data.get("description"),
+                update_description="description" in serializer.validated_data,
             )
-            with transaction.atomic():
-                project = Project.objects.select_for_update().get(pk=pk)
-
-                member = (
-                    Member.objects.select_for_update()
-                    .get(project_id=pk, pk=member_id, is_leader=False)
-                )
-                member.project = project
-                member.transition_to(
-                    next_status,
-                    description=serializer.validated_data.get("description"),
-                    update_description="description" in serializer.validated_data,
-                    require_description=next_status == Member.Status.LEFT,
-                )
-                member.save(
-                    update_fields=("status", "description", "joined_at", "updated_at")
-                )
         except Project.DoesNotExist:
             return Response(
                 fail(

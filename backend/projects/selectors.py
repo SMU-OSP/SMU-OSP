@@ -211,40 +211,6 @@ def get_joined_project_member(
     )
 
 
-def get_actor_is_project_leader(
-    *,
-    project_id: int,
-    user_id: int | None,
-) -> bool:
-    """프로젝트 존재 여부와 요청자의 팀장 멤버십을 함께 조회한다.
-
-    Args:
-        project_id: 권한을 확인할 프로젝트 ID.
-        user_id: 요청 사용자 ID. 익명 사용자이면 None.
-
-    Returns:
-        요청자가 참여 중인 프로젝트 팀장이면 True, 아니면 False.
-
-    Raises:
-        Project.DoesNotExist: 프로젝트가 존재하지 않는 경우.
-    """
-    leader_memberships = Member.objects.none()
-    if user_id is not None:
-        leader_memberships = Member.objects.filter(
-            project_id=OuterRef("pk"),
-            user_id=user_id,
-            status=Member.Status.JOINED,
-            is_leader=True,
-        )
-    return (
-        Project.objects.annotate(
-            actor_is_leader=Exists(leader_memberships)
-        )
-        .values_list("actor_is_leader", flat=True)
-        .get(pk=project_id)
-    )
-
-
 def list_project_members(
     *,
     project_id: int,
