@@ -1,8 +1,7 @@
 from dataclasses import asdict
 
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
@@ -10,18 +9,33 @@ from rest_framework.views import APIView
 
 from common.authentication import api_login_required
 from common.responses import fail, success
+
 from .forms import ProjectListQueryForm, ProjectMemberQueryForm
 from .models import (
     Member,
     Project,
     ProjectLanguage,
 )
+from .permissions import (
+    ProjectPermissionDenied,
+    can_edit_project,
+    require_project_leader,
+    require_project_member_access,
+)
+from .selectors import (
+    get_actor_is_project_leader,
+    get_joined_project_member,
+    get_project_detail,
+    list_memberships_for_user,
+    list_project_members,
+    list_projects,
+)
 from .serializers import (
     ProjectCreateSerializer,
     ProjectDetailSerializer,
     ProjectMemberDescriptionSerializer,
-    ProjectMembershipHistorySerializer,
     ProjectMemberSerializer,
+    ProjectMembershipHistorySerializer,
     ProjectMemberUpdateSerializer,
     ProjectSerializer,
     ProjectUpdateSerializer,
@@ -33,17 +47,23 @@ from .services import (
     prepare_project_repository_update,
     update_project_repository,
 )
-from .selectors import (
-    get_joined_project_member,
-    get_project_detail,
-    list_memberships_for_user,
-    list_project_members,
-    list_projects,
-)
 
 PROJECT_NOT_FOUND_MESSAGE = (
     "요청한 프로젝트가 없거나 삭제되었을 수 있습니다."
 )
+
+
+def _project_permission_denied_response(
+    error: ProjectPermissionDenied,
+) -> Response:
+    return Response(
+        fail(
+            "PERMISSION_DENIED",
+            str(error),
+            status.HTTP_403_FORBIDDEN,
+        ),
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 def _prepare_projects_for_serialization(projects: list[Project]) -> None:
@@ -211,7 +231,11 @@ class ProjectDetail(APIView):
             [current_member] if current_member is not None else []
         )
         can_view_members = current_member is not None
-        can_edit = project.can_be_edited_by(current_member)
+        can_edit = (
+            can_edit_project(project=project, member=current_member)
+            if current_member is not None
+            else False
+        )
 
         _prepare_projects_for_serialization([project])
         serializer = ProjectDetailSerializer(
@@ -224,31 +248,29 @@ class ProjectDetail(APIView):
         return Response(success(serializer.data), status=status.HTTP_200_OK)
 
     def put(self, request, pk):
-        leader_members = Member.objects.filter(
-            project=OuterRef("pk"),
-            user_id=request.user.pk if request.user.is_authenticated else -1,
-            status=Member.Status.JOINED,
-            is_leader=True,
-        )
         try:
-            project = (
-                Project.objects.select_related("repository")
-                .annotate(is_leader=Exists(leader_members))
-                .get(pk=pk)
+            require_project_leader(
+                actor_is_leader=get_actor_is_project_leader(
+                    project_id=pk,
+                    user_id=(
+                        request.user.pk
+                        if request.user.is_authenticated
+                        else None
+                    ),
+                ),
+                denied_message="프로젝트 팀장만 수정할 수 있습니다.",
             )
-            if not project.is_leader:
-                raise PermissionDenied
 
             serializer = ProjectUpdateSerializer(
-                project,
                 data=request.data,
+                context={"project_id": pk},
             )
             serializer.is_valid(raise_exception=True)
             data = serializer.validated_data
             repository_url = data.get("repository_url")
             languages = data["languages"]
             repository_data = prepare_project_repository_update(
-                project,
+                pk,
                 repository_url,
             )
 
@@ -256,12 +278,8 @@ class ProjectDetail(APIView):
                 project = (
                     Project.objects.select_for_update()
                     .select_related("repository")
-                    .annotate(is_leader=Exists(leader_members))
                     .get(pk=pk)
                 )
-
-                if not project.is_leader:
-                    raise PermissionDenied
 
                 previous_project_status = project.status
                 for field in (
@@ -289,15 +307,8 @@ class ProjectDetail(APIView):
                 ),
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except PermissionDenied:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 팀장만 수정할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        except ProjectPermissionDenied as error:
+            return _project_permission_denied_response(error)
         except DRFValidationError as error:
             return Response(
                 fail(
@@ -341,22 +352,20 @@ class ProjectDetail(APIView):
         )
 
     def delete(self, request, pk):
-        leader_members = Member.objects.filter(
-            project=OuterRef("pk"),
-            user_id=request.user.pk if request.user.is_authenticated else -1,
-            status=Member.Status.JOINED,
-            is_leader=True,
-        )
         try:
+            require_project_leader(
+                actor_is_leader=get_actor_is_project_leader(
+                    project_id=pk,
+                    user_id=(
+                        request.user.pk
+                        if request.user.is_authenticated
+                        else None
+                    ),
+                ),
+                denied_message="프로젝트 팀장만 삭제할 수 있습니다.",
+            )
             with transaction.atomic():
-                project = (
-                    Project.objects.select_for_update()
-                    .annotate(is_leader=Exists(leader_members))
-                    .get(pk=pk)
-                )
-
-                if not project.is_leader:
-                    raise PermissionDenied
+                project = Project.objects.select_for_update().get(pk=pk)
 
                 project.set_status(Project.Status.DELETED)
                 project.save(update_fields=("status", "updated_at"))
@@ -369,15 +378,8 @@ class ProjectDetail(APIView):
                 ),
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except PermissionDenied:
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 팀장만 삭제할 수 있습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        except ProjectPermissionDenied as error:
+            return _project_permission_denied_response(error)
         except ValueError as error:
             return Response(
                 fail(
@@ -427,15 +429,13 @@ class ProjectMembers(APIView):
             project_id=pk,
             user_id=request.user.pk,
         )
-        if requester is None or (manage and not requester.is_leader):
-            return Response(
-                fail(
-                    "PERMISSION_DENIED",
-                    "프로젝트 멤버 조회 권한이 없습니다.",
-                    status.HTTP_403_FORBIDDEN,
-                ),
-                status=status.HTTP_403_FORBIDDEN,
+        try:
+            require_project_member_access(
+                member=requester,
+                manage=manage,
             )
+        except ProjectPermissionDenied as error:
+            return _project_permission_denied_response(error)
 
         members = list_project_members(
             project_id=pk,
@@ -563,13 +563,6 @@ class ProjectMembers(APIView):
 class ProjectMemberDetail(APIView):
     @api_login_required
     def put(self, request, pk, member_id):
-        leader_members = Member.objects.filter(
-            project=OuterRef("pk"),
-            user=request.user,
-            is_leader=True,
-            status=Member.Status.JOINED,
-        )
-
         serializer = ProjectMemberUpdateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
@@ -583,17 +576,17 @@ class ProjectMemberDetail(APIView):
 
         next_status = serializer.validated_data["status"]
         try:
+            require_project_leader(
+                actor_is_leader=get_actor_is_project_leader(
+                    project_id=pk,
+                    user_id=request.user.pk,
+                ),
+                denied_message=(
+                    "프로젝트 리더만 멤버 상태를 변경할 수 있습니다."
+                ),
+            )
             with transaction.atomic():
-                project = (
-                    Project.objects.select_for_update()
-                    .annotate(is_leader=Exists(leader_members))
-                    .get(pk=pk)
-                )
-                if not project.is_leader:
-                    raise ValidationError(
-                        "프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
-                        code="leader_required",
-                    )
+                project = Project.objects.select_for_update().get(pk=pk)
 
                 member = (
                     Member.objects.select_for_update()
@@ -628,24 +621,20 @@ class ProjectMemberDetail(APIView):
                 ),
                 status=status.HTTP_404_NOT_FOUND,
             )
+        except ProjectPermissionDenied as error:
+            return _project_permission_denied_response(error)
         except ValidationError as error:
             response_status = {
-                "leader_required": "PERMISSION_DENIED",
                 "project_capacity_reached": "PROJECT_CAPACITY_REACHED",
                 "member_description_required": "INVALID_MEMBER_INPUT",
             }.get(error.code, "INVALID_MEMBER_STATUS")
-            response_code = (
-                status.HTTP_403_FORBIDDEN
-                if response_status == "PERMISSION_DENIED"
-                else status.HTTP_400_BAD_REQUEST
-            )
             return Response(
                 fail(
                     response_status,
                     error.message,
-                    response_code,
+                    status.HTTP_400_BAD_REQUEST,
                 ),
-                status=response_code,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(success(None), status=status.HTTP_200_OK)

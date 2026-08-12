@@ -111,10 +111,10 @@ def prepare_repository_registration(
 
 
 def prepare_project_repository_update(
-    project: Project,
+    project_id: int,
     repository_url: str | None,
 ) -> GitHubRepositoryIdentity | None:
-    repository = getattr(project, "repository", None)
+    repository = Repository.objects.filter(project_id=project_id).first()
     if repository is not None:
         if repository_url != repository.html_url:
             raise ValueError(REPOSITORY_CHANGE_NOT_ALLOWED_MESSAGE)

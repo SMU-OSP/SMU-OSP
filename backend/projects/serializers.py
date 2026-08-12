@@ -177,9 +177,10 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
             allow_newlines=False,
         )
         projects_with_same_name = Project.objects.filter(name=name)
-        if self.instance:
+        exclude_project_id = self.context.get("project_id")
+        if exclude_project_id is not None:
             projects_with_same_name = projects_with_same_name.exclude(
-                pk=self.instance.pk
+                pk=exclude_project_id
             )
         if projects_with_same_name.exists():
             raise serializers.ValidationError(
