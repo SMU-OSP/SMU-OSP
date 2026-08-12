@@ -183,34 +183,6 @@ def list_memberships_for_user(user_id: int) -> list[Member]:
     )
 
 
-def get_joined_project_member(
-    *,
-    project_id: int,
-    user_id: int,
-) -> Member | None:
-    """프로젝트에 참여 중인 사용자의 멤버십을 반환한다.
-
-    참여 중인 행이 여러 개라면 팀장 행을 우선하고, 그 외에는 가장 최근 행을
-    반환한다. 참여 중인 멤버십이 없으면 None을 반환한다.
-
-    Args:
-        project_id: 멤버십을 조회할 프로젝트 ID.
-        user_id: 멤버십을 조회할 사용자 ID.
-
-    Returns:
-        우선순위가 가장 높은 참여 중 멤버십 또는 None.
-    """
-    return (
-        Member.objects.filter(
-            project_id=project_id,
-            user_id=user_id,
-            status=Member.Status.JOINED,
-        )
-        .order_by("-is_leader", "-created_at", "-pk")
-        .first()
-    )
-
-
 def list_project_members(
     *,
     project_id: int,

@@ -57,11 +57,6 @@ def require_project_member_access(
     """
     memberships = Member.objects.filter(
         project_id=project_id,
-        project__status__in=(
-            Project.Status.ACTIVE,
-            Project.Status.INACTIVE,
-            Project.Status.FINISHED,
-        ),
         user_id=user_id,
         status=Member.Status.JOINED,
     )

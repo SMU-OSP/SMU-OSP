@@ -68,13 +68,14 @@ def change_project_member_status(
         ProjectPermissionDenied: 요청자가 프로젝트 팀장이 아닌 경우.
         ValidationError: 허용되지 않는 상태 변경인 경우.
     """
+    require_project_leader(
+        project_id=project_id,
+        user_id=actor.pk,
+        denied_message="프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
+    )
+
     with transaction.atomic():
         project = Project.objects.select_for_update().get(pk=project_id)
-        require_project_leader(
-            project_id=project_id,
-            user_id=actor.pk,
-            denied_message="프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
-        )
         member = Member.objects.select_for_update().get(
             project_id=project_id,
             pk=member_id,
