@@ -553,6 +553,17 @@ class ProjectMembers(APIView):
 class ProjectMemberDetail(APIView):
     @api_login_required
     def put(self, request, pk, member_id):
+        serializer = ProjectMemberUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                fail(
+                    "INVALID_MEMBER_INPUT",
+                    first_serializer_error(serializer.errors),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             if not Project.objects.filter(pk=pk).exists():
                 raise Project.DoesNotExist
@@ -561,17 +572,6 @@ class ProjectMemberDetail(APIView):
                 user_id=request.user.pk,
                 denied_message="프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
             )
-
-            serializer = ProjectMemberUpdateSerializer(data=request.data)
-            if not serializer.is_valid():
-                return Response(
-                    fail(
-                        "INVALID_MEMBER_INPUT",
-                        first_serializer_error(serializer.errors),
-                        status.HTTP_400_BAD_REQUEST,
-                    ),
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
             change_project_member_status(
                 project_id=pk,
