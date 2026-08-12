@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { LuSearch } from "react-icons/lu";
+import { LuLayoutGrid, LuList, LuSearch } from "react-icons/lu";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import ProjectApplicationHistory from "../components/ProjectApplicationHistory";
 import ProjectCard, {
@@ -328,7 +328,7 @@ export default function ProjectListPage() {
           </Box>
         )}
 
-        <VStack alignItems={"stretch"} gap={5} flex={1} minWidth={0}>
+        <VStack alignItems={"stretch"} gap={3} flex={1} minWidth={0}>
           <Flex
             justifyContent={"space-between"}
             alignItems={{ base: "stretch", md: "center" }}
@@ -496,32 +496,56 @@ export default function ProjectListPage() {
               )}
             </Flex>
 
-            <HStack
-              p={1}
-              gap={1}
-              width={"fit-content"}
-              flexShrink={0}
-              borderRadius={"md"}
-              bg={"#f1f3f5"}
-            >
-              <Button
-                size={"sm"}
-                minW={"72px"}
-                variant={viewMode === "cards" ? "solid" : "ghost"}
-                onClick={() => setViewMode("cards")}
-              >
-                카드
-              </Button>
-              <Button
-                size={"sm"}
-                minW={"72px"}
-                variant={viewMode === "board" ? "solid" : "ghost"}
-                onClick={() => setViewMode("board")}
-              >
-                게시판
-              </Button>
-            </HStack>
           </Flex>
+
+          <HStack
+            px={1}
+            py={0.5}
+            gap={1}
+            width={"fit-content"}
+            alignSelf={"flex-end"}
+            borderRadius={"md"}
+            bg={"#f1f3f5"}
+          >
+            <Button
+              size={"sm"}
+              minW={"72px"}
+              height={"30px"}
+              px={2}
+              variant={"ghost"}
+              bg={viewMode === "cards" ? "smu.blue" : "transparent"}
+              color={viewMode === "cards" ? "white" : "smu.darkGray"}
+              _hover={{
+                bg: viewMode === "cards" ? "smu.blue" : "white",
+              }}
+              aria-label="카드 보기"
+              aria-pressed={viewMode === "cards"}
+              title="카드 보기"
+              onClick={() => setViewMode("cards")}
+            >
+              <LuLayoutGrid />
+              카드
+            </Button>
+            <Button
+              size={"sm"}
+              minW={"72px"}
+              height={"30px"}
+              px={2}
+              variant={"ghost"}
+              bg={viewMode === "board" ? "smu.blue" : "transparent"}
+              color={viewMode === "board" ? "white" : "smu.darkGray"}
+              _hover={{
+                bg: viewMode === "board" ? "smu.blue" : "white",
+              }}
+              aria-label="게시판 보기"
+              aria-pressed={viewMode === "board"}
+              title="게시판 보기"
+              onClick={() => setViewMode("board")}
+            >
+              <LuList />
+              게시판
+            </Button>
+          </HStack>
 
           {isLoading ? (
           <Box display={"flex"} justifyContent={"center"} p={10}>

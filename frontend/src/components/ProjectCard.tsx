@@ -1,6 +1,10 @@
 import { Box, HStack, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router-dom";
-import { PROJECT_STATUS_LABEL, Project } from "../types/project";
+import {
+  PROJECT_STATUS_LABEL,
+  PROJECT_STATUS_PILL_BG,
+  Project,
+} from "../types/project";
 import { formatDateKST } from "../utils/date";
 
 interface Props {
@@ -81,7 +85,7 @@ export default function ProjectCard({ project, showMembershipRole }: Props) {
             {showMembershipRole && (
               <MembershipRolePill role={project.membershipRole} />
             )}
-            <Pill bg={"smu.lightBlue"} color={"white"}>
+            <Pill bg={PROJECT_STATUS_PILL_BG[project.status]} color={"white"}>
               {PROJECT_STATUS_LABEL[project.status]}
             </Pill>
           </HStack>

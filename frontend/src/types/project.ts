@@ -101,6 +101,13 @@ export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
   DELETED: "삭제",
 };
 
+export const PROJECT_STATUS_PILL_BG: Record<ProjectStatus, string> = {
+  ACTIVE: "smu.lightBlue",
+  FINISHED: "green.500",
+  INACTIVE: "smu.smuGray",
+  DELETED: "smu.darkGray",
+};
+
 export const PROJECT_MEMBER_ROLE_LABEL: Record<ProjectMemberRole, string> = {
   LEADER: "팀장",
   MEMBER: "팀원",

@@ -50,6 +50,7 @@ import {
 import {
   PROJECT_MEMBER_ROLE_LABEL,
   PROJECT_STATUS_LABEL,
+  PROJECT_STATUS_PILL_BG,
 } from "../types/project";
 import type { ProjectDetailMember } from "../types/project";
 import { formatDateTimeKST } from "../utils/date";
@@ -746,6 +747,21 @@ export default function ProjectDetailPage() {
                       프로젝트 완료
                     </MenuItem>
                   )}
+                  {canReactivateProject && (
+                    <MenuItem
+                      value="reactivate"
+                      cursor="pointer"
+                      disabled={reactivateProjectMutation.isPending}
+                      onClick={() => {
+                        setRepositoryActionMessage("");
+                        reactivateProjectMutation.mutate();
+                      }}
+                    >
+                      {reactivateProjectMutation.isPending
+                        ? "활성화 중..."
+                        : "프로젝트 재활성화"}
+                    </MenuItem>
+                  )}
                   {canDeleteProject && (
                     <MenuItem
                       value="delete"
@@ -773,6 +789,18 @@ export default function ProjectDetailPage() {
             actions={
               <MessageCloseButton
                 onClick={() => setProjectActionMessage("")}
+              />
+            }
+          />
+        )}
+
+        {repositoryActionMessage && (
+          <StatusMessagePanel
+            role={repositoryActionFailed ? "alert" : "status"}
+            description={repositoryActionMessage}
+            actions={
+              <MessageCloseButton
+                onClick={() => setRepositoryActionMessage("")}
               />
             }
           />
@@ -875,17 +903,15 @@ export default function ProjectDetailPage() {
               <Text fontSize={"2xl"} fontWeight={"bold"} color={"smu.blue"}>
                 {project.name}
               </Text>
-              <Text color={"smu.darkGray"}>{project.description}</Text>
             </VStack>
             <VStack alignItems={"flex-end"} gap={1}>
-              <Pill bg={"smu.lightBlue"} color={"white"}>
+              <Pill bg={PROJECT_STATUS_PILL_BG[project.status]} color={"white"}>
                 {PROJECT_STATUS_LABEL[project.status]}
               </Pill>
             </VStack>
           </HStack>
 
-          <SimpleGrid columns={{ base: 1, md: 4 }} gap={3} mb={5}>
-            <Stat label="프로젝트 ID" value={`${project.id}`} />
+          <SimpleGrid columns={{ base: 1, md: 3 }} gap={3} mb={5}>
             <Stat label="팀원" value={`${project.memberCount}명`} />
             <Stat
               label="생성일"
@@ -981,36 +1007,7 @@ export default function ProjectDetailPage() {
             <Text fontSize={"lg"} fontWeight={"bold"} color={"smu.blue"}>
               Repository 결과물
             </Text>
-            <HStack gap={2} flexWrap={"wrap"}>
-              {canReactivateProject && (
-                <Button
-                  variant="outline"
-                  disabled={reactivateProjectMutation.isPending}
-                  onClick={() => {
-                    setRepositoryActionMessage("");
-                    reactivateProjectMutation.mutate();
-                  }}
-                >
-                  {reactivateProjectMutation.isPending
-                    ? "활성화 중..."
-                    : "프로젝트 다시 활성화"}
-                </Button>
-              )}
-            </HStack>
           </HStack>
-          {repositoryActionMessage && (
-            <Box mb={3}>
-              <StatusMessagePanel
-                role={repositoryActionFailed ? "alert" : "status"}
-                description={repositoryActionMessage}
-                actions={
-                  <MessageCloseButton
-                    onClick={() => setRepositoryActionMessage("")}
-                  />
-                }
-              />
-            </Box>
-          )}
           {isRepositoryCollectionPending && (
             <Box mb={3}>
               <StatusMessagePanel
@@ -1021,9 +1018,6 @@ export default function ProjectDetailPage() {
           )}
           {repositoryName && repositoryUrl ? (
             <VStack alignItems={"stretch"} gap={3}>
-              <Text fontSize={"sm"} color={"smu.darkGray"}>
-                DB에 저장된 Repository 캐시 정보를 기준으로 결과물을 확인합니다.
-              </Text>
               <Box
                 p={4}
                 borderWidth={1}
