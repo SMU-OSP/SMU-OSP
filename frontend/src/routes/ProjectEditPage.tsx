@@ -373,13 +373,6 @@ export default function ProjectEditPage() {
 
             <HStack justifyContent={"flex-end"}>
               <Button
-                variant={"outline"}
-                disabled={mutation.isPending}
-                onClick={() => navigate(`/projects/${id}`)}
-              >
-                취소
-              </Button>
-              <Button
                 bg={"smu.blue"}
                 loading={mutation.isPending}
                 onClick={handleSubmit}

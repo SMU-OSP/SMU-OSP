@@ -308,13 +308,6 @@ export default function ProjectCreatePage() {
 
             <HStack justifyContent={"flex-end"}>
               <Button
-                variant={"outline"}
-                disabled={mutation.isPending}
-                onClick={() => navigate("/projects")}
-              >
-                취소
-              </Button>
-              <Button
                 bg={"smu.blue"}
                 loading={mutation.isPending}
                 onClick={handleSubmit}
