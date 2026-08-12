@@ -343,15 +343,17 @@ export default function ProjectListPage() {
                 {scopeContent.description}
               </Text>
             </Box>
-            <RouterLink to="/projects/new" style={{ display: "block" }}>
-              <Button
-                size={"sm"}
-                bg={"smu.blue"}
-                width={{ base: "100%", md: "auto" }}
-              >
-                프로젝트 등록
-              </Button>
-            </RouterLink>
+            {!userLoading && isLoggedIn && (
+              <RouterLink to="/projects/new" style={{ display: "block" }}>
+                <Button
+                  size={"sm"}
+                  bg={"smu.blue"}
+                  width={{ base: "100%", md: "auto" }}
+                >
+                  프로젝트 등록
+                </Button>
+              </RouterLink>
+            )}
           </Flex>
 
           {projectScope === "applications" ? (
