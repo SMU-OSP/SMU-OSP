@@ -3,7 +3,6 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
-from django.db.models import Prefetch
 
 from projects.models import Project, RepositorySnapshot
 
@@ -12,6 +11,7 @@ from .models import (
     ProjectRankingRun,
     ProjectRankingWeight,
 )
+from .selectors import list_project_ranking_targets
 
 SCORE_QUANTUM = Decimal("0.01")
 
@@ -164,35 +164,7 @@ def calculate_project_rankings(period_end: date) -> ProjectRankingRun:
     """
     period_start = _one_year_before(period_end)
     weights, _ = ProjectRankingWeight.objects.get_or_create(pk=1)
-    snapshot_queryset = (
-        RepositorySnapshot.objects.filter(date__lte=period_end)
-        .only(
-            "repository_id",
-            "date",
-            "stars",
-            "forks",
-            "commits",
-            "pull_requests",
-            "has_code_changed",
-        )
-        .order_by("date", "pk")
-    )
-    projects = list(
-        Project.objects.filter(
-            status=Project.Status.ACTIVE,
-            repository__snapshots__date__lte=period_end,
-        )
-        .select_related("repository")
-        .only("id", "name", "repository__id")
-        .prefetch_related(
-            Prefetch(
-                "repository__snapshots",
-                queryset=snapshot_queryset,
-                to_attr="ranking_snapshots",
-            )
-        )
-        .distinct()
-    )
+    projects = list_project_ranking_targets(period_end)
     metrics = [
         _calculate_project_metrics(
             project,
