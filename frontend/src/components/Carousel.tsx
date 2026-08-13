@@ -21,7 +21,19 @@ const settings = {
   slidesToShow: 1,
   slidesToScroll: 1,
 };
-export default function Carousel({ posts }: { posts: IPost[] }) {
+/**
+ * 공지 배너를 자동 순환하는 캐러셀로 표시합니다.
+ * @param root0 컴포넌트 속성입니다.
+ * @param root0.posts 배너에 표시할 공지 목록입니다.
+ * @param root0.isLoading 배너 조회 중인지 여부입니다.
+ */
+export default function Carousel({
+  posts,
+  isLoading,
+}: {
+  posts: IPost[];
+  isLoading: boolean;
+}) {
   // As we have used custom buttons, we need a reference variable to
   // change the state
   const [slider, setSlider] = React.useState<Slider | null>(null);
@@ -30,7 +42,7 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
   // buttons as the screen size changes
   const top = useBreakpointValue({ base: "90%", md: "50%" });
   const side = useBreakpointValue({ base: "30%", md: "10px" });
-  const carouselHeight = useBreakpointValue({ base: "250px", md: "400px" });
+  const carouselHeight = useBreakpointValue({ base: "250px", md: "320px" });
 
   const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -43,8 +55,27 @@ export default function Carousel({ posts }: { posts: IPost[] }) {
 
   const [selectedPost, setSelectedPost] = useState<IPost | null>(null);
 
+  if (posts.length === 0) {
+    return (
+      <Box
+        height={carouselHeight}
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        borderWidth={1}
+        borderColor="smu.gray"
+        borderRadius="lg"
+        bg="#f6f7f9"
+        color="smu.darkGray"
+        fontSize="sm"
+      >
+        {isLoading ? "배너를 불러오는 중입니다." : "등록된 배너가 없습니다."}
+      </Box>
+    );
+  }
+
   return (
-    <Box position={"relative"} mt={"5px"} width={"80%"} maxW={"1000px"}>
+    <Box position={"relative"} width="100%" overflow="hidden" borderRadius="lg">
       {/* Left Icon */}
       <IconButton
         aria-label="left-arrow"
