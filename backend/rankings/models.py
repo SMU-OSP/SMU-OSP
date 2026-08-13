@@ -39,18 +39,6 @@ class ProjectRankingWeight(models.Model):
         default=WEIGHT_DEFAULT,
         validators=WEIGHT_VALIDATORS,
     )
-    active_days = models.DecimalField(
-        max_digits=20,
-        decimal_places=2,
-        default=WEIGHT_DEFAULT,
-        validators=WEIGHT_VALIDATORS,
-    )
-    max_streak = models.DecimalField(
-        max_digits=20,
-        decimal_places=2,
-        default=WEIGHT_DEFAULT,
-        validators=WEIGHT_VALIDATORS,
-    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
@@ -70,8 +58,6 @@ class ProjectRankingRun(models.Model):
         max_digits=20,
         decimal_places=2,
     )
-    active_days_weight = models.DecimalField(max_digits=20, decimal_places=2)
-    max_streak_weight = models.DecimalField(max_digits=20, decimal_places=2)
 
     def __str__(self) -> str:
         return f"{self.period_end} 프로젝트 랭킹"
@@ -96,9 +82,6 @@ class ProjectRankingResult(models.Model):
     forks = models.BigIntegerField()
     commits = models.BigIntegerField()
     pull_requests = models.BigIntegerField()
-    active_days = models.PositiveIntegerField()
-    max_streak = models.PositiveIntegerField()
-    current_streak = models.PositiveIntegerField()
     actual_period_start = models.DateField()
 
     class Meta:

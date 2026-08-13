@@ -101,9 +101,6 @@ export interface ProjectRanking {
     forks: number;
     commits: number;
     pullRequests: number;
-    activeDays: number;
-    maxStreak: number;
-    currentStreak: number;
 }
 
 export type ProjectRankingResponse = ApiSuccess<ProjectRanking[]>;

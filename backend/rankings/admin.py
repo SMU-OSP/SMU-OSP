@@ -14,8 +14,6 @@ class ProjectRankingWeightAdmin(admin.ModelAdmin):
         "forks",
         "commits",
         "pull_requests",
-        "active_days",
-        "max_streak",
         "updated_at",
     )
 
@@ -38,9 +36,6 @@ class ProjectRankingResultInline(admin.TabularInline):
         "forks",
         "commits",
         "pull_requests",
-        "active_days",
-        "max_streak",
-        "current_streak",
         "actual_period_start",
     )
 
@@ -59,8 +54,6 @@ class ProjectRankingRunAdmin(admin.ModelAdmin):
         "forks_weight",
         "commits_weight",
         "pull_requests_weight",
-        "active_days_weight",
-        "max_streak_weight",
     )
     inlines = (ProjectRankingResultInline,)
 

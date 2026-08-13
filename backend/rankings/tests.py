@@ -2,17 +2,32 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+from celery.exceptions import Retry
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from projects.models import Project, Repository, RepositorySnapshot
+from projects.models import (
+    Project,
+    Repository,
+    RepositorySnapshot,
+    RepositoryStatus,
+)
 
 from .models import (
     ProjectRankingResult,
     ProjectRankingRun,
     ProjectRankingWeight,
 )
+from .selectors import (
+    has_pending_project_ranking_refreshes,
+    list_project_ranking_targets,
+)
 from .services import calculate_project_rankings
+from .tasks import (
+    RANKING_MAX_RETRIES,
+    RANKING_RETRY_DELAY_SECONDS,
+    calculate_daily_project_rankings,
+)
 
 
 class ProjectRankingCalculationTests(TestCase):
@@ -85,10 +100,35 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.forks, 2)
         self.assertEqual(result.commits, 15)
         self.assertEqual(result.pull_requests, 4)
-        self.assertEqual(result.active_days, 3)
-        self.assertEqual(result.max_streak, 2)
-        self.assertEqual(result.current_streak, 1)
-        self.assertEqual(result.total_score, Decimal("31.00"))
+        self.assertEqual(result.total_score, Decimal("26.00"))
+
+    def test_loads_only_boundary_and_latest_snapshots(self):
+        repository = self.create_repository_project(name="기간 제한 프로젝트")
+        for snapshot_date in (
+            date(2024, 8, 13),
+            date(2025, 8, 12),
+            date(2026, 8, 12),
+            date(2026, 8, 13),
+        ):
+            self.create_snapshot(
+                repository,
+                snapshot_date,
+                stars=0,
+                forks=0,
+                commits=0,
+                pull_requests=0,
+                changed=False,
+            )
+
+        project = list_project_ranking_targets(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )[0]
+
+        self.assertEqual(
+            [snapshot.date for snapshot in project.repository.ranking_snapshots],
+            [date(2025, 8, 12), date(2026, 8, 13)],
+        )
 
     def test_uses_first_available_snapshot_for_short_history(self):
         repository = self.create_repository_project(name="신규 프로젝트")
@@ -117,8 +157,6 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.stars, 1)
         self.assertEqual(result.commits, 2)
         self.assertEqual(result.pull_requests, 1)
-        self.assertEqual(result.active_days, 2)
-        self.assertEqual(result.max_streak, 2)
 
     def test_excludes_projects_outside_ranking_scope(self):
         inactive = self.create_repository_project(
@@ -259,8 +297,6 @@ class ProjectRankingApiTests(TestCase):
             forks_weight=Decimal("1.00"),
             commits_weight=Decimal("1.00"),
             pull_requests_weight=Decimal("1.00"),
-            active_days_weight=Decimal("1.00"),
-            max_streak_weight=Decimal("1.00"),
         )
         ProjectRankingResult.objects.create(
             run=run,
@@ -271,9 +307,6 @@ class ProjectRankingApiTests(TestCase):
             forks=1,
             commits=3,
             pull_requests=1,
-            active_days=4,
-            max_streak=2,
-            current_streak=1,
             actual_period_start=date(2025, 8, 13),
         )
 
@@ -293,3 +326,79 @@ class ProjectRankingApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"], [])
         self.assertIsNone(response.json()["detail"])
+
+
+class ProjectRankingTaskTests(TestCase):
+    def test_only_active_project_pending_refresh_blocks_ranking(self):
+        for status in (Project.Status.ACTIVE, Project.Status.INACTIVE):
+            project = Project.objects.create(
+                name=f"{status} 프로젝트",
+                description="수집 상태 확인 프로젝트",
+                status=status,
+            )
+            repository = Repository.objects.create(
+                project=project,
+                github_id=project.pk,
+                name=f"repository-{project.pk}",
+                full_name=f"example/repository-{project.pk}",
+                html_url=f"https://github.com/example/repository-{project.pk}",
+            )
+            RepositoryStatus.objects.create(
+                repository=repository,
+                last_status_code="PENDING",
+            )
+
+        self.assertTrue(has_pending_project_ranking_refreshes())
+        Project.objects.filter(status=Project.Status.ACTIVE).update(
+            status=Project.Status.INACTIVE
+        )
+        self.assertFalse(has_pending_project_ranking_refreshes())
+
+    @patch("rankings.tasks.calculate_project_rankings")
+    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
+    def test_retries_while_repository_refresh_is_pending(
+        self,
+        has_pending_refreshes,
+        calculate_rankings,
+    ):
+        has_pending_refreshes.return_value = True
+
+        with (
+            patch.object(
+                calculate_daily_project_rankings,
+                "retry",
+                side_effect=Retry(),
+            ) as retry,
+            self.assertRaises(Retry),
+        ):
+            calculate_daily_project_rankings.run(period_end="2026-08-13")
+
+        retry.assert_called_once_with(countdown=RANKING_RETRY_DELAY_SECONDS)
+        calculate_rankings.assert_not_called()
+
+    @patch("rankings.tasks.calculate_project_rankings")
+    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
+    def test_calculates_when_repository_refresh_is_complete(
+        self,
+        has_pending_refreshes,
+        calculate_rankings,
+    ):
+        has_pending_refreshes.return_value = False
+        calculate_rankings.return_value.pk = 17
+
+        run_id = calculate_daily_project_rankings.run(
+            period_end="2026-08-13"
+        )
+
+        self.assertEqual(run_id, 17)
+        calculate_rankings.assert_called_once_with(date(2026, 8, 13))
+
+    def test_retry_policy_is_limited_to_two_hours(self):
+        self.assertEqual(
+            calculate_daily_project_rankings.max_retries,
+            RANKING_MAX_RETRIES,
+        )
+        self.assertEqual(
+            RANKING_RETRY_DELAY_SECONDS * RANKING_MAX_RETRIES,
+            2 * 60 * 60,
+        )

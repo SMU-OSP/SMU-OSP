@@ -14,9 +14,6 @@ class ProjectRankingResultSerializer(serializers.ModelSerializer):
         decimal_places=2,
     )
     pullRequests = serializers.IntegerField(source="pull_requests")
-    activeDays = serializers.IntegerField(source="active_days")
-    maxStreak = serializers.IntegerField(source="max_streak")
-    currentStreak = serializers.IntegerField(source="current_streak")
 
     class Meta:
         model = ProjectRankingResult
@@ -29,7 +26,4 @@ class ProjectRankingResultSerializer(serializers.ModelSerializer):
             "forks",
             "commits",
             "pullRequests",
-            "activeDays",
-            "maxStreak",
-            "currentStreak",
         )

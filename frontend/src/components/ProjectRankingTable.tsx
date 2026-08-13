@@ -44,7 +44,7 @@ export default function ProjectRankingTable({
 
     return (
         <Box mt={4} overflowX="auto">
-            <Table.Root minW="1040px">
+            <Table.Root minW="760px">
                 <Table.Header>
                     <Table.Row>
                         <Table.ColumnHeader>순위</Table.ColumnHeader>
@@ -54,9 +54,6 @@ export default function ProjectRankingTable({
                         <Table.ColumnHeader textAlign="right">Fork</Table.ColumnHeader>
                         <Table.ColumnHeader textAlign="right">Commit</Table.ColumnHeader>
                         <Table.ColumnHeader textAlign="right">PR</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">활동일</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">최장 스트릭</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">현재 스트릭</Table.ColumnHeader>
                     </Table.Row>
                 </Table.Header>
                 <Table.Body>
@@ -82,9 +79,6 @@ export default function ProjectRankingTable({
                             <Table.Cell textAlign="right">{result.forks}</Table.Cell>
                             <Table.Cell textAlign="right">{result.commits}</Table.Cell>
                             <Table.Cell textAlign="right">{result.pullRequests}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.activeDays}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.maxStreak}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.currentStreak}</Table.Cell>
                         </Table.Row>
                     ))}
                 </Table.Body>
