@@ -19,8 +19,8 @@ from .models import (
 from .permissions import (
     ProjectPermissionDenied,
     can_edit_project,
+    require_project_access,
     require_project_leader,
-    require_project_member_access,
 )
 from .selectors import (
     get_project_detail,
@@ -254,7 +254,6 @@ class ProjectDetail(APIView):
             require_project_leader(
                 project_id=pk,
                 user_id=request.user.pk,
-                denied_message="프로젝트 팀장만 수정할 수 있습니다.",
             )
 
             serializer = ProjectUpdateSerializer(
@@ -355,7 +354,6 @@ class ProjectDetail(APIView):
             require_project_leader(
                 project_id=pk,
                 user_id=request.user.pk,
-                denied_message="프로젝트 팀장만 삭제할 수 있습니다.",
             )
             with transaction.atomic():
                 project = Project.objects.select_for_update().get(pk=pk)
@@ -419,7 +417,7 @@ class ProjectMembers(APIView):
         manage = query_form.to_query().manage
 
         try:
-            require_project_member_access(
+            require_project_access(
                 project_id=pk,
                 user_id=request.user.pk,
                 manage=manage,
@@ -570,7 +568,6 @@ class ProjectMemberDetail(APIView):
             require_project_leader(
                 project_id=pk,
                 user_id=request.user.pk,
-                denied_message="프로젝트 리더만 멤버 상태를 변경할 수 있습니다.",
             )
 
             change_project_member_status(
