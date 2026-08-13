@@ -54,6 +54,7 @@ CUSTOM_APPS = [
     "posts.apps.PostsConfig",
     "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
+    "rankings.apps.RankingsConfig",
 ]
 
 SYSTEM_APPS = [
@@ -205,6 +206,10 @@ CELERY_BEAT_SCHEDULE = {
     "repository-refresh": {
         "task": "projects.tasks.enqueue_daily_repository_refreshes",
         "schedule": crontab(minute="10", hour="0,1,2"),
+    },
+    "project-ranking": {
+        "task": "rankings.tasks.calculate_daily_project_rankings",
+        "schedule": crontab(minute="10", hour="3"),
     },
 }
 
