@@ -1,7 +1,12 @@
 import Cookie from "js-cookie";
 import axios from "axios";
 import { ILogin, IUser } from "./types";
-import { ProjectInput, ProjectMemberUpdateInput, ProjectUpdateInput } from "./types/project";
+import type {
+    ProjectInput,
+    ProjectMemberUpdateInput,
+    ProjectRankingResponse,
+    ProjectUpdateInput,
+} from "./types/project";
 
 const instance = axios.create({
     baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
@@ -97,6 +102,13 @@ export const getProject = (id: string | number) =>
 
 export const getProjectLanguages = () =>
     instance.get("projects/languages").then((response) => response.data);
+
+/**
+ * 마지막으로 정상 계산된 1년 프로젝트 랭킹을 조회합니다.
+ * @returns 프로젝트 랭킹 API 응답
+ */
+export const getProjectRankings = () =>
+    instance.get<ProjectRankingResponse>("rankings/projects").then((response) => response.data);
 
 export const getProjectMemberships = () =>
     instance.get("projects/members").then((response) => response.data);
