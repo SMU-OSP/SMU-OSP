@@ -91,7 +91,7 @@ export interface ProjectUpdateInput extends ProjectInput {
     status: "ACTIVE" | "FINISHED";
 }
 
-/** 프로젝트 한 건의 1년 활동 랭킹 결과입니다. */
+/** 프로젝트 한 건의 1년 GitHub 지표 랭킹 결과입니다. */
 export interface ProjectRanking {
     rank: number;
     projectId: number;

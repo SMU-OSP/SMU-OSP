@@ -18,7 +18,7 @@ SCORE_QUANTUM = Decimal("0.01")
 
 @dataclass(frozen=True)
 class ProjectRankingMetrics:
-    """한 프로젝트의 랭킹 계산에 필요한 기간 활동 지표."""
+    """한 프로젝트의 4대 랭킹 지표와 총점."""
 
     project: Project
     actual_period_start: date

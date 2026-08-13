@@ -59,7 +59,6 @@ class ProjectRankingCalculationTests(TestCase):
         forks: int,
         commits: int,
         pull_requests: int,
-        changed: bool,
     ) -> None:
         RepositorySnapshot.objects.create(
             repository=repository,
@@ -68,17 +67,17 @@ class ProjectRankingCalculationTests(TestCase):
             forks=forks,
             commits=commits,
             pull_requests=pull_requests,
-            has_code_changed=changed,
+            has_code_changed=False,
         )
 
-    def test_calculates_deltas_activity_and_streaks(self):
+    def test_calculates_four_metric_deltas(self):
         repository = self.create_repository_project(name="계산 프로젝트")
         snapshots = (
-            (date(2025, 8, 13), 10, 2, 20, 3, False),
-            (date(2026, 8, 10), 12, 3, 25, 5, True),
-            (date(2026, 8, 11), 13, 3, 26, 5, True),
-            (date(2026, 8, 12), 14, 4, 30, 6, False),
-            (date(2026, 8, 13), 15, 4, 35, 7, True),
+            (date(2025, 8, 13), 10, 2, 20, 3),
+            (date(2026, 8, 10), 12, 3, 25, 5),
+            (date(2026, 8, 11), 13, 3, 26, 5),
+            (date(2026, 8, 12), 14, 4, 30, 6),
+            (date(2026, 8, 13), 15, 4, 35, 7),
         )
         for snapshot in snapshots:
             self.create_snapshot(
@@ -88,7 +87,6 @@ class ProjectRankingCalculationTests(TestCase):
                 forks=snapshot[2],
                 commits=snapshot[3],
                 pull_requests=snapshot[4],
-                changed=snapshot[5],
             )
 
         run = calculate_project_rankings(date(2026, 8, 13))
@@ -117,7 +115,6 @@ class ProjectRankingCalculationTests(TestCase):
                 forks=0,
                 commits=0,
                 pull_requests=0,
-                changed=False,
             )
 
         project = list_project_ranking_targets(
@@ -139,7 +136,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=2,
             commits=5,
             pull_requests=1,
-            changed=True,
         )
         self.create_snapshot(
             repository,
@@ -148,7 +144,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=2,
             commits=7,
             pull_requests=2,
-            changed=True,
         )
 
         result = calculate_project_rankings(date(2026, 8, 13)).results.get()
@@ -173,7 +168,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=1,
             commits=1,
             pull_requests=1,
-            changed=True,
         )
 
         run = calculate_project_rankings(date(2026, 8, 13))
@@ -197,7 +191,6 @@ class ProjectRankingCalculationTests(TestCase):
                 forks=0,
                 commits=0,
                 pull_requests=0,
-                changed=False,
             )
             self.create_snapshot(
                 repository,
@@ -206,7 +199,6 @@ class ProjectRankingCalculationTests(TestCase):
                 forks=0,
                 commits=0,
                 pull_requests=0,
-                changed=False,
             )
 
         results = list(
@@ -233,7 +225,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=0,
             commits=0,
             pull_requests=0,
-            changed=False,
         )
         self.create_snapshot(
             repository,
@@ -242,7 +233,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=0,
             commits=2,
             pull_requests=0,
-            changed=False,
         )
 
         run = calculate_project_rankings(date(2026, 8, 13))
@@ -260,7 +250,6 @@ class ProjectRankingCalculationTests(TestCase):
             forks=0,
             commits=0,
             pull_requests=0,
-            changed=False,
         )
         successful_run = calculate_project_rankings(date(2026, 8, 13))
 

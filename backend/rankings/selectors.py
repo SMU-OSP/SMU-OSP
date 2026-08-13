@@ -1,6 +1,6 @@
 from datetime import date
 
-from django.db.models import OuterRef, Prefetch, Q, Subquery
+from django.db.models import Exists, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 
 from projects.models import Project, RepositorySnapshot, RepositoryStatus
@@ -54,6 +54,10 @@ def list_project_ranking_targets(
         .order_by("-date", "-pk")
         .values("pk")[:1]
     )
+    available_snapshot = RepositorySnapshot.objects.filter(
+        repository__project_id=OuterRef("pk"),
+        date__lte=period_end,
+    )
     starting_snapshot = Coalesce(
         Subquery(baseline_snapshot),
         Subquery(first_period_snapshot),
@@ -74,10 +78,11 @@ def list_project_ranking_targets(
         .order_by("date", "pk")
     )
     return list(
-        Project.objects.filter(
-            status=Project.Status.ACTIVE,
-            repository__snapshots__date__lte=period_end,
+        Project.objects.filter(status=Project.Status.ACTIVE)
+        .alias(
+            has_ranking_snapshot=Exists(available_snapshot),
         )
+        .filter(has_ranking_snapshot=True)
         .select_related("repository")
         .only("id", "name", "repository__id")
         .prefetch_related(
@@ -87,7 +92,6 @@ def list_project_ranking_targets(
                 to_attr="ranking_snapshots",
             )
         )
-        .distinct()
     )
 
 
@@ -98,13 +102,22 @@ def get_latest_project_rankings() -> list[ProjectRankingResult]:
         프로젝트명 순서가 보장된 마지막 계산 결과. 계산 이력이 없으면 빈
         목록을 반환한다.
     """
-    run = ProjectRankingRun.objects.order_by("-calculated_at", "-pk").first()
-    if run is None:
-        return []
+    latest_run_id = ProjectRankingRun.objects.order_by(
+        "-calculated_at",
+        "-pk",
+    ).values("pk")[:1]
     return list(
-        run.results.select_related("project").order_by(
+        ProjectRankingResult.objects.filter(run_id=Subquery(latest_run_id))
+        .select_related("project")
+        .only(
             "rank",
-            "project__name",
             "project_id",
+            "project__name",
+            "total_score",
+            "stars",
+            "forks",
+            "commits",
+            "pull_requests",
         )
+        .order_by("rank", "project__name", "project_id")
     )
