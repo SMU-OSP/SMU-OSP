@@ -3,8 +3,8 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from celery.exceptions import Retry
-from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase, override_settings
+from django.core.exceptions import ValidationError
+from django.test import TestCase
 
 from projects.models import (
     Project,
@@ -13,7 +13,7 @@ from projects.models import (
     RepositoryStatus,
 )
 
-from .models import ProjectRanking
+from .models import ProjectRanking, ProjectRankingWeight
 from .selectors import (
     has_pending_project_ranking_refreshes,
     list_project_ranking_targets,
@@ -235,12 +235,12 @@ class ProjectRankingCalculationTests(TestCase):
             ],
         )
 
-    @override_settings(
-        PROJECT_RANKING_STARS_WEIGHT="0.00",
-        PROJECT_RANKING_COMMITS_WEIGHT="1.50",
-    )
-    def test_uses_environment_weights(self):
+    def test_uses_current_weights_and_preserves_them_in_result(self):
         repository = self.create_repository_project(name="가중치 프로젝트")
+        ProjectRankingWeight.objects.create(
+            stars=Decimal("0.00"),
+            commits=Decimal("1.50"),
+        )
         self.create_snapshot(
             repository,
             date(2025, 8, 13),
@@ -259,18 +259,20 @@ class ProjectRankingCalculationTests(TestCase):
         )
 
         result = calculate_project_rankings(date(2026, 8, 13))[0]
+        replace_project_rankings([result])
 
         self.assertEqual(result.total_score, Decimal("3.00"))
+        self.assertEqual(result.stars_weight, Decimal("0.00"))
+        self.assertEqual(result.commits_weight, Decimal("1.50"))
+        saved = ProjectRanking.objects.get(project=repository.project)
+        self.assertEqual(saved.stars_weight, Decimal("0.00"))
+        self.assertEqual(saved.commits_weight, Decimal("1.50"))
 
-    @override_settings(PROJECT_RANKING_STARS_WEIGHT="-0.01")
-    def test_rejects_negative_environment_weight(self):
-        with self.assertRaises(ImproperlyConfigured):
-            calculate_project_rankings(date(2026, 8, 13))
+    def test_weight_rejects_negative_value(self):
+        weights = ProjectRankingWeight(stars=Decimal("-0.01"))
 
-    @override_settings(PROJECT_RANKING_STARS_WEIGHT="not-a-number")
-    def test_rejects_non_numeric_environment_weight(self):
-        with self.assertRaises(ImproperlyConfigured):
-            calculate_project_rankings(date(2026, 8, 13))
+        with self.assertRaises(ValidationError):
+            weights.full_clean()
 
 
 class ProjectRankingApiTests(TestCase):

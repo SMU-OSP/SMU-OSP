@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 
 from projects.models import Project
 
-from .models import ProjectRanking
+from .models import ProjectRanking, ProjectRankingWeight
 from .selectors import list_project_ranking_targets
 
 SCORE_QUANTUM = Decimal("0.01")
@@ -51,32 +49,20 @@ class ProjectRankingEntry:
     pull_requests: int
     period_start: date
     period_end: date
+    stars_weight: Decimal = WEIGHT_DEFAULT
+    forks_weight: Decimal = WEIGHT_DEFAULT
+    commits_weight: Decimal = WEIGHT_DEFAULT
+    pull_requests_weight: Decimal = WEIGHT_DEFAULT
 
 
 def _configured_weights() -> ProjectRankingWeights:
-    try:
-        weights = ProjectRankingWeights(
-            stars=Decimal(settings.PROJECT_RANKING_STARS_WEIGHT),
-            forks=Decimal(settings.PROJECT_RANKING_FORKS_WEIGHT),
-            commits=Decimal(settings.PROJECT_RANKING_COMMITS_WEIGHT),
-            pull_requests=Decimal(
-                settings.PROJECT_RANKING_PULL_REQUESTS_WEIGHT
-            ),
-        )
-    except (InvalidOperation, TypeError) as exc:
-        raise ImproperlyConfigured(
-            "프로젝트 랭킹 가중치는 숫자여야 합니다."
-        ) from exc
-    if min(
-        weights.stars,
-        weights.forks,
-        weights.commits,
-        weights.pull_requests,
-    ) < 0:
-        raise ImproperlyConfigured(
-            "프로젝트 랭킹 가중치는 0 이상이어야 합니다."
-        )
-    return weights
+    configured, _ = ProjectRankingWeight.objects.get_or_create(pk=1)
+    return ProjectRankingWeights(
+        stars=configured.stars,
+        forks=configured.forks,
+        commits=configured.commits,
+        pull_requests=configured.pull_requests,
+    )
 
 
 def _one_year_before(target_date: date) -> date:
@@ -190,6 +176,10 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
                 forks=item.forks,
                 commits=item.commits,
                 pull_requests=item.pull_requests,
+                stars_weight=weights.stars,
+                forks_weight=weights.forks,
+                commits_weight=weights.commits,
+                pull_requests_weight=weights.pull_requests,
                 period_start=item.period_start,
                 period_end=period_end,
             )
@@ -211,6 +201,10 @@ def replace_project_rankings(results: list[ProjectRankingEntry]) -> None:
                 forks=result.forks,
                 commits=result.commits,
                 pull_requests=result.pull_requests,
+                stars_weight=result.stars_weight,
+                forks_weight=result.forks_weight,
+                commits_weight=result.commits_weight,
+                pull_requests_weight=result.pull_requests_weight,
                 period_start=result.period_start,
                 period_end=result.period_end,
             )
