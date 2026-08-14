@@ -43,7 +43,7 @@ export default function ProjectRankingTable({
     }
 
     return (
-        <Box mt={4} overflowX="auto">
+        <Box overflowX="auto">
             <Table.Root minW="760px">
                 <Table.Header>
                     <Table.Row>

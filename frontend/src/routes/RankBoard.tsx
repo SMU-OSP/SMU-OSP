@@ -259,6 +259,11 @@ export default function RankBoard() {
                                                 <Table.ColumnHeader
                                                     key={header.id}
                                                     colSpan={header.colSpan}
+                                                    textAlign={
+                                                        header.column.id === "username"
+                                                            ? "left"
+                                                            : "right"
+                                                    }
                                                     style={{ width: header.column.getSize() }}
                                                 >
                                                     {header.isPlaceholder ? null : (
@@ -271,10 +276,7 @@ export default function RankBoard() {
                                                             userSelect="none"
                                                             onClick={header.column.getToggleSortingHandler()}
                                                         >
-                                                            <Text
-                                                                color="smu.blue"
-                                                                fontWeight="bold"
-                                                            >
+                                                            <Text fontWeight="bold">
                                                                 {flexRender(
                                                                     header.column.columnDef.header,
                                                                     header.getContext(),
@@ -302,11 +304,25 @@ export default function RankBoard() {
                                                 return (
                                                     <Table.Cell
                                                         key={cell.id}
+                                                        textAlign={isUsername ? "left" : "right"}
+                                                        fontWeight={
+                                                            isUsername || cell.column.id === "score"
+                                                                ? "bold"
+                                                                : "normal"
+                                                        }
                                                         style={{ width: cell.column.getSize() }}
                                                     >
                                                         <Text
-                                                            fontWeight={
-                                                                isUsername ? "bold" : "normal"
+                                                            color={
+                                                                isUsername ? "smu.blue" : undefined
+                                                            }
+                                                            _hover={
+                                                                isUsername
+                                                                    ? {
+                                                                          textDecoration:
+                                                                              "underline",
+                                                                      }
+                                                                    : undefined
                                                             }
                                                         >
                                                             {isDateJoined &&
