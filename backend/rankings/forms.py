@@ -36,5 +36,5 @@ class ProjectRankingQueryForm(forms.Form):
             )
         return ProjectRankingQuery(
             start=self.cleaned_data["start"] or 0,
-            limit=self.cleaned_data["limit"] or 10,
+            limit=self.cleaned_data["limit"] or 100,
         )

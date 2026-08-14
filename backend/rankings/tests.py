@@ -316,7 +316,7 @@ class ProjectRankingApiTests(TestCase):
             response.json()["detail"]["pagination"],
             {
                 "start": 0,
-                "limit": 10,
+                "limit": 100,
                 "count": 0,
                 "currentPage": 1,
                 "totalPages": 1,

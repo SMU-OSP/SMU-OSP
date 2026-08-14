@@ -1,14 +1,18 @@
 import requests
-
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from rest_framework import status
+from rest_framework.exceptions import NotFound, ParseError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
-from rest_framework.exceptions import ParseError, NotFound
-from rest_framework.permissions import IsAuthenticated
 
+from common.pagination import pagination_detail
+from common.responses import fail, success
+
+from .forms import UserListQueryForm
 from .models import User
+from .selectors import list_public_users
 from .serializers import (
     PrivateUserSerializer,
     PublicUserSerializer,
@@ -56,52 +60,27 @@ class MyInfo(APIView):
 class Users(APIView):
 
     def get(self, request):
-        sort_by = request.query_params.get("sort_by")
-        valid_sort_fields = ["commit", "star", "pr", "issue", "score"]
-
-        if not sort_by:
-            all_users = (
-                User.objects.all().filter(is_superuser=False).order_by("-date_joined")
-            )
-        elif sort_by in valid_sort_fields:
-            all_users = (
-                User.objects.all().filter(is_superuser=False).order_by(f"-{sort_by}")
-            )
-        else:
+        query_form = UserListQueryForm(request.query_params)
+        if not query_form.is_valid():
             return Response(
-                {"error": "Invalid sort field"},
+                fail(
+                    "INVALID_PAGINATION_PARAMETER",
+                    "start는 0 이상, limit은 1 이상 100 이하이며 유효한 정렬 기준이어야 합니다.",
+                    status.HTTP_400_BAD_REQUEST,
+                ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        try:
-            start = int(request.query_params.get("start", 0))
-            limit = request.query_params.get("limit")
-            if limit is not None:
-                limit = int(limit)
-        except ValueError:
-            return Response(
-                {"error": "Invalid pagination parameters"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if start < 0 or (limit is not None and limit <= 0):
-            return Response(
-                {"error": "Invalid pagination parameters"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if limit is not None:
-            all_users = all_users[start : start + limit]
-        else:
-            all_users = all_users[start:]
-
-        serializer = PublicUserSerializer(
-            all_users,
-            many=True,
+        query = query_form.to_query()
+        users, count = list_public_users(
+            start=query.start,
+            limit=query.limit,
+            sort_by=query.sort_by,
         )
-
         return Response(
-            serializer.data,
+            success(
+                PublicUserSerializer(users, many=True).data,
+                pagination_detail(query.start, query.limit, count),
+            ),
             status=status.HTTP_200_OK,
         )
 
