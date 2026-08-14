@@ -9,25 +9,30 @@ import { getUsers } from "../api";
 export default function UserList() {
   const [selected, setSelected] = useState<"recent" | "active">("recent");
 
-  const { data: recentUsersResponse, isLoading: isRecentLoading } = useQuery<
-    PublicUserListResponse
-  >({
+  const {
+    data: recentUsersResponse,
+    isLoading: isRecentLoading,
+    isError: isRecentError,
+  } = useQuery<PublicUserListResponse>({
     queryKey: ["recentUsers"],
     queryFn: () => getUsers({ limit: 5 }),
     enabled: selected === "recent",
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: activeUsersResponse, isLoading: isActiveLoading } = useQuery<
-    PublicUserListResponse
-  >({
+  const {
+    data: activeUsersResponse,
+    isLoading: isActiveLoading,
+    isError: isActiveError,
+  } = useQuery<PublicUserListResponse>({
     queryKey: ["activeUsers"],
     queryFn: () => getUsers({ limit: 5, sortBy: "score" }),
     staleTime: 24 * 60 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
   });
 
-  const isLoading = isRecentLoading || isActiveLoading;
+  const isLoading = selected === "recent" ? isRecentLoading : isActiveLoading;
+  const isError = selected === "recent" ? isRecentError : isActiveError;
   const recentUsers = recentUsersResponse?.data ?? [];
   const activeUsers = activeUsersResponse?.data ?? [];
   const users = selected === "recent" ? recentUsers : activeUsers;
@@ -88,6 +93,10 @@ export default function UserList() {
           <Text mt={8} textAlign="center" color="smu.darkGray" fontSize="sm">
             사용자 현황을 불러오는 중입니다.
           </Text>
+        ) : isError ? (
+          <Text mt={8} textAlign="center" color="red.600" fontSize="sm">
+            사용자 현황을 불러오지 못했습니다.
+          </Text>
         ) : users.length === 0 ? (
           <Text mt={8} textAlign="center" color="smu.darkGray" fontSize="sm">
             표시할 사용자가 없습니다.
@@ -98,19 +107,33 @@ export default function UserList() {
                 <Text flex={1} minW={0} truncate>
                   {user.username}
                 </Text>
-                <Text flexShrink={0} textAlign={"right"} fontSize="sm">
+                <Text
+                  flexShrink={0}
+                  textAlign="right"
+                  fontSize="xs"
+                  color="smu.darkGray"
+                >
                   {user.date_joined.substring(0, 10)}
                 </Text>
               </HStack>
             ))
         ) : (
-          users.map((user) => (
+          users.map((user, index) => (
               <HStack key={user.username} gap={3} minW={0}>
+                <Text width="24px" flexShrink={0} fontWeight="bold">
+                  {index + 1}
+                </Text>
                 <Text flex={1} minW={0} truncate>
                   {user.username}
                 </Text>
-                <Text flexShrink={0} textAlign={"right"}>
-                  {user.score}
+                <Text
+                  ml="auto"
+                  flexShrink={0}
+                  textAlign="right"
+                  color="smu.blue"
+                  fontWeight="bold"
+                >
+                  {user.score ?? 0}점
                 </Text>
               </HStack>
             ))

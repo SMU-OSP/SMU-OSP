@@ -11,15 +11,9 @@ import {
     Text,
     VStack,
 } from "@chakra-ui/react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-    ColumnDef,
-    PaginationState,
-    flexRender,
-    getCoreRowModel,
-    useReactTable,
-} from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { getProjectRankings, getUsers } from "../api";
 import {
     PaginationItems,
@@ -28,7 +22,7 @@ import {
     PaginationRoot,
 } from "../components/ui/pagination";
 import ProjectRankingTable from "../components/ProjectRankingTable";
-import { IPublicUser, PublicUserListResponse } from "../types";
+import { PublicUserListResponse } from "../types";
 import type { ProjectRankingResponse } from "../types/project";
 
 type RankingSubject = "users" | "projects";
@@ -85,19 +79,11 @@ export default function RankBoard() {
         pageIndex: 0,
         pageSize: 100,
     });
-    const columns = useMemo<ColumnDef<IPublicUser>[]>(
-        () => [
-            { accessorKey: "username", header: "Username", size: 150 },
-            { accessorKey: "score", header: "Score", size: 100 },
-            { accessorKey: "stars", header: "Stars", size: 100 },
-            { accessorKey: "commits", header: "Commits", size: 100 },
-            { accessorKey: "prs", header: "PRs", size: 100 },
-            { accessorKey: "issues", header: "Issues", size: 100 },
-            { accessorKey: "date_joined", header: "Date joined", size: 100 },
-        ],
-        [],
-    );
-    const { data: userRankingResponse, isLoading } = useQuery<PublicUserListResponse>({
+    const {
+        data: userRankingResponse,
+        isLoading,
+        isError: isUserRankingError,
+    } = useQuery<PublicUserListResponse>({
         queryKey: [
             "rankingUsers",
             "1year",
@@ -130,12 +116,6 @@ export default function RankBoard() {
                 pagination.pageSize,
             ),
         enabled: rankingSubject === "projects" || pagination.pageIndex === 0,
-    });
-    const table = useReactTable({
-        columns,
-        data: users,
-        enableSorting: false,
-        getCoreRowModel: getCoreRowModel(),
     });
     const selectSubject = (subject: RankingSubject) => {
         setRankingSubject(subject);
@@ -265,111 +245,74 @@ export default function RankBoard() {
                     <Text py={16} textAlign="center" color="gray.600">
                         랭킹을 불러오는 중입니다.
                     </Text>
+                ) : isUserRankingError ? (
+                    <Text py={16} textAlign="center" color="red.600">
+                        사용자 랭킹을 불러오지 못했습니다.
+                    </Text>
+                ) : users.length === 0 ? (
+                    <Text py={16} textAlign="center" color="gray.600">
+                        표시할 사용자 랭킹이 없습니다.
+                    </Text>
                 ) : (
-                    <>
-                        <Box overflowX="auto">
-                            <Table.Root minW="760px">
-                                <Table.Header>
-                                    {table.getHeaderGroups().map((headerGroup) => (
-                                        <Table.Row key={headerGroup.id}>
-                                            {headerGroup.headers.map((header) => (
-                                                <Table.ColumnHeader
-                                                    key={header.id}
-                                                    colSpan={header.colSpan}
-                                                    textAlign={
-                                                        header.column.id === "username"
-                                                            ? "left"
-                                                            : "right"
-                                                    }
-                                                    style={{ width: header.column.getSize() }}
+                    <Box overflowX="auto">
+                        <Table.Root minW="760px">
+                            <Table.Header>
+                                <Table.Row>
+                                    <Table.ColumnHeader>순위</Table.ColumnHeader>
+                                    <Table.ColumnHeader>사용자</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">총점</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">Star</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">Commit</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">PR</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">Issue</Table.ColumnHeader>
+                                    <Table.ColumnHeader textAlign="right">가입일</Table.ColumnHeader>
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
+                                {users.map((user, index) => (
+                                    <Table.Row key={user.username}>
+                                        <Table.Cell fontWeight="bold">
+                                            {pagination.pageIndex * pagination.pageSize + index + 1}
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <Text
+                                                asChild
+                                                color="smu.blue"
+                                                fontWeight="bold"
+                                                _hover={{ textDecoration: "underline" }}
+                                            >
+                                                <a
+                                                    href={`https://github.com/${user.username}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
                                                 >
-                                                    {header.isPlaceholder ? null : (
-                                                        <Box
-                                                            cursor={
-                                                                header.column.getCanSort()
-                                                                    ? "pointer"
-                                                                    : "default"
-                                                            }
-                                                            userSelect="none"
-                                                            onClick={header.column.getToggleSortingHandler()}
-                                                        >
-                                                            <Text fontWeight="bold">
-                                                                {flexRender(
-                                                                    header.column.columnDef.header,
-                                                                    header.getContext(),
-                                                                )}
-                                                                {{ asc: " 🔼", desc: " 🔽" }[
-                                                                    header.column.getIsSorted() as string
-                                                                ] ?? null}
-                                                            </Text>
-                                                        </Box>
-                                                    )}
-                                                </Table.ColumnHeader>
-                                            ))}
-                                        </Table.Row>
-                                    ))}
-                                </Table.Header>
-                                <Table.Body>
-                                    {table.getRowModel().rows.map((row) => (
-                                        <Table.Row key={row.id}>
-                                            {row.getVisibleCells().map((cell) => {
-                                                const isUsername = cell.column.id === "username";
-                                                const isDateJoined =
-                                                    cell.column.id === "date_joined";
-                                                const cellValue = cell.getValue();
-
-                                                return (
-                                                    <Table.Cell
-                                                        key={cell.id}
-                                                        textAlign={isUsername ? "left" : "right"}
-                                                        fontWeight={
-                                                            isUsername || cell.column.id === "score"
-                                                                ? "bold"
-                                                                : "normal"
-                                                        }
-                                                        style={{ width: cell.column.getSize() }}
-                                                    >
-                                                        <Text
-                                                            color={
-                                                                isUsername ? "smu.blue" : undefined
-                                                            }
-                                                            _hover={
-                                                                isUsername
-                                                                    ? {
-                                                                          textDecoration:
-                                                                              "underline",
-                                                                      }
-                                                                    : undefined
-                                                            }
-                                                        >
-                                                            {isDateJoined &&
-                                                            typeof cellValue === "string" ? (
-                                                                cellValue.substring(0, 10)
-                                                            ) : isUsername &&
-                                                              typeof cellValue === "string" ? (
-                                                                <a
-                                                                    href={`https://github.com/${cellValue}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                >
-                                                                    {cellValue}
-                                                                </a>
-                                                            ) : (
-                                                                flexRender(
-                                                                    cell.column.columnDef.cell,
-                                                                    cell.getContext(),
-                                                                )
-                                                            )}
-                                                        </Text>
-                                                    </Table.Cell>
-                                                );
-                                            })}
-                                        </Table.Row>
-                                    ))}
-                                </Table.Body>
-                            </Table.Root>
-                        </Box>
-                    </>
+                                                    {user.username}
+                                                </a>
+                                            </Text>
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right" fontWeight="bold">
+                                            {user.score ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right">
+                                            {user.stars ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right">
+                                            {user.commits ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right">
+                                            {user.prs ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right">
+                                            {user.issues ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="right">
+                                            {user.date_joined.substring(0, 10)}
+                                        </Table.Cell>
+                                    </Table.Row>
+                                ))}
+                            </Table.Body>
+                        </Table.Root>
+                    </Box>
                 )}
                 {rankingCount > pagination.pageSize && (
                     <VStack mt={4}>

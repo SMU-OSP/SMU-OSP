@@ -11,17 +11,9 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 
-from projects.models import Project, RepositorySnapshot, RepositoryStatus
+from projects.models import Project, RepositorySnapshot
 
 from .models import ProjectRanking
-
-
-def has_pending_project_ranking_refreshes() -> bool:
-    """랭킹 대상 프로젝트 중 아직 수집 중인 Repository가 있는지 확인한다."""
-    return RepositoryStatus.objects.filter(
-        repository__project__status=Project.Status.ACTIVE,
-        last_status_code="PENDING",
-    ).exists()
 
 
 def list_project_rankings(

@@ -9,13 +9,16 @@ import type { ProjectRankingResponse } from "../types/project";
 /** 신규 프로젝트와 프로젝트 랭킹 현황을 전환해 표시합니다. */
 export default function MainProjectList() {
   const [selected, setSelected] = useState<"recent" | "ranking">("recent");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["mainRecentProjects"],
     queryFn: () => listProjects({ limit: 5, sort: "latest" }),
     staleTime: 5 * 60 * 1000,
   });
-  const { data: rankingResponse, isLoading: isRankingLoading } =
-    useQuery<ProjectRankingResponse>({
+  const {
+    data: rankingResponse,
+    isLoading: isRankingLoading,
+    isError: isRankingError,
+  } = useQuery<ProjectRankingResponse>({
       queryKey: ["mainProjectRankings"],
       queryFn: () => getProjectRankings(0, 5),
       staleTime: 24 * 60 * 60 * 1000,
@@ -79,6 +82,10 @@ export default function MainProjectList() {
           <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
             프로젝트 랭킹을 불러오는 중입니다.
           </Text>
+        ) : isRankingError ? (
+          <Text mt={12} textAlign="center" color="red.600" fontSize="sm">
+            프로젝트 랭킹을 불러오지 못했습니다.
+          </Text>
         ) : rankings.length === 0 ? (
           <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
             표시할 프로젝트 랭킹이 없습니다.
@@ -90,13 +97,22 @@ export default function MainProjectList() {
                 <Text width="24px" flexShrink={0} fontWeight="bold">
                   {ranking.rank}
                 </Text>
-                <Link to={`/projects/${ranking.projectId}`}>
+                <Link
+                  to={`/projects/${ranking.projectId}`}
+                  style={{ flex: 1, minWidth: 0 }}
+                >
                   <Text flex={1} minW={0} truncate _hover={{ fontWeight: "bold" }}>
                     {ranking.projectName}
                   </Text>
                 </Link>
-                <Text flexShrink={0} textAlign="right">
-                  {ranking.totalScore}
+                <Text
+                  ml="auto"
+                  flexShrink={0}
+                  textAlign="right"
+                  color="smu.blue"
+                  fontWeight="bold"
+                >
+                  {ranking.totalScore}점
                 </Text>
               </HStack>
             ))}
@@ -105,6 +121,10 @@ export default function MainProjectList() {
       ) : isLoading ? (
         <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
           프로젝트를 불러오는 중입니다.
+        </Text>
+      ) : isError ? (
+        <Text mt={12} textAlign="center" color="red.600" fontSize="sm">
+          프로젝트를 불러오지 못했습니다.
         </Text>
       ) : projects.length === 0 ? (
         <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">

@@ -225,7 +225,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "project-ranking": {
         "task": "rankings.tasks.calculate_daily_project_rankings",
-        "schedule": crontab(minute="10", hour="3"),
+        "schedule": crontab(minute="0", hour="6"),
     },
 }
 

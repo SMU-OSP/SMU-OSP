@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
-from celery.exceptions import Retry
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
 
@@ -10,25 +10,16 @@ from projects.models import (
     Project,
     Repository,
     RepositorySnapshot,
-    RepositoryStatus,
 )
 
 from .models import ProjectRanking
-from .selectors import (
-    has_pending_project_ranking_refreshes,
-    list_project_ranking_targets,
-    list_project_rankings,
-)
+from .selectors import list_project_ranking_targets, list_project_rankings
 from .services import (
     ProjectRankingEntry,
     calculate_project_rankings,
     replace_project_rankings,
 )
-from .tasks import (
-    RANKING_MAX_RETRIES,
-    RANKING_RETRY_DELAY_SECONDS,
-    calculate_daily_project_rankings,
-)
+from .tasks import calculate_daily_project_rankings
 
 
 class ProjectRankingCalculationTests(TestCase):
@@ -385,86 +376,13 @@ class ProjectRankingApiTests(TestCase):
 
 
 class ProjectRankingTaskTests(TestCase):
-    def test_only_active_project_pending_refresh_blocks_ranking(self):
-        for status in (Project.Status.ACTIVE, Project.Status.INACTIVE):
-            project = Project.objects.create(
-                name=f"{status} 프로젝트",
-                description="수집 상태 확인 프로젝트",
-                status=status,
-            )
-            repository = Repository.objects.create(
-                project=project,
-                github_id=project.pk,
-                name=f"repository-{project.pk}",
-                full_name=f"example/repository-{project.pk}",
-                html_url=f"https://github.com/example/repository-{project.pk}",
-            )
-            RepositoryStatus.objects.create(
-                repository=repository,
-                last_status_code="PENDING",
-            )
-
-        self.assertTrue(has_pending_project_ranking_refreshes())
-        Project.objects.filter(status=Project.Status.ACTIVE).update(
-            status=Project.Status.INACTIVE
-        )
-        self.assertFalse(has_pending_project_ranking_refreshes())
-
-    @patch("rankings.tasks.calculate_project_rankings")
-    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
-    def test_retries_while_repository_refresh_is_pending(
-        self,
-        has_pending_refreshes,
-        calculate_rankings,
-    ):
-        has_pending_refreshes.return_value = True
-        expected = [
-            ProjectRankingEntry(
-                rank=1,
-                project_id=1,
-                total_score=Decimal("1.00"),
-                stars=1,
-                forks=0,
-                commits=0,
-                pull_requests=0,
-                period_start=date(2025, 8, 13),
-                period_end=date(2026, 8, 13),
-            )
-        ]
-        project = Project.objects.create(
-            id=1,
-            name="마지막 정상 프로젝트",
-            description="마지막 정상 프로젝트 설명",
-        )
-        replace_project_rankings(expected)
-
-        with (
-            patch.object(
-                calculate_daily_project_rankings,
-                "retry",
-                side_effect=Retry(),
-            ) as retry,
-            self.assertRaises(Retry),
-        ):
-            calculate_daily_project_rankings.run(period_end="2026-08-13")
-
-        retry.assert_called_once_with(countdown=RANKING_RETRY_DELAY_SECONDS)
-        calculate_rankings.assert_not_called()
-        actual, count = list_project_rankings(start=0, limit=10)
-        self.assertEqual(actual[0].project, project)
-        self.assertEqual(actual[0].total_score, Decimal("1.00"))
-        self.assertEqual(count, 1)
-
     @patch("rankings.tasks.replace_project_rankings")
     @patch("rankings.tasks.calculate_project_rankings")
-    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
-    def test_calculates_when_repository_refresh_is_complete(
+    def test_calculates_independently_of_repository_refresh_state(
         self,
-        has_pending_refreshes,
         calculate_rankings,
         replace_rankings,
     ):
-        has_pending_refreshes.return_value = False
         calculate_rankings.return_value = [object(), object()]
 
         result_count = calculate_daily_project_rankings.run(
@@ -479,17 +397,14 @@ class ProjectRankingTaskTests(TestCase):
 
     @patch("rankings.tasks.replace_project_rankings")
     @patch("rankings.tasks.calculate_project_rankings")
-    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
     @patch("rankings.tasks.datetime")
     def test_default_period_excludes_current_day(
         self,
         task_datetime,
-        has_pending_refreshes,
         calculate_rankings,
         replace_rankings,
     ):
         task_datetime.now.return_value = datetime(2026, 8, 14, 3, 10)
-        has_pending_refreshes.return_value = False
         calculate_rankings.return_value = []
 
         calculate_daily_project_rankings.run()
@@ -561,12 +476,11 @@ class ProjectRankingTaskTests(TestCase):
         self.assertEqual(ranking.project, project)
         self.assertEqual(ranking.total_score, Decimal("1.00"))
 
-    def test_retry_policy_is_limited_to_two_hours(self):
+    def test_ranking_beat_schedule_runs_once_at_six(self):
+        ranking = settings.CELERY_BEAT_SCHEDULE["project-ranking"]
         self.assertEqual(
-            calculate_daily_project_rankings.max_retries,
-            RANKING_MAX_RETRIES,
+            ranking["task"],
+            "rankings.tasks.calculate_daily_project_rankings",
         )
-        self.assertEqual(
-            RANKING_RETRY_DELAY_SECONDS * RANKING_MAX_RETRIES,
-            2 * 60 * 60,
-        )
+        self.assertEqual(ranking["schedule"].minute, {0})
+        self.assertEqual(ranking["schedule"].hour, {6})
