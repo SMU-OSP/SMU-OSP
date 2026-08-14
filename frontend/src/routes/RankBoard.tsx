@@ -37,11 +37,11 @@ type RankingSubject = "users" | "projects";
 
 const pageSizeCollection = createListCollection({
     items: [
-        { label: "5명씩 보기", value: "5" },
-        { label: "10명씩 보기", value: "10" },
-        { label: "20명씩 보기", value: "20" },
-        { label: "50명씩 보기", value: "50" },
-        { label: "100명씩 보기", value: "100" },
+        { label: "5개씩 보기", value: "5" },
+        { label: "10개씩 보기", value: "10" },
+        { label: "20개씩 보기", value: "20" },
+        { label: "50개씩 보기", value: "50" },
+        { label: "100개씩 보기", value: "100" },
     ],
 });
 
@@ -110,8 +110,17 @@ export default function RankBoard() {
         isLoading: isProjectRankingLoading,
         isError: isProjectRankingError,
     } = useQuery<ProjectRankingResponse>({
-        queryKey: ["rankingProjects", "1year"],
-        queryFn: getProjectRankings,
+        queryKey: [
+            "rankingProjects",
+            "1year",
+            pagination.pageIndex,
+            pagination.pageSize,
+        ],
+        queryFn: () =>
+            getProjectRankings(
+                pagination.pageIndex * pagination.pageSize,
+                pagination.pageSize,
+            ),
         enabled: rankingSubject === "projects",
     });
     const table = useReactTable({
@@ -203,47 +212,69 @@ export default function RankBoard() {
                                 1년
                             </Button>
                         </HStack>
-                        {rankingSubject === "users" && (
-                            <Select.Root
-                                width="130px"
-                                size="xs"
-                                value={pageSize}
-                                onValueChange={handlePageSizeChange}
-                                collection={pageSizeCollection}
-                            >
-                                <Select.Control>
-                                    <Select.Trigger>
-                                        <Select.ValueText placeholder="페이지 당 인원수" />
-                                    </Select.Trigger>
-                                    <Select.IndicatorGroup>
-                                        <Select.Indicator />
-                                    </Select.IndicatorGroup>
-                                </Select.Control>
-                                <Portal>
-                                    <Select.Positioner>
-                                        <Select.Content>
-                                            {pageSizeCollection.items.map((item) => (
-                                                <Select.Item item={item} key={item.value}>
-                                                    {item.label}
-                                                    <Select.ItemIndicator />
-                                                </Select.Item>
-                                            ))}
-                                        </Select.Content>
-                                    </Select.Positioner>
-                                </Portal>
-                            </Select.Root>
-                        )}
+                        <Select.Root
+                            width="130px"
+                            size="xs"
+                            value={pageSize}
+                            onValueChange={handlePageSizeChange}
+                            collection={pageSizeCollection}
+                        >
+                            <Select.Control>
+                                <Select.Trigger>
+                                    <Select.ValueText placeholder="페이지 당 항목 수" />
+                                </Select.Trigger>
+                                <Select.IndicatorGroup>
+                                    <Select.Indicator />
+                                </Select.IndicatorGroup>
+                            </Select.Control>
+                            <Portal>
+                                <Select.Positioner>
+                                    <Select.Content>
+                                        {pageSizeCollection.items.map((item) => (
+                                            <Select.Item item={item} key={item.value}>
+                                                {item.label}
+                                                <Select.ItemIndicator />
+                                            </Select.Item>
+                                        ))}
+                                    </Select.Content>
+                                </Select.Positioner>
+                            </Portal>
+                        </Select.Root>
                     </HStack>
                 </Flex>
 
                 <Separator mt={3} borderColor="smu.smuGray" />
 
                 {rankingSubject === "projects" ? (
-                    <ProjectRankingTable
-                        response={projectRankingResponse}
-                        isLoading={isProjectRankingLoading}
-                        isError={isProjectRankingError}
-                    />
+                    <>
+                        <ProjectRankingTable
+                            response={projectRankingResponse}
+                            isLoading={isProjectRankingLoading}
+                            isError={isProjectRankingError}
+                        />
+                        {(projectRankingResponse?.detail.pagination.count ?? 0) >
+                            pagination.pageSize && (
+                            <VStack mt={4}>
+                                <PaginationRoot
+                                    page={pagination.pageIndex + 1}
+                                    count={projectRankingResponse?.detail.pagination.count ?? 0}
+                                    pageSize={pagination.pageSize}
+                                    onPageChange={(event) =>
+                                        setPagination((current) => ({
+                                            ...current,
+                                            pageIndex: event.page - 1,
+                                        }))
+                                    }
+                                >
+                                    <HStack>
+                                        <PaginationPrevTrigger />
+                                        <PaginationItems />
+                                        <PaginationNextTrigger />
+                                    </HStack>
+                                </PaginationRoot>
+                            </VStack>
+                        )}
+                    </>
                 ) : isLoading ? (
                     <Text py={16} textAlign="center" color="gray.600">
                         랭킹을 불러오는 중입니다.

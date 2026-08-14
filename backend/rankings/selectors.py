@@ -95,18 +95,25 @@ def list_project_ranking_targets(
     )
 
 
-def get_latest_project_rankings() -> list[ProjectRankingResult]:
-    """마지막 정상 프로젝트 랭킹 결과를 반환한다.
+def get_latest_project_rankings(
+    *,
+    start: int,
+    limit: int,
+) -> tuple[list[ProjectRankingResult], int]:
+    """마지막 정상 프로젝트 랭킹 결과 중 요청 구간을 반환한다.
+
+    Args:
+        start: 조회를 시작할 순번.
+        limit: 반환할 최대 결과 수.
 
     Returns:
-        프로젝트명 순서가 보장된 마지막 계산 결과. 계산 이력이 없으면 빈
-        목록을 반환한다.
+        프로젝트명 순서가 보장된 결과 목록과 전체 결과 수.
     """
     latest_run_id = ProjectRankingRun.objects.order_by(
         "-calculated_at",
         "-pk",
     ).values("pk")[:1]
-    return list(
+    rankings = (
         ProjectRankingResult.objects.filter(run_id=Subquery(latest_run_id))
         .select_related("project")
         .only(
@@ -121,3 +128,4 @@ def get_latest_project_rankings() -> list[ProjectRankingResult]:
         )
         .order_by("rank", "project__name", "project_id")
     )
+    return list(rankings[start : start + limit]), rankings.count()

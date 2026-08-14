@@ -105,10 +105,14 @@ export const getProjectLanguages = () =>
 
 /**
  * 마지막으로 정상 계산된 1년 프로젝트 랭킹을 조회합니다.
+ * @param start 조회를 시작할 순번
+ * @param limit 반환할 최대 결과 수
  * @returns 프로젝트 랭킹 API 응답
  */
-export const getProjectRankings = () =>
-    instance.get<ProjectRankingResponse>("rankings/projects").then((response) => response.data);
+export const getProjectRankings = (start = 0, limit = 10) =>
+    instance
+        .get<ProjectRankingResponse>("rankings/projects", { params: { start, limit } })
+        .then((response) => response.data);
 
 export const getProjectMemberships = () =>
     instance.get("projects/members").then((response) => response.data);

@@ -1,4 +1,4 @@
-import type { ApiSuccess } from "./response";
+import type { ApiSuccess, PaginationDetail } from "./response";
 
 export type ProjectStatus = "ACTIVE" | "FINISHED" | "INACTIVE" | "DELETED";
 export type ProjectMemberRole = "LEADER" | "MEMBER";
@@ -103,7 +103,7 @@ export interface ProjectRanking {
     pullRequests: number;
 }
 
-export type ProjectRankingResponse = ApiSuccess<ProjectRanking[]>;
+export type ProjectRankingResponse = ApiSuccess<ProjectRanking[], PaginationDetail>;
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
     ACTIVE: "진행 중",

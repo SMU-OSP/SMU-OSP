@@ -307,14 +307,86 @@ class ProjectRankingApiTests(TestCase):
         self.assertEqual(body["data"][0]["projectId"], project.pk)
         self.assertEqual(body["data"][0]["totalScore"], "12.50")
         self.assertNotIn("actualPeriodStart", body["data"][0])
-        self.assertIsNone(body["detail"])
+        self.assertEqual(body["detail"]["pagination"]["count"], 1)
 
     def test_returns_empty_success_before_first_calculation(self):
         response = self.client.get("/api/v1/rankings/projects")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"], [])
-        self.assertIsNone(response.json()["detail"])
+        self.assertEqual(
+            response.json()["detail"]["pagination"],
+            {
+                "start": 0,
+                "limit": 10,
+                "count": 0,
+                "currentPage": 1,
+                "totalPages": 1,
+                "hasPrevious": False,
+                "hasNext": False,
+            },
+        )
+
+    def test_paginates_latest_project_rankings(self):
+        run = ProjectRankingRun.objects.create(
+            period_start=date(2025, 8, 13),
+            period_end=date(2026, 8, 13),
+            stars_weight=Decimal("1.00"),
+            forks_weight=Decimal("1.00"),
+            commits_weight=Decimal("1.00"),
+            pull_requests_weight=Decimal("1.00"),
+        )
+        for rank in range(1, 13):
+            project = Project.objects.create(
+                name=f"프로젝트 {rank:02d}",
+                description="페이지네이션 테스트",
+            )
+            ProjectRankingResult.objects.create(
+                run=run,
+                project=project,
+                rank=rank,
+                total_score=Decimal("1.00"),
+                stars=1,
+                forks=0,
+                commits=0,
+                pull_requests=0,
+                actual_period_start=date(2025, 8, 13),
+            )
+
+        response = self.client.get(
+            "/api/v1/rankings/projects",
+            {"start": 5, "limit": 5},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(
+            [result["rank"] for result in body["data"]],
+            [6, 7, 8, 9, 10],
+        )
+        self.assertEqual(
+            body["detail"]["pagination"],
+            {
+                "start": 5,
+                "limit": 5,
+                "count": 12,
+                "currentPage": 2,
+                "totalPages": 3,
+                "hasPrevious": True,
+                "hasNext": True,
+            },
+        )
+
+    def test_rejects_invalid_pagination(self):
+        response = self.client.get(
+            "/api/v1/rankings/projects",
+            {"start": -1, "limit": 101},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["status"], "INVALID_PAGINATION_PARAMETER"
+        )
 
 
 class ProjectRankingTaskTests(TestCase):

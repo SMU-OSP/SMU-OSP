@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.authentication import api_login_required
+from common.pagination import pagination_detail
 from common.responses import fail, success
 
 from .forms import ProjectListQueryForm, ProjectMemberQueryForm
@@ -75,27 +76,6 @@ def _prepare_projects_for_serialization(projects: list[Project]) -> None:
             repository.serialized_snapshots = []
         if not hasattr(repository, "serialized_languages"):
             repository.serialized_languages = []
-
-
-def pagination_detail(
-    start: int,
-    limit: int,
-    count: int,
-) -> dict[str, dict[str, int | bool]]:
-    total_pages = (count + limit - 1) // limit if count else 1
-    current_page = (start // limit) + 1
-
-    return {
-        "pagination": {
-            "start": start,
-            "limit": limit,
-            "count": count,
-            "currentPage": current_page,
-            "totalPages": total_pages,
-            "hasPrevious": start > 0,
-            "hasNext": start + limit < count,
-        }
-    }
 
 
 class Projects(APIView):
