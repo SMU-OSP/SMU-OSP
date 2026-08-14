@@ -1,3 +1,5 @@
+import type { ApiSuccess, PaginationDetail } from "./types/response";
+
 export interface IUser {
   username: string;
   github_email: string;
@@ -14,8 +16,9 @@ export interface IPublicUser {
   stars: number;
   prs: number;
   issues: number;
-  date_joined: string;
 }
+
+export type PublicUserListResponse = ApiSuccess<IPublicUser[], PaginationDetail>;
 
 export interface IPost {
   id: number;

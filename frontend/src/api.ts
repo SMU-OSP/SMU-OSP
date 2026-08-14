@@ -1,6 +1,6 @@
 import Cookie from "js-cookie";
 import axios from "axios";
-import { ILogin, IUser } from "./types";
+import { ILogin, IUser, PublicUserListResponse } from "./types";
 import type {
     ProjectInput,
     ProjectMemberUpdateInput,
@@ -46,7 +46,7 @@ export const getUsers = ({
     sortBy?: string | null;
 } = {}) =>
     instance
-        .get(`users/`, {
+        .get<PublicUserListResponse>(`users/`, {
             params: {
                 ...(start !== null && { start }),
                 ...(limit !== null && { limit }),
@@ -109,7 +109,7 @@ export const getProjectLanguages = () =>
  * @param limit 반환할 최대 결과 수
  * @returns 프로젝트 랭킹 API 응답
  */
-export const getProjectRankings = (start = 0, limit = 10) =>
+export const getProjectRankings = (start = 0, limit = 100) =>
     instance
         .get<ProjectRankingResponse>("rankings/projects", { params: { start, limit } })
         .then((response) => response.data);

@@ -1,6 +1,6 @@
 import { Box, Button, HStack, Separator, Text } from "@chakra-ui/react";
 import { Link } from "react-router-dom";
-import { IPublicUser } from "../types";
+import { PublicUserListResponse } from "../types";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getUsers } from "../api";
@@ -9,23 +9,27 @@ import { getUsers } from "../api";
 export default function UserList() {
   const [selected, setSelected] = useState<"recent" | "active">("recent");
 
-  const { data: recentUsers = [], isLoading: isRecentLoading } = useQuery<
-    IPublicUser[]
+  const { data: recentUsersResponse, isLoading: isRecentLoading } = useQuery<
+    PublicUserListResponse
   >({
     queryKey: ["recentUsers"],
     queryFn: () => getUsers({ limit: 5 }),
     enabled: selected === "recent",
+    staleTime: 5 * 60 * 1000,
   });
 
-  const { data: activeUsers = [], isLoading: isActiveLoading } = useQuery<
-    IPublicUser[]
+  const { data: activeUsersResponse, isLoading: isActiveLoading } = useQuery<
+    PublicUserListResponse
   >({
     queryKey: ["activeUsers"],
     queryFn: () => getUsers({ limit: 5, sortBy: "score" }),
-    enabled: selected === "active",
+    staleTime: 24 * 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 
   const isLoading = isRecentLoading || isActiveLoading;
+  const recentUsers = recentUsersResponse?.data ?? [];
+  const activeUsers = activeUsersResponse?.data ?? [];
   const users = selected === "recent" ? recentUsers : activeUsers;
 
   return (

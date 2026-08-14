@@ -18,8 +18,6 @@ import {
     PaginationState,
     flexRender,
     getCoreRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 import { getProjectRankings, getUsers } from "../api";
@@ -30,7 +28,7 @@ import {
     PaginationRoot,
 } from "../components/ui/pagination";
 import ProjectRankingTable from "../components/ProjectRankingTable";
-import { IPublicUser } from "../types";
+import { IPublicUser, PublicUserListResponse } from "../types";
 import type { ProjectRankingResponse } from "../types/project";
 
 type RankingSubject = "users" | "projects";
@@ -85,7 +83,7 @@ export default function RankBoard() {
     const [rankingSubject, setRankingSubject] = useState<RankingSubject>("users");
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
-        pageSize: 10,
+        pageSize: 100,
     });
     const columns = useMemo<ColumnDef<IPublicUser>[]>(
         () => [
@@ -99,11 +97,22 @@ export default function RankBoard() {
         ],
         [],
     );
-    const { data: users = [], isLoading } = useQuery<IPublicUser[]>({
-        queryKey: ["rankingUsers", "1year"],
-        queryFn: () => getUsers({ sortBy: "score" }),
+    const { data: userRankingResponse, isLoading } = useQuery<PublicUserListResponse>({
+        queryKey: [
+            "rankingUsers",
+            "1year",
+            pagination.pageIndex,
+            pagination.pageSize,
+        ],
+        queryFn: () =>
+            getUsers({
+                start: pagination.pageIndex * pagination.pageSize,
+                limit: pagination.pageSize,
+                sortBy: "score",
+            }),
         enabled: rankingSubject === "users",
     });
+    const users = userRankingResponse?.data ?? [];
     const {
         data: projectRankingResponse,
         isLoading: isProjectRankingLoading,
@@ -120,16 +129,13 @@ export default function RankBoard() {
                 pagination.pageIndex * pagination.pageSize,
                 pagination.pageSize,
             ),
-        enabled: rankingSubject === "projects",
+        enabled: rankingSubject === "projects" || pagination.pageIndex === 0,
     });
     const table = useReactTable({
         columns,
         data: users,
+        enableSorting: false,
         getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        onPaginationChange: setPagination,
-        state: { pagination },
     });
     const selectSubject = (subject: RankingSubject) => {
         setRankingSubject(subject);
@@ -142,7 +148,7 @@ export default function RankBoard() {
     const rankingCount =
         rankingSubject === "projects"
             ? (projectRankingResponse?.detail.pagination.count ?? 0)
-            : users.length;
+            : (userRankingResponse?.detail.pagination.count ?? 0);
 
     return (
         <Flex

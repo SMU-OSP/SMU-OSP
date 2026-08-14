@@ -2,7 +2,9 @@ import { Box, Button, HStack, Separator, Text } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { getProjectRankings } from "../api";
 import { listProjects } from "../services/projectService";
+import type { ProjectRankingResponse } from "../types/project";
 
 /** 신규 프로젝트와 프로젝트 랭킹 현황을 전환해 표시합니다. */
 export default function MainProjectList() {
@@ -10,8 +12,17 @@ export default function MainProjectList() {
   const { data, isLoading } = useQuery({
     queryKey: ["mainRecentProjects"],
     queryFn: () => listProjects({ limit: 5, sort: "latest" }),
+    staleTime: 5 * 60 * 1000,
   });
+  const { data: rankingResponse, isLoading: isRankingLoading } =
+    useQuery<ProjectRankingResponse>({
+      queryKey: ["mainProjectRankings"],
+      queryFn: () => getProjectRankings(0, 5),
+      staleTime: 24 * 60 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+    });
   const projects = data?.status === "SUCCESS" ? data.data : [];
+  const rankings = rankingResponse?.data ?? [];
 
   return (
     <Box
@@ -64,9 +75,33 @@ export default function MainProjectList() {
       </HStack>
 
       {selected === "ranking" ? (
-        <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
-          프로젝트 랭킹 기능 준비 중입니다.
-        </Text>
+        isRankingLoading ? (
+          <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
+            프로젝트 랭킹을 불러오는 중입니다.
+          </Text>
+        ) : rankings.length === 0 ? (
+          <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
+            표시할 프로젝트 랭킹이 없습니다.
+          </Text>
+        ) : (
+          <Box mt={2}>
+            {rankings.map((ranking) => (
+              <HStack key={ranking.projectId} gap={3} minW={0}>
+                <Text width="24px" flexShrink={0} fontWeight="bold">
+                  {ranking.rank}
+                </Text>
+                <Link to={`/projects/${ranking.projectId}`}>
+                  <Text flex={1} minW={0} truncate _hover={{ fontWeight: "bold" }}>
+                    {ranking.projectName}
+                  </Text>
+                </Link>
+                <Text flexShrink={0} textAlign="right">
+                  {ranking.totalScore}
+                </Text>
+              </HStack>
+            ))}
+          </Box>
+        )
       ) : isLoading ? (
         <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
           프로젝트를 불러오는 중입니다.
