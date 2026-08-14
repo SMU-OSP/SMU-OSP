@@ -14,7 +14,10 @@ class ProjectRankingWeightAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
-        return not ProjectRankingWeight.objects.exists()
+        return (
+            super().has_add_permission(request)
+            and not ProjectRankingWeight.objects.exists()
+        )
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -42,6 +45,9 @@ class ProjectRankingAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
     def has_delete_permission(self, request, obj=None):
