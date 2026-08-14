@@ -3,16 +3,16 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.conf import settings
-from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.db import transaction
 
 from projects.models import Project
 
+from .models import ProjectRanking
 from .selectors import list_project_ranking_targets
 
 SCORE_QUANTUM = Decimal("0.01")
 WEIGHT_DEFAULT = Decimal("1.00")
-PROJECT_RANKING_CACHE_KEY = "rankings:projects:latest"
 
 
 @dataclass(frozen=True)
@@ -35,20 +35,22 @@ class ProjectRankingMetrics:
     commits: int
     pull_requests: int
     total_score: Decimal
+    period_start: date
 
 
 @dataclass(frozen=True)
 class ProjectRankingEntry:
-    """캐시에 저장하고 API로 제공할 프로젝트 랭킹 한 행."""
+    """DB에 저장할 프로젝트 랭킹 한 행."""
 
     rank: int
     project_id: int
-    project_name: str
     total_score: Decimal
     stars: int
     forks: int
     commits: int
     pull_requests: int
+    period_start: date
+    period_end: date
 
 
 def _configured_weights() -> ProjectRankingWeights:
@@ -120,10 +122,13 @@ def _calculate_project_metrics(
         ),
         first_snapshot,
     )
-    stars = end_snapshot.stars - baseline.stars
-    forks = end_snapshot.forks - baseline.forks
-    commits = end_snapshot.commits - baseline.commits
-    pull_requests = end_snapshot.pull_requests - baseline.pull_requests
+    stars = max(end_snapshot.stars - baseline.stars, 0)
+    forks = max(end_snapshot.forks - baseline.forks, 0)
+    commits = max(end_snapshot.commits - baseline.commits, 0)
+    pull_requests = max(
+        end_snapshot.pull_requests - baseline.pull_requests,
+        0,
+    )
     return ProjectRankingMetrics(
         project=project,
         stars=stars,
@@ -137,6 +142,7 @@ def _calculate_project_metrics(
             pull_requests=pull_requests,
             weights=weights,
         ),
+        period_start=baseline.date,
     )
 
 
@@ -179,27 +185,35 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
             ProjectRankingEntry(
                 rank=current_rank,
                 project_id=item.project.pk,
-                project_name=item.project.name,
                 total_score=item.total_score,
                 stars=item.stars,
                 forks=item.forks,
                 commits=item.commits,
                 pull_requests=item.pull_requests,
+                period_start=item.period_start,
+                period_end=period_end,
             )
         )
     return results
 
 
-def cache_project_rankings(results: list[ProjectRankingEntry]) -> None:
-    """마지막 정상 프로젝트 랭킹 캐시를 원자적으로 교체한다."""
-    cache.set(PROJECT_RANKING_CACHE_KEY, results, timeout=None)
-
-
-def get_cached_project_rankings(
-    *,
-    start: int,
-    limit: int,
-) -> tuple[list[ProjectRankingEntry], int]:
-    """캐시된 최신 프로젝트 랭킹에서 요청 구간을 반환한다."""
-    rankings = cache.get(PROJECT_RANKING_CACHE_KEY) or []
-    return rankings[start : start + limit], len(rankings)
+@transaction.atomic
+def replace_project_rankings(results: list[ProjectRankingEntry]) -> None:
+    """마지막 정상 프로젝트 랭킹을 한 번에 교체한다."""
+    ProjectRanking.objects.all().delete()
+    ProjectRanking.objects.bulk_create(
+        [
+            ProjectRanking(
+                project_id=result.project_id,
+                rank=result.rank,
+                total_score=result.total_score,
+                stars=result.stars,
+                forks=result.forks,
+                commits=result.commits,
+                pull_requests=result.pull_requests,
+                period_start=result.period_start,
+                period_end=result.period_end,
+            )
+            for result in results
+        ]
+    )

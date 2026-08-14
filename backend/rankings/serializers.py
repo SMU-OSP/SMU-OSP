@@ -2,11 +2,11 @@ from rest_framework import serializers
 
 
 class ProjectRankingResultSerializer(serializers.Serializer):
-    """캐시된 프로젝트 랭킹 결과를 사용자 조회 형식으로 변환한다."""
+    """저장된 프로젝트 랭킹 결과를 사용자 조회 형식으로 변환한다."""
 
     rank = serializers.IntegerField()
     projectId = serializers.IntegerField(source="project_id")
-    projectName = serializers.CharField(source="project_name")
+    projectName = serializers.CharField(source="project.name")
     totalScore = serializers.DecimalField(
         source="total_score",
         max_digits=30,

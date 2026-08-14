@@ -1,9 +1,19 @@
 from datetime import date
 
-from django.db.models import Exists, OuterRef, Prefetch, Q, Subquery
+from django.db.models import (
+    Count,
+    Exists,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Window,
+)
 from django.db.models.functions import Coalesce
 
 from projects.models import Project, RepositorySnapshot, RepositoryStatus
+
+from .models import ProjectRanking
 
 
 def has_pending_project_ranking_refreshes() -> bool:
@@ -12,6 +22,39 @@ def has_pending_project_ranking_refreshes() -> bool:
         repository__project__status=Project.Status.ACTIVE,
         last_status_code="PENDING",
     ).exists()
+
+
+def list_project_rankings(
+    *,
+    start: int,
+    limit: int,
+) -> tuple[list[ProjectRanking], int]:
+    """마지막 정상 프로젝트 랭킹의 요청 구간을 조회한다."""
+    rankings = (
+        ProjectRanking.objects.select_related("project")
+        .only(
+            "project_id",
+            "project__name",
+            "rank",
+            "total_score",
+            "stars",
+            "forks",
+            "commits",
+            "pull_requests",
+        )
+        .annotate(total_count=Window(Count("project_id")))
+        .order_by(
+            "rank",
+            "project__name",
+            "project_id",
+        )
+    )
+    results = list(rankings[start : start + limit])
+    if results:
+        return results, results[0].total_count
+    if start == 0:
+        return results, 0
+    return results, ProjectRanking.objects.count()
 
 
 def list_project_ranking_targets(

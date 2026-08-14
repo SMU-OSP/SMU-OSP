@@ -1,9 +1,8 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 from celery.exceptions import Retry
-from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
 
@@ -14,15 +13,16 @@ from projects.models import (
     RepositoryStatus,
 )
 
+from .models import ProjectRanking
 from .selectors import (
     has_pending_project_ranking_refreshes,
     list_project_ranking_targets,
+    list_project_rankings,
 )
 from .services import (
     ProjectRankingEntry,
-    cache_project_rankings,
     calculate_project_rankings,
-    get_cached_project_rankings,
+    replace_project_rankings,
 )
 from .tasks import (
     RANKING_MAX_RETRIES,
@@ -99,6 +99,33 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.pull_requests, 4)
         self.assertEqual(result.total_score, Decimal("26.00"))
 
+    def test_clamps_decreased_metric_deltas_to_zero(self):
+        repository = self.create_repository_project(name="감소 지표 프로젝트")
+        self.create_snapshot(
+            repository,
+            date(2025, 8, 13),
+            stars=10,
+            forks=4,
+            commits=20,
+            pull_requests=5,
+        )
+        self.create_snapshot(
+            repository,
+            date(2026, 8, 13),
+            stars=9,
+            forks=3,
+            commits=15,
+            pull_requests=4,
+        )
+
+        result = calculate_project_rankings(date(2026, 8, 13))[0]
+
+        self.assertEqual(result.stars, 0)
+        self.assertEqual(result.forks, 0)
+        self.assertEqual(result.commits, 0)
+        self.assertEqual(result.pull_requests, 0)
+        self.assertEqual(result.total_score, Decimal("0.00"))
+
     def test_loads_only_boundary_and_latest_snapshots(self):
         repository = self.create_repository_project(name="기간 제한 프로젝트")
         for snapshot_date in (
@@ -150,6 +177,7 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.stars, 1)
         self.assertEqual(result.commits, 2)
         self.assertEqual(result.pull_requests, 1)
+        self.assertEqual(result.period_start, date(2026, 8, 12))
 
     def test_excludes_projects_outside_ranking_scope(self):
         inactive = self.create_repository_project(
@@ -171,12 +199,14 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(results, [])
 
     def test_assigns_competition_ranks_and_name_order(self):
+        project_ids = {}
         for name, stars in (
-            ("가 프로젝트", 5),
             ("나 프로젝트", 5),
             ("다 프로젝트", 1),
+            ("가 프로젝트", 5),
         ):
             repository = self.create_repository_project(name=name)
+            project_ids[name] = repository.project_id
             self.create_snapshot(
                 repository,
                 date(2025, 8, 13),
@@ -197,8 +227,12 @@ class ProjectRankingCalculationTests(TestCase):
         results = calculate_project_rankings(date(2026, 8, 13))
 
         self.assertEqual(
-            [(result.rank, result.project_name) for result in results],
-            [(1, "가 프로젝트"), (1, "나 프로젝트"), (3, "다 프로젝트")],
+            [(result.rank, result.project_id) for result in results],
+            [
+                (1, project_ids["가 프로젝트"]),
+                (1, project_ids["나 프로젝트"]),
+                (3, project_ids["다 프로젝트"]),
+            ],
         )
 
     @override_settings(
@@ -239,39 +273,30 @@ class ProjectRankingCalculationTests(TestCase):
             calculate_project_rankings(date(2026, 8, 13))
 
 
-TEST_CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-    }
-}
-
-
-@override_settings(CACHES=TEST_CACHES)
 class ProjectRankingApiTests(TestCase):
-    def setUp(self):
-        cache.clear()
-
     def test_returns_latest_successful_project_rankings(self):
         project = Project.objects.create(
             name="API 프로젝트",
             description="API 프로젝트 설명",
         )
-        cache_project_rankings(
+        replace_project_rankings(
             [
                 ProjectRankingEntry(
                     rank=1,
                     project_id=project.pk,
-                    project_name=project.name,
                     total_score=Decimal("12.50"),
                     stars=2,
                     forks=1,
                     commits=3,
                     pull_requests=1,
+                    period_start=date(2025, 8, 13),
+                    period_end=date(2026, 8, 13),
                 )
             ]
         )
 
-        response = self.client.get("/api/v1/rankings/projects")
+        with self.assertNumQueries(1):
+            response = self.client.get("/api/v1/rankings/projects")
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -282,7 +307,8 @@ class ProjectRankingApiTests(TestCase):
         self.assertEqual(body["detail"]["pagination"]["count"], 1)
 
     def test_returns_empty_success_before_first_calculation(self):
-        response = self.client.get("/api/v1/rankings/projects")
+        with self.assertNumQueries(1):
+            response = self.client.get("/api/v1/rankings/projects")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"], [])
@@ -310,20 +336,22 @@ class ProjectRankingApiTests(TestCase):
                 ProjectRankingEntry(
                     rank=rank,
                     project_id=project.pk,
-                    project_name=project.name,
                     total_score=Decimal("1.00"),
                     stars=1,
                     forks=0,
                     commits=0,
                     pull_requests=0,
+                    period_start=date(2025, 8, 13),
+                    period_end=date(2026, 8, 13),
                 )
             )
-        cache_project_rankings(rankings)
+        replace_project_rankings(rankings)
 
-        response = self.client.get(
-            "/api/v1/rankings/projects",
-            {"start": 5, "limit": 5},
-        )
+        with self.assertNumQueries(1):
+            response = self.client.get(
+                "/api/v1/rankings/projects",
+                {"start": 5, "limit": 5},
+            )
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -356,11 +384,7 @@ class ProjectRankingApiTests(TestCase):
         )
 
 
-@override_settings(CACHES=TEST_CACHES)
 class ProjectRankingTaskTests(TestCase):
-    def setUp(self):
-        cache.clear()
-
     def test_only_active_project_pending_refresh_blocks_ranking(self):
         for status in (Project.Status.ACTIVE, Project.Status.INACTIVE):
             project = Project.objects.create(
@@ -398,15 +422,21 @@ class ProjectRankingTaskTests(TestCase):
             ProjectRankingEntry(
                 rank=1,
                 project_id=1,
-                project_name="마지막 정상 프로젝트",
                 total_score=Decimal("1.00"),
                 stars=1,
                 forks=0,
                 commits=0,
                 pull_requests=0,
+                period_start=date(2025, 8, 13),
+                period_end=date(2026, 8, 13),
             )
         ]
-        cache_project_rankings(expected)
+        project = Project.objects.create(
+            id=1,
+            name="마지막 정상 프로젝트",
+            description="마지막 정상 프로젝트 설명",
+        )
+        replace_project_rankings(expected)
 
         with (
             patch.object(
@@ -420,18 +450,19 @@ class ProjectRankingTaskTests(TestCase):
 
         retry.assert_called_once_with(countdown=RANKING_RETRY_DELAY_SECONDS)
         calculate_rankings.assert_not_called()
-        actual, count = get_cached_project_rankings(start=0, limit=10)
-        self.assertEqual(actual, expected)
+        actual, count = list_project_rankings(start=0, limit=10)
+        self.assertEqual(actual[0].project, project)
+        self.assertEqual(actual[0].total_score, Decimal("1.00"))
         self.assertEqual(count, 1)
 
-    @patch("rankings.tasks.cache_project_rankings")
+    @patch("rankings.tasks.replace_project_rankings")
     @patch("rankings.tasks.calculate_project_rankings")
     @patch("rankings.tasks.has_pending_project_ranking_refreshes")
     def test_calculates_when_repository_refresh_is_complete(
         self,
         has_pending_refreshes,
         calculate_rankings,
-        cache_rankings,
+        replace_rankings,
     ):
         has_pending_refreshes.return_value = False
         calculate_rankings.return_value = [object(), object()]
@@ -442,33 +473,93 @@ class ProjectRankingTaskTests(TestCase):
 
         self.assertEqual(result_count, 2)
         calculate_rankings.assert_called_once_with(date(2026, 8, 13))
-        cache_rankings.assert_called_once_with(calculate_rankings.return_value)
+        replace_rankings.assert_called_once_with(
+            calculate_rankings.return_value
+        )
+
+    @patch("rankings.tasks.replace_project_rankings")
+    @patch("rankings.tasks.calculate_project_rankings")
+    @patch("rankings.tasks.has_pending_project_ranking_refreshes")
+    @patch("rankings.tasks.datetime")
+    def test_default_period_excludes_current_day(
+        self,
+        task_datetime,
+        has_pending_refreshes,
+        calculate_rankings,
+        replace_rankings,
+    ):
+        task_datetime.now.return_value = datetime(2026, 8, 14, 3, 10)
+        has_pending_refreshes.return_value = False
+        calculate_rankings.return_value = []
+
+        calculate_daily_project_rankings.run()
+
+        calculate_rankings.assert_called_once_with(date(2026, 8, 13))
+        replace_rankings.assert_called_once_with([])
 
     @patch(
         "rankings.tasks.calculate_project_rankings",
         side_effect=RuntimeError("calculation failed"),
     )
-    def test_failed_calculation_keeps_last_cached_result(self, _):
+    def test_failed_calculation_keeps_last_stored_result(self, _):
         expected = [
             ProjectRankingEntry(
                 rank=1,
                 project_id=1,
-                project_name="마지막 정상 프로젝트",
                 total_score=Decimal("1.00"),
                 stars=1,
                 forks=0,
                 commits=0,
                 pull_requests=0,
+                period_start=date(2025, 8, 13),
+                period_end=date(2026, 8, 13),
             )
         ]
-        cache_project_rankings(expected)
+        project = Project.objects.create(
+            id=1,
+            name="마지막 정상 프로젝트",
+            description="마지막 정상 프로젝트 설명",
+        )
+        replace_project_rankings(expected)
 
         with self.assertRaises(RuntimeError):
             calculate_daily_project_rankings.run(period_end="2026-08-13")
 
-        actual, count = get_cached_project_rankings(start=0, limit=10)
-        self.assertEqual(actual, expected)
+        actual, count = list_project_rankings(start=0, limit=10)
+        self.assertEqual(actual[0].project, project)
+        self.assertEqual(actual[0].total_score, Decimal("1.00"))
         self.assertEqual(count, 1)
+
+    def test_failed_replacement_keeps_last_stored_result(self):
+        project = Project.objects.create(
+            name="교체 실패 프로젝트",
+            description="교체 실패 프로젝트 설명",
+        )
+        expected = ProjectRankingEntry(
+            rank=1,
+            project_id=project.pk,
+            total_score=Decimal("1.00"),
+            stars=1,
+            forks=0,
+            commits=0,
+            pull_requests=0,
+            period_start=date(2025, 8, 13),
+            period_end=date(2026, 8, 13),
+        )
+        replace_project_rankings([expected])
+
+        with (
+            patch(
+                "rankings.services.ProjectRanking.objects.bulk_create",
+                side_effect=RuntimeError("replacement failed"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            replace_project_rankings([])
+
+        ranking = ProjectRanking.objects.get()
+        self.assertEqual(ranking.project, project)
+        self.assertEqual(ranking.total_score, Decimal("1.00"))
 
     def test_retry_policy_is_limited_to_two_hours(self):
         self.assertEqual(
