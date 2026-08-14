@@ -109,12 +109,19 @@ def get_latest_project_rankings(
     Returns:
         프로젝트명 순서가 보장된 결과 목록과 전체 결과 수.
     """
-    latest_run_id = ProjectRankingRun.objects.order_by(
-        "-calculated_at",
-        "-pk",
-    ).values("pk")[:1]
+    latest_run_id = (
+        ProjectRankingRun.objects.order_by(
+            "-calculated_at",
+            "-pk",
+        )
+        .values_list("pk", flat=True)
+        .first()
+    )
+    if latest_run_id is None:
+        return [], 0
+
     rankings = (
-        ProjectRankingResult.objects.filter(run_id=Subquery(latest_run_id))
+        ProjectRankingResult.objects.filter(run_id=latest_run_id)
         .select_related("project")
         .only(
             "rank",
@@ -128,4 +135,7 @@ def get_latest_project_rankings(
         )
         .order_by("rank", "project__name", "project_id")
     )
-    return list(rankings[start : start + limit]), rankings.count()
+    count = rankings.count()
+    if count == 0:
+        return [], 0
+    return list(rankings[start : start + limit]), count

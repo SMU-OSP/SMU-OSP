@@ -83,7 +83,6 @@ function RankingTreeItem({
 /** 사용자와 프로젝트의 오픈소스 활동 랭킹 화면을 표시합니다. */
 export default function RankBoard() {
     const [rankingSubject, setRankingSubject] = useState<RankingSubject>("users");
-    const [pageSize, setPageSize] = useState<string[]>(["10"]);
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
         pageSize: 10,
@@ -138,9 +137,12 @@ export default function RankBoard() {
     };
     const handlePageSizeChange = (details: { value: string[] }) => {
         const nextPageSize = Number(details.value[0]);
-        setPageSize(details.value);
         setPagination({ pageIndex: 0, pageSize: nextPageSize });
     };
+    const rankingCount =
+        rankingSubject === "projects"
+            ? (projectRankingResponse?.detail.pagination.count ?? 0)
+            : users.length;
 
     return (
         <Flex
@@ -215,7 +217,7 @@ export default function RankBoard() {
                         <Select.Root
                             width="130px"
                             size="xs"
-                            value={pageSize}
+                            value={[String(pagination.pageSize)]}
                             onValueChange={handlePageSizeChange}
                             collection={pageSizeCollection}
                         >
@@ -252,28 +254,6 @@ export default function RankBoard() {
                             isLoading={isProjectRankingLoading}
                             isError={isProjectRankingError}
                         />
-                        {(projectRankingResponse?.detail.pagination.count ?? 0) >
-                            pagination.pageSize && (
-                            <VStack mt={4}>
-                                <PaginationRoot
-                                    page={pagination.pageIndex + 1}
-                                    count={projectRankingResponse?.detail.pagination.count ?? 0}
-                                    pageSize={pagination.pageSize}
-                                    onPageChange={(event) =>
-                                        setPagination((current) => ({
-                                            ...current,
-                                            pageIndex: event.page - 1,
-                                        }))
-                                    }
-                                >
-                                    <HStack>
-                                        <PaginationPrevTrigger />
-                                        <PaginationItems />
-                                        <PaginationNextTrigger />
-                                    </HStack>
-                                </PaginationRoot>
-                            </VStack>
-                        )}
                     </>
                 ) : isLoading ? (
                     <Text py={16} textAlign="center" color="gray.600">
@@ -383,32 +363,28 @@ export default function RankBoard() {
                                 </Table.Body>
                             </Table.Root>
                         </Box>
-                        <VStack mt={4}>
-                            <PaginationRoot
-                                page={pagination.pageIndex + 1}
-                                count={users.length}
-                                pageSize={pagination.pageSize}
-                                onPageChange={(event) =>
-                                    setPagination((current) => ({
-                                        ...current,
-                                        pageIndex: event.page - 1,
-                                    }))
-                                }
-                            >
-                                <HStack>
-                                    <PaginationPrevTrigger
-                                        onClick={() => table.previousPage()}
-                                        disabled={!table.getCanPreviousPage()}
-                                    />
-                                    <PaginationItems />
-                                    <PaginationNextTrigger
-                                        onClick={() => table.nextPage()}
-                                        disabled={!table.getCanNextPage()}
-                                    />
-                                </HStack>
-                            </PaginationRoot>
-                        </VStack>
                     </>
+                )}
+                {rankingCount > pagination.pageSize && (
+                    <VStack mt={4}>
+                        <PaginationRoot
+                            page={pagination.pageIndex + 1}
+                            count={rankingCount}
+                            pageSize={pagination.pageSize}
+                            onPageChange={(event) =>
+                                setPagination((current) => ({
+                                    ...current,
+                                    pageIndex: event.page - 1,
+                                }))
+                            }
+                        >
+                            <HStack>
+                                <PaginationPrevTrigger />
+                                <PaginationItems />
+                                <PaginationNextTrigger />
+                            </HStack>
+                        </PaginationRoot>
+                    </VStack>
                 )}
             </Box>
         </Flex>
