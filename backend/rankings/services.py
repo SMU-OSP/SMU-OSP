@@ -6,14 +6,24 @@ from django.db import transaction
 
 from projects.models import Project
 
-from .models import (
-    ProjectRankingResult,
-    ProjectRankingRun,
-    ProjectRankingWeight,
-)
+from .models import ProjectRankingResult, ProjectRankingRun
 from .selectors import list_project_ranking_targets
 
 SCORE_QUANTUM = Decimal("0.01")
+WEIGHT_DEFAULT = Decimal("1.00")
+
+
+@dataclass(frozen=True)
+class ProjectRankingWeights:
+    """프로젝트 랭킹 계산에 적용할 지표별 가중치."""
+
+    stars: Decimal = WEIGHT_DEFAULT
+    forks: Decimal = WEIGHT_DEFAULT
+    commits: Decimal = WEIGHT_DEFAULT
+    pull_requests: Decimal = WEIGHT_DEFAULT
+
+
+DEFAULT_PROJECT_RANKING_WEIGHTS = ProjectRankingWeights()
 
 
 @dataclass(frozen=True)
@@ -42,7 +52,7 @@ def _score(
     forks: int,
     commits: int,
     pull_requests: int,
-    weights: ProjectRankingWeight,
+    weights: ProjectRankingWeights,
 ) -> Decimal:
     return sum(
         (
@@ -59,7 +69,7 @@ def _calculate_project_metrics(
     project: Project,
     *,
     period_start: date,
-    weights: ProjectRankingWeight,
+    weights: ProjectRankingWeights,
 ) -> ProjectRankingMetrics:
     snapshots = project.repository.ranking_snapshots
     first_snapshot = snapshots[0]
@@ -107,7 +117,7 @@ def calculate_project_rankings(period_end: date) -> ProjectRankingRun:
         성공적으로 저장된 랭킹 계산 실행.
     """
     period_start = _one_year_before(period_end)
-    weights, _ = ProjectRankingWeight.objects.get_or_create(pk=1)
+    weights = DEFAULT_PROJECT_RANKING_WEIGHTS
     projects = list_project_ranking_targets(period_start, period_end)
     metrics = [
         _calculate_project_metrics(
@@ -129,10 +139,6 @@ def calculate_project_rankings(period_end: date) -> ProjectRankingRun:
         run = ProjectRankingRun.objects.create(
             period_start=period_start,
             period_end=period_end,
-            stars_weight=weights.stars,
-            forks_weight=weights.forks,
-            commits_weight=weights.commits,
-            pull_requests_weight=weights.pull_requests,
         )
         results = []
         previous_score = None

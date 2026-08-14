@@ -3,7 +3,6 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from celery.exceptions import Retry
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from projects.models import (
@@ -13,11 +12,7 @@ from projects.models import (
     RepositoryStatus,
 )
 
-from .models import (
-    ProjectRankingResult,
-    ProjectRankingRun,
-    ProjectRankingWeight,
-)
+from .models import ProjectRankingResult, ProjectRankingRun
 from .selectors import (
     has_pending_project_ranking_refreshes,
     list_project_ranking_targets,
@@ -212,35 +207,6 @@ class ProjectRankingCalculationTests(TestCase):
             [(1, "가 프로젝트"), (1, "나 프로젝트"), (3, "다 프로젝트")],
         )
 
-    def test_uses_current_weights_and_preserves_them_in_run(self):
-        repository = self.create_repository_project(name="가중치 프로젝트")
-        ProjectRankingWeight.objects.create(
-            stars=Decimal("0.00"),
-            commits=Decimal("1.50"),
-        )
-        self.create_snapshot(
-            repository,
-            date(2025, 8, 13),
-            stars=0,
-            forks=0,
-            commits=0,
-            pull_requests=0,
-        )
-        self.create_snapshot(
-            repository,
-            date(2026, 8, 13),
-            stars=100,
-            forks=0,
-            commits=2,
-            pull_requests=0,
-        )
-
-        run = calculate_project_rankings(date(2026, 8, 13))
-
-        self.assertEqual(run.stars_weight, Decimal("0.00"))
-        self.assertEqual(run.commits_weight, Decimal("1.50"))
-        self.assertEqual(run.results.get().total_score, Decimal("3.00"))
-
     def test_failed_calculation_keeps_last_successful_run(self):
         repository = self.create_repository_project(name="정상 결과 프로젝트")
         self.create_snapshot(
@@ -266,13 +232,6 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(ProjectRankingRun.objects.count(), 1)
         self.assertEqual(ProjectRankingRun.objects.get(), successful_run)
 
-    def test_weight_rejects_negative_value(self):
-        weights = ProjectRankingWeight(stars=Decimal("-0.01"))
-
-        with self.assertRaises(ValidationError):
-            weights.full_clean()
-
-
 class ProjectRankingApiTests(TestCase):
     def test_returns_latest_successful_project_rankings(self):
         project = Project.objects.create(
@@ -282,10 +241,6 @@ class ProjectRankingApiTests(TestCase):
         run = ProjectRankingRun.objects.create(
             period_start=date(2025, 8, 13),
             period_end=date(2026, 8, 13),
-            stars_weight=Decimal("1.00"),
-            forks_weight=Decimal("1.00"),
-            commits_weight=Decimal("1.00"),
-            pull_requests_weight=Decimal("1.00"),
         )
         ProjectRankingResult.objects.create(
             run=run,
@@ -331,10 +286,6 @@ class ProjectRankingApiTests(TestCase):
         run = ProjectRankingRun.objects.create(
             period_start=date(2025, 8, 13),
             period_end=date(2026, 8, 13),
-            stars_weight=Decimal("1.00"),
-            forks_weight=Decimal("1.00"),
-            commits_weight=Decimal("1.00"),
-            pull_requests_weight=Decimal("1.00"),
         )
         for rank in range(1, 13):
             project = Project.objects.create(
