@@ -5,8 +5,6 @@ from django.db.models.functions import Coalesce
 
 from projects.models import Project, RepositorySnapshot, RepositoryStatus
 
-from .models import ProjectRankingResult, ProjectRankingRun
-
 
 def has_pending_project_ranking_refreshes() -> bool:
     """랭킹 대상 프로젝트 중 아직 수집 중인 Repository가 있는지 확인한다."""
@@ -93,49 +91,3 @@ def list_project_ranking_targets(
             )
         )
     )
-
-
-def get_latest_project_rankings(
-    *,
-    start: int,
-    limit: int,
-) -> tuple[list[ProjectRankingResult], int]:
-    """마지막 정상 프로젝트 랭킹 결과 중 요청 구간을 반환한다.
-
-    Args:
-        start: 조회를 시작할 순번.
-        limit: 반환할 최대 결과 수.
-
-    Returns:
-        프로젝트명 순서가 보장된 결과 목록과 전체 결과 수.
-    """
-    latest_run_id = (
-        ProjectRankingRun.objects.order_by(
-            "-calculated_at",
-            "-pk",
-        )
-        .values_list("pk", flat=True)
-        .first()
-    )
-    if latest_run_id is None:
-        return [], 0
-
-    rankings = (
-        ProjectRankingResult.objects.filter(run_id=latest_run_id)
-        .select_related("project")
-        .only(
-            "rank",
-            "project_id",
-            "project__name",
-            "total_score",
-            "stars",
-            "forks",
-            "commits",
-            "pull_requests",
-        )
-        .order_by("rank", "project__name", "project_id")
-    )
-    count = rankings.count()
-    if count == 0:
-        return [], 0
-    return list(rankings[start : start + limit]), count

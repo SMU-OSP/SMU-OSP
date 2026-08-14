@@ -6,7 +6,7 @@ from celery import shared_task
 from django.conf import settings
 
 from .selectors import has_pending_project_ranking_refreshes
-from .services import calculate_project_rankings
+from .services import cache_project_rankings, calculate_project_rankings
 
 RANKING_RETRY_DELAY_SECONDS = 10 * 60
 RANKING_MAX_RETRIES = 12
@@ -24,7 +24,7 @@ def calculate_daily_project_rankings(
         period_end: ISO 8601 형식의 집계 종료일. 없으면 현재 서비스 날짜.
 
     Returns:
-        저장된 랭킹 실행 ID.
+        캐시에 저장한 프로젝트 랭킹 결과 수.
     """
     target_date = (
         date.fromisoformat(period_end)
@@ -33,4 +33,6 @@ def calculate_daily_project_rankings(
     )
     if has_pending_project_ranking_refreshes():
         raise self.retry(countdown=RANKING_RETRY_DELAY_SECONDS)
-    return calculate_project_rankings(target_date).pk
+    results = calculate_project_rankings(target_date)
+    cache_project_rankings(results)
+    return len(results)

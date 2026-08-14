@@ -3,7 +3,9 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from celery.exceptions import Retry
-from django.test import TestCase
+from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured
+from django.test import TestCase, override_settings
 
 from projects.models import (
     Project,
@@ -12,12 +14,16 @@ from projects.models import (
     RepositoryStatus,
 )
 
-from .models import ProjectRankingResult, ProjectRankingRun
 from .selectors import (
     has_pending_project_ranking_refreshes,
     list_project_ranking_targets,
 )
-from .services import calculate_project_rankings
+from .services import (
+    ProjectRankingEntry,
+    cache_project_rankings,
+    calculate_project_rankings,
+    get_cached_project_rankings,
+)
 from .tasks import (
     RANKING_MAX_RETRIES,
     RANKING_RETRY_DELAY_SECONDS,
@@ -84,11 +90,9 @@ class ProjectRankingCalculationTests(TestCase):
                 pull_requests=snapshot[4],
             )
 
-        run = calculate_project_rankings(date(2026, 8, 13))
+        result = calculate_project_rankings(date(2026, 8, 13))[0]
 
-        result = run.results.get(project=repository.project)
-        self.assertEqual(run.period_start, date(2025, 8, 13))
-        self.assertEqual(result.actual_period_start, date(2025, 8, 13))
+        self.assertEqual(result.project_id, repository.project_id)
         self.assertEqual(result.stars, 5)
         self.assertEqual(result.forks, 2)
         self.assertEqual(result.commits, 15)
@@ -141,9 +145,8 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=2,
         )
 
-        result = calculate_project_rankings(date(2026, 8, 13)).results.get()
+        result = calculate_project_rankings(date(2026, 8, 13))[0]
 
-        self.assertEqual(result.actual_period_start, date(2026, 8, 12))
         self.assertEqual(result.stars, 1)
         self.assertEqual(result.commits, 2)
         self.assertEqual(result.pull_requests, 1)
@@ -153,9 +156,7 @@ class ProjectRankingCalculationTests(TestCase):
             name="비활성 프로젝트",
             status=Project.Status.INACTIVE,
         )
-        active_without_snapshot = self.create_repository_project(
-            name="수집 전 프로젝트"
-        )
+        self.create_repository_project(name="수집 전 프로젝트")
         self.create_snapshot(
             inactive,
             date(2026, 8, 13),
@@ -165,12 +166,9 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=1,
         )
 
-        run = calculate_project_rankings(date(2026, 8, 13))
+        results = calculate_project_rankings(date(2026, 8, 13))
 
-        self.assertFalse(run.results.exists())
-        self.assertFalse(
-            run.results.filter(project=active_without_snapshot.project).exists()
-        )
+        self.assertEqual(results, [])
 
     def test_assigns_competition_ranks_and_name_order(self):
         for name, stars in (
@@ -196,62 +194,81 @@ class ProjectRankingCalculationTests(TestCase):
                 pull_requests=0,
             )
 
-        results = list(
-            calculate_project_rankings(date(2026, 8, 13))
-            .results.select_related("project")
-            .order_by("rank", "project__name")
-        )
+        results = calculate_project_rankings(date(2026, 8, 13))
 
         self.assertEqual(
-            [(result.rank, result.project.name) for result in results],
+            [(result.rank, result.project_name) for result in results],
             [(1, "가 프로젝트"), (1, "나 프로젝트"), (3, "다 프로젝트")],
         )
 
-    def test_failed_calculation_keeps_last_successful_run(self):
-        repository = self.create_repository_project(name="정상 결과 프로젝트")
+    @override_settings(
+        PROJECT_RANKING_STARS_WEIGHT="0.00",
+        PROJECT_RANKING_COMMITS_WEIGHT="1.50",
+    )
+    def test_uses_environment_weights(self):
+        repository = self.create_repository_project(name="가중치 프로젝트")
         self.create_snapshot(
             repository,
-            date(2026, 8, 13),
-            stars=1,
+            date(2025, 8, 13),
+            stars=0,
             forks=0,
             commits=0,
             pull_requests=0,
         )
-        successful_run = calculate_project_rankings(date(2026, 8, 13))
+        self.create_snapshot(
+            repository,
+            date(2026, 8, 13),
+            stars=100,
+            forks=0,
+            commits=2,
+            pull_requests=0,
+        )
 
-        with (
-            patch.object(
-                ProjectRankingResult.objects,
-                "bulk_create",
-                side_effect=RuntimeError("save failed"),
-            ),
-            self.assertRaises(RuntimeError),
-        ):
-            calculate_project_rankings(date(2026, 8, 14))
+        result = calculate_project_rankings(date(2026, 8, 13))[0]
 
-        self.assertEqual(ProjectRankingRun.objects.count(), 1)
-        self.assertEqual(ProjectRankingRun.objects.get(), successful_run)
+        self.assertEqual(result.total_score, Decimal("3.00"))
 
+    @override_settings(PROJECT_RANKING_STARS_WEIGHT="-0.01")
+    def test_rejects_negative_environment_weight(self):
+        with self.assertRaises(ImproperlyConfigured):
+            calculate_project_rankings(date(2026, 8, 13))
+
+    @override_settings(PROJECT_RANKING_STARS_WEIGHT="not-a-number")
+    def test_rejects_non_numeric_environment_weight(self):
+        with self.assertRaises(ImproperlyConfigured):
+            calculate_project_rankings(date(2026, 8, 13))
+
+
+TEST_CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
+
+@override_settings(CACHES=TEST_CACHES)
 class ProjectRankingApiTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_returns_latest_successful_project_rankings(self):
         project = Project.objects.create(
             name="API 프로젝트",
             description="API 프로젝트 설명",
         )
-        run = ProjectRankingRun.objects.create(
-            period_start=date(2025, 8, 13),
-            period_end=date(2026, 8, 13),
-        )
-        ProjectRankingResult.objects.create(
-            run=run,
-            project=project,
-            rank=1,
-            total_score=Decimal("12.50"),
-            stars=2,
-            forks=1,
-            commits=3,
-            pull_requests=1,
-            actual_period_start=date(2025, 8, 13),
+        cache_project_rankings(
+            [
+                ProjectRankingEntry(
+                    rank=1,
+                    project_id=project.pk,
+                    project_name=project.name,
+                    total_score=Decimal("12.50"),
+                    stars=2,
+                    forks=1,
+                    commits=3,
+                    pull_requests=1,
+                )
+            ]
         )
 
         response = self.client.get("/api/v1/rankings/projects")
@@ -283,26 +300,25 @@ class ProjectRankingApiTests(TestCase):
         )
 
     def test_paginates_latest_project_rankings(self):
-        run = ProjectRankingRun.objects.create(
-            period_start=date(2025, 8, 13),
-            period_end=date(2026, 8, 13),
-        )
+        rankings = []
         for rank in range(1, 13):
             project = Project.objects.create(
                 name=f"프로젝트 {rank:02d}",
                 description="페이지네이션 테스트",
             )
-            ProjectRankingResult.objects.create(
-                run=run,
-                project=project,
-                rank=rank,
-                total_score=Decimal("1.00"),
-                stars=1,
-                forks=0,
-                commits=0,
-                pull_requests=0,
-                actual_period_start=date(2025, 8, 13),
+            rankings.append(
+                ProjectRankingEntry(
+                    rank=rank,
+                    project_id=project.pk,
+                    project_name=project.name,
+                    total_score=Decimal("1.00"),
+                    stars=1,
+                    forks=0,
+                    commits=0,
+                    pull_requests=0,
+                )
             )
+        cache_project_rankings(rankings)
 
         response = self.client.get(
             "/api/v1/rankings/projects",
@@ -340,7 +356,11 @@ class ProjectRankingApiTests(TestCase):
         )
 
 
+@override_settings(CACHES=TEST_CACHES)
 class ProjectRankingTaskTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     def test_only_active_project_pending_refresh_blocks_ranking(self):
         for status in (Project.Status.ACTIVE, Project.Status.INACTIVE):
             project = Project.objects.create(
@@ -374,6 +394,19 @@ class ProjectRankingTaskTests(TestCase):
         calculate_rankings,
     ):
         has_pending_refreshes.return_value = True
+        expected = [
+            ProjectRankingEntry(
+                rank=1,
+                project_id=1,
+                project_name="마지막 정상 프로젝트",
+                total_score=Decimal("1.00"),
+                stars=1,
+                forks=0,
+                commits=0,
+                pull_requests=0,
+            )
+        ]
+        cache_project_rankings(expected)
 
         with (
             patch.object(
@@ -387,23 +420,55 @@ class ProjectRankingTaskTests(TestCase):
 
         retry.assert_called_once_with(countdown=RANKING_RETRY_DELAY_SECONDS)
         calculate_rankings.assert_not_called()
+        actual, count = get_cached_project_rankings(start=0, limit=10)
+        self.assertEqual(actual, expected)
+        self.assertEqual(count, 1)
 
+    @patch("rankings.tasks.cache_project_rankings")
     @patch("rankings.tasks.calculate_project_rankings")
     @patch("rankings.tasks.has_pending_project_ranking_refreshes")
     def test_calculates_when_repository_refresh_is_complete(
         self,
         has_pending_refreshes,
         calculate_rankings,
+        cache_rankings,
     ):
         has_pending_refreshes.return_value = False
-        calculate_rankings.return_value.pk = 17
+        calculate_rankings.return_value = [object(), object()]
 
-        run_id = calculate_daily_project_rankings.run(
+        result_count = calculate_daily_project_rankings.run(
             period_end="2026-08-13"
         )
 
-        self.assertEqual(run_id, 17)
+        self.assertEqual(result_count, 2)
         calculate_rankings.assert_called_once_with(date(2026, 8, 13))
+        cache_rankings.assert_called_once_with(calculate_rankings.return_value)
+
+    @patch(
+        "rankings.tasks.calculate_project_rankings",
+        side_effect=RuntimeError("calculation failed"),
+    )
+    def test_failed_calculation_keeps_last_cached_result(self, _):
+        expected = [
+            ProjectRankingEntry(
+                rank=1,
+                project_id=1,
+                project_name="마지막 정상 프로젝트",
+                total_score=Decimal("1.00"),
+                stars=1,
+                forks=0,
+                commits=0,
+                pull_requests=0,
+            )
+        ]
+        cache_project_rankings(expected)
+
+        with self.assertRaises(RuntimeError):
+            calculate_daily_project_rankings.run(period_end="2026-08-13")
+
+        actual, count = get_cached_project_rankings(start=0, limit=10)
+        self.assertEqual(actual, expected)
+        self.assertEqual(count, 1)
 
     def test_retry_policy_is_limited_to_two_hours(self):
         self.assertEqual(

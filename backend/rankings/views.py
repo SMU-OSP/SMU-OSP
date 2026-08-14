@@ -6,8 +6,8 @@ from common.pagination import pagination_detail
 from common.responses import fail, success
 
 from .forms import ProjectRankingQueryForm
-from .selectors import get_latest_project_rankings
 from .serializers import ProjectRankingResultSerializer
+from .services import get_cached_project_rankings
 
 
 class ProjectRankings(APIView):
@@ -26,7 +26,7 @@ class ProjectRankings(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         query = query_form.to_query()
-        results, count = get_latest_project_rankings(
+        results, count = get_cached_project_rankings(
             start=query.start,
             limit=query.limit,
         )
