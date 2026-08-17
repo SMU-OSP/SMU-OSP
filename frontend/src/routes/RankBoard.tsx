@@ -75,10 +75,15 @@ function RankingTreeItem({
 /** 사용자와 프로젝트의 오픈소스 활동 랭킹 화면을 표시합니다. */
 export default function RankBoard() {
     const [rankingSubject, setRankingSubject] = useState<RankingSubject>("users");
-    const [pagination, setPagination] = useState<PaginationState>({
-        pageIndex: 0,
-        pageSize: 100,
+    const [paginationBySubject, setPaginationBySubject] = useState<
+        Record<RankingSubject, PaginationState>
+    >({
+        users: { pageIndex: 0, pageSize: 100 },
+        projects: { pageIndex: 0, pageSize: 100 },
     });
+    const pagination = paginationBySubject[rankingSubject];
+    const userPagination = paginationBySubject.users;
+    const projectPagination = paginationBySubject.projects;
     const {
         data: userRankingResponse,
         isLoading,
@@ -87,16 +92,15 @@ export default function RankBoard() {
         queryKey: [
             "rankingUsers",
             "1year",
-            pagination.pageIndex,
-            pagination.pageSize,
+            userPagination.pageIndex,
+            userPagination.pageSize,
         ],
         queryFn: () =>
             getUsers({
-                start: pagination.pageIndex * pagination.pageSize,
-                limit: pagination.pageSize,
+                start: userPagination.pageIndex * userPagination.pageSize,
+                limit: userPagination.pageSize,
                 sortBy: "score",
             }),
-        enabled: rankingSubject === "users",
     });
     const users = userRankingResponse?.data ?? [];
     const {
@@ -107,23 +111,28 @@ export default function RankBoard() {
         queryKey: [
             "rankingProjects",
             "1year",
-            pagination.pageIndex,
-            pagination.pageSize,
+            projectPagination.pageIndex,
+            projectPagination.pageSize,
         ],
         queryFn: () =>
             getProjectRankings(
-                pagination.pageIndex * pagination.pageSize,
-                pagination.pageSize,
+                projectPagination.pageIndex * projectPagination.pageSize,
+                projectPagination.pageSize,
             ),
-        enabled: rankingSubject === "projects" || pagination.pageIndex === 0,
     });
     const selectSubject = (subject: RankingSubject) => {
         setRankingSubject(subject);
-        setPagination((current) => ({ ...current, pageIndex: 0 }));
+        setPaginationBySubject((current) => ({
+            ...current,
+            [subject]: { ...current[subject], pageIndex: 0 },
+        }));
     };
     const handlePageSizeChange = (details: { value: string[] }) => {
         const nextPageSize = Number(details.value[0]);
-        setPagination({ pageIndex: 0, pageSize: nextPageSize });
+        setPaginationBySubject((current) => ({
+            ...current,
+            [rankingSubject]: { pageIndex: 0, pageSize: nextPageSize },
+        }));
     };
     const rankingCount =
         rankingSubject === "projects"
@@ -321,9 +330,12 @@ export default function RankBoard() {
                             count={rankingCount}
                             pageSize={pagination.pageSize}
                             onPageChange={(event) =>
-                                setPagination((current) => ({
+                                setPaginationBySubject((current) => ({
                                     ...current,
-                                    pageIndex: event.page - 1,
+                                    [rankingSubject]: {
+                                        ...current[rankingSubject],
+                                        pageIndex: event.page - 1,
+                                    },
                                 }))
                             }
                         >
