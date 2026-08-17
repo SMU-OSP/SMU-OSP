@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { PaginationState } from "@tanstack/react-table";
+import { Link as RouterLink } from "react-router-dom";
 import { getProjectRankings, getUsers } from "../api";
 import {
     PaginationItems,
@@ -290,13 +291,9 @@ export default function RankBoard() {
                                                 fontWeight="bold"
                                                 _hover={{ textDecoration: "underline" }}
                                             >
-                                                <a
-                                                    href={`https://github.com/${user.username}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
+                                                <RouterLink to={`/@${user.username}`}>
                                                     {user.username}
-                                                </a>
+                                                </RouterLink>
                                             </Text>
                                         </Table.Cell>
                                         <Table.Cell textAlign="right" fontWeight="bold">
