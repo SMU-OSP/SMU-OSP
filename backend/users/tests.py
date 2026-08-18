@@ -15,7 +15,7 @@ from users.github_client import (
 )
 from users.models import UserActivity
 from users.services import initialize_user_activity, save_daily_activity
-from users.tasks import daily_update, update_user_activity
+from users.tasks import daily_update, initial_process, update_user_activity
 
 
 class GitHubUserClientTests(TestCase):
@@ -132,6 +132,14 @@ class UserActivityTaskTests(TestCase):
         update_user_activity(17)
 
         refresh.assert_called_once_with(17)
+
+    def test_github_tasks_retry_client_errors_three_times(self):
+        for task in (update_user_activity, initial_process):
+            self.assertEqual(task.max_retries, 3)
+            self.assertEqual(
+                task.autoretry_for,
+                (GitHubUserClientError,),
+            )
 
 
 class UserActivityServiceTests(TestCase):
