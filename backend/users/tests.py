@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -6,8 +6,73 @@ from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
+from users.github_client import (
+    GitHubUserClientError,
+    fetch_user_contributions,
+    fetch_user_summary,
+)
 from users.models import UserActivity
 from users.tasks import save_daily_activity
+
+
+class GitHubUserClientTests(TestCase):
+    @patch("users.github_client.requests.post")
+    def test_fetches_user_summary(self, post):
+        post.return_value.json.return_value = {
+            "data": {
+                "user": {
+                    "createdAt": "2020-01-02T03:04:05Z",
+                    "repositories": {
+                        "nodes": [
+                            {"stargazerCount": 2},
+                            {"stargazerCount": 3},
+                        ]
+                    },
+                }
+            }
+        }
+
+        summary = fetch_user_summary("activity-test")
+
+        self.assertEqual(
+            summary.account_created_at,
+            datetime(2020, 1, 2, 3, 4, 5, tzinfo=UTC),
+        )
+        self.assertEqual(summary.stars, 5)
+        self.assertEqual(post.call_args.kwargs["timeout"], 10)
+
+    @patch("users.github_client.requests.post")
+    def test_fetches_daily_contributions(self, post):
+        post.return_value.json.return_value = {
+            "data": {
+                "user": {
+                    "contributionsCollection": {
+                        "totalCommitContributions": 3,
+                        "pullRequestContributions": {"totalCount": 2},
+                        "issueContributionsByRepository": [
+                            {"contributions": {"totalCount": 1}},
+                            {"contributions": {"totalCount": 4}},
+                        ],
+                    }
+                }
+            }
+        }
+
+        contributions = fetch_user_contributions(
+            "activity-test",
+            date(2026, 8, 17),
+        )
+
+        self.assertEqual(contributions.commits, 3)
+        self.assertEqual(contributions.pull_requests, 2)
+        self.assertEqual(contributions.issues, 5)
+
+    @patch("users.github_client.requests.post")
+    def test_rejects_graphql_errors(self, post):
+        post.return_value.json.return_value = {"errors": ["rate limited"]}
+
+        with self.assertRaises(GitHubUserClientError):
+            fetch_user_summary("activity-test")
 
 
 class UserSignalTests(TestCase):
