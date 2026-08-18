@@ -70,6 +70,49 @@ class ProjectRankingMetrics:
     total_score: Decimal
     period_start: date
 
+    @classmethod
+    def from_project(
+        cls,
+        project: Project,
+        *,
+        period_start: date,
+        weights: ProjectRankingWeights,
+    ) -> "ProjectRankingMetrics":
+        """프로젝트 스냅샷으로 랭킹 지표를 계산한다."""
+        snapshots = project.repository.ranking_snapshots
+        first_snapshot = snapshots[0]
+        end_snapshot = snapshots[-1]
+        baseline = next(
+            (
+                snapshot
+                for snapshot in reversed(snapshots)
+                if snapshot.date <= period_start
+            ),
+            first_snapshot,
+        )
+        stars = max(end_snapshot.stars - baseline.stars, 0)
+        forks = max(end_snapshot.forks - baseline.forks, 0)
+        commits = max(end_snapshot.commits - baseline.commits, 0)
+        pull_requests = max(
+            end_snapshot.pull_requests - baseline.pull_requests,
+            0,
+        )
+        return cls(
+            project=project,
+            stars=stars,
+            forks=forks,
+            commits=commits,
+            pull_requests=pull_requests,
+            total_score=_score(
+                stars=stars,
+                forks=forks,
+                commits=commits,
+                pull_requests=pull_requests,
+                weights=weights,
+            ),
+            period_start=baseline.date,
+        )
+
 
 @dataclass(frozen=True)
 class ProjectRankingEntry:
@@ -112,47 +155,6 @@ def _score(
     ).quantize(SCORE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
-def _calculate_project_metrics(
-    project: Project,
-    *,
-    period_start: date,
-    weights: ProjectRankingWeights,
-) -> ProjectRankingMetrics:
-    snapshots = project.repository.ranking_snapshots
-    first_snapshot = snapshots[0]
-    end_snapshot = snapshots[-1]
-    baseline = next(
-        (
-            snapshot
-            for snapshot in reversed(snapshots)
-            if snapshot.date <= period_start
-        ),
-        first_snapshot,
-    )
-    stars = max(end_snapshot.stars - baseline.stars, 0)
-    forks = max(end_snapshot.forks - baseline.forks, 0)
-    commits = max(end_snapshot.commits - baseline.commits, 0)
-    pull_requests = max(
-        end_snapshot.pull_requests - baseline.pull_requests,
-        0,
-    )
-    return ProjectRankingMetrics(
-        project=project,
-        stars=stars,
-        forks=forks,
-        commits=commits,
-        pull_requests=pull_requests,
-        total_score=_score(
-            stars=stars,
-            forks=forks,
-            commits=commits,
-            pull_requests=pull_requests,
-            weights=weights,
-        ),
-        period_start=baseline.date,
-    )
-
-
 def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
     """최근 1년 프로젝트 랭킹을 계산한다.
 
@@ -166,7 +168,7 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
     weights = ProjectRankingWeights.from_settings()
     projects = list_project_ranking_targets(period_start, period_end)
     metrics = [
-        _calculate_project_metrics(
+        ProjectRankingMetrics.from_project(
             project,
             period_start=period_start,
             weights=weights,
