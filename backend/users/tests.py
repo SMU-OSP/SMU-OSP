@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -15,6 +15,7 @@ from users.github_client import (
 )
 from users.models import UserActivity
 from users.services import initialize_user_activity, save_daily_activity
+from users.tasks import daily_update, update_user_activity
 
 
 class GitHubUserClientTests(TestCase):
@@ -92,6 +93,45 @@ class UserSignalTests(TestCase):
 
         self.assertEqual(len(callbacks), 1)
         delay.assert_called_once_with("celery-test")
+
+
+class UserActivityTaskTests(TestCase):
+    @patch("users.tasks.update_user_activity.delay")
+    def test_daily_update_queues_each_non_superuser(self, delay):
+        user_model = get_user_model()
+        users = [
+            user_model.objects.create_user(
+                username=f"activity-{index}",
+                github_email=f"activity-{index}@example.com",
+                name=f"활동 사용자 {index}",
+                student_id=index,
+                major="IT공학",
+            )
+            for index in (1, 2)
+        ]
+        user_model.objects.create_superuser(
+            username="activity-admin",
+            email="activity-admin@example.com",
+            password="password",
+            github_email="activity-admin@example.com",
+            name="활동 관리자",
+            student_id=3,
+            major="IT공학",
+        )
+
+        daily_update()
+
+        self.assertEqual(delay.call_count, 2)
+        delay.assert_has_calls(
+            [call(users[0].pk), call(users[1].pk)],
+            any_order=True,
+        )
+
+    @patch("users.tasks.refresh_user_activity")
+    def test_user_activity_task_delegates_to_service(self, refresh):
+        update_user_activity(17)
+
+        refresh.assert_called_once_with(17)
 
 
 class UserActivityServiceTests(TestCase):

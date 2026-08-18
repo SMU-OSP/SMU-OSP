@@ -128,8 +128,9 @@ def _save_previous_activities(
         activity_date -= timedelta(days=1)
 
 
-def refresh_user_activity(user: User) -> None:
+def refresh_user_activity(user_id: int) -> None:
     """사용자의 전날 활동을 수집하고 최근 1년 합계를 갱신한다."""
+    user = User.objects.get(pk=user_id)
     summary = fetch_user_summary(user.username)
     save_daily_activity(
         user=user,
