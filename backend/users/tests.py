@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -8,11 +8,12 @@ from django.test.utils import CaptureQueriesContext
 
 from users.github_client import (
     GitHubUserClientError,
+    GitHubUserContributions,
     fetch_user_contributions,
     fetch_user_summary,
 )
 from users.models import UserActivity
-from users.tasks import save_daily_activity
+from users.services import save_daily_activity
 
 
 class GitHubUserClientTests(TestCase):
@@ -92,7 +93,7 @@ class UserSignalTests(TestCase):
         delay.assert_called_once_with("celery-test")
 
 
-class UserActivityTaskTests(TestCase):
+class UserActivityServiceTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             username="activity-test",
@@ -102,42 +103,38 @@ class UserActivityTaskTests(TestCase):
             major="IT공학",
         )
 
-    @patch("users.tasks.requests.post")
-    def test_saves_current_star_snapshot_with_daily_activity(self, post):
-        post.return_value.json.return_value = {
-            "data": {
-                "user": {
-                    "contributionsCollection": {
-                        "totalCommitContributions": 3,
-                        "pullRequestContributions": {"totalCount": 2},
-                        "issueContributionsByRepository": [],
-                    }
-                }
-            }
-        }
-        save_daily_activity(self.user, stars=7)
+    @patch("users.services.fetch_user_contributions")
+    def test_saves_current_star_snapshot_with_daily_activity(self, fetch):
+        fetch.return_value = GitHubUserContributions(
+            commits=3,
+            pull_requests=2,
+            issues=0,
+        )
+        save_daily_activity(
+            user=self.user,
+            activity_date=date(2026, 8, 17),
+            stars=7,
+        )
 
         activity = UserActivity.objects.get(user=self.user)
         self.assertEqual(activity.stars, 7)
         self.assertEqual(activity.commits, 3)
         self.assertEqual(activity.prs, 2)
 
-    @patch("users.tasks.requests.post")
-    def test_new_daily_activity_is_saved_with_one_write_query(self, post):
-        post.return_value.json.return_value = {
-            "data": {
-                "user": {
-                    "contributionsCollection": {
-                        "totalCommitContributions": 3,
-                        "pullRequestContributions": {"totalCount": 2},
-                        "issueContributionsByRepository": [],
-                    }
-                }
-            }
-        }
+    @patch("users.services.fetch_user_contributions")
+    def test_new_daily_activity_is_saved_with_one_write_query(self, fetch):
+        fetch.return_value = GitHubUserContributions(
+            commits=3,
+            pull_requests=2,
+            issues=0,
+        )
 
         with CaptureQueriesContext(connection) as queries:
-            save_daily_activity(self.user, stars=7)
+            save_daily_activity(
+                user=self.user,
+                activity_date=date(2026, 8, 17),
+                stars=7,
+            )
 
         activity_writes = [
             query["sql"]
@@ -148,45 +145,57 @@ class UserActivityTaskTests(TestCase):
         self.assertEqual(len(activity_writes), 1)
         self.assertTrue(activity_writes[0].lstrip().upper().startswith("INSERT"))
 
-    @patch("users.tasks.requests.post")
-    def test_skips_existing_activity_without_calling_github(self, post):
-        activity_date = (datetime.now(UTC) - timedelta(days=1)).date()
+    @patch("users.services.fetch_user_contributions")
+    def test_skips_existing_activity_without_calling_github(self, fetch):
+        activity_date = date(2026, 8, 17)
         UserActivity.objects.create(
             user=self.user,
             activity_date=activity_date,
             stars=5,
         )
 
-        save_daily_activity(self.user, stars=7)
+        save_daily_activity(
+            user=self.user,
+            activity_date=activity_date,
+            stars=7,
+        )
 
-        post.assert_not_called()
+        fetch.assert_not_called()
         self.assertEqual(
             UserActivity.objects.get(user=self.user).stars,
             5,
         )
 
-    @patch("users.tasks.requests.post")
-    def test_fills_unknown_stars_without_calling_github(self, post):
-        activity_date = (datetime.now(UTC) - timedelta(days=1)).date()
+    @patch("users.services.fetch_user_contributions")
+    def test_fills_unknown_stars_without_calling_github(self, fetch):
+        activity_date = date(2026, 8, 17)
         UserActivity.objects.create(
             user=self.user,
             activity_date=activity_date,
             commits=3,
         )
 
-        save_daily_activity(self.user, stars=7)
+        save_daily_activity(
+            user=self.user,
+            activity_date=activity_date,
+            stars=7,
+        )
 
-        post.assert_not_called()
+        fetch.assert_not_called()
         activity = UserActivity.objects.get(user=self.user)
         self.assertEqual(activity.stars, 7)
         self.assertEqual(activity.commits, 3)
 
-    @patch("users.tasks.requests.post")
-    def test_does_not_save_activity_when_github_returns_errors(self, post):
-        post.return_value.json.return_value = {"errors": ["rate limited"]}
+    @patch("users.services.fetch_user_contributions")
+    def test_does_not_save_activity_when_github_returns_errors(self, fetch):
+        fetch.side_effect = GitHubUserClientError("rate limited")
 
-        with self.assertRaises(RuntimeError):
-            save_daily_activity(self.user, stars=7)
+        with self.assertRaises(GitHubUserClientError):
+            save_daily_activity(
+                user=self.user,
+                activity_date=date(2026, 8, 17),
+                stars=7,
+            )
 
         self.assertFalse(UserActivity.objects.filter(user=self.user).exists())
 
