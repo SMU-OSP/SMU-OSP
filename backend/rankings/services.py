@@ -97,19 +97,22 @@ class ProjectRankingMetrics:
             end_snapshot.pull_requests - baseline.pull_requests,
             0,
         )
+        total_score = sum(
+            (
+                Decimal(stars) * weights.stars,
+                Decimal(forks) * weights.forks,
+                Decimal(commits) * weights.commits,
+                Decimal(pull_requests) * weights.pull_requests,
+            ),
+            start=Decimal("0.00"),
+        ).quantize(SCORE_QUANTUM, rounding=ROUND_HALF_UP)
         return cls(
             project=project,
             stars=stars,
             forks=forks,
             commits=commits,
             pull_requests=pull_requests,
-            total_score=_score(
-                stars=stars,
-                forks=forks,
-                commits=commits,
-                pull_requests=pull_requests,
-                weights=weights,
-            ),
+            total_score=total_score,
             period_start=baseline.date,
         )
 
@@ -119,25 +122,6 @@ def _one_year_before(target_date: date) -> date:
         return target_date.replace(year=target_date.year - 1)
     except ValueError:
         return target_date.replace(year=target_date.year - 1, day=28)
-
-
-def _score(
-    *,
-    stars: int,
-    forks: int,
-    commits: int,
-    pull_requests: int,
-    weights: ProjectRankingWeights,
-) -> Decimal:
-    return sum(
-        (
-            Decimal(stars) * weights.stars,
-            Decimal(forks) * weights.forks,
-            Decimal(commits) * weights.commits,
-            Decimal(pull_requests) * weights.pull_requests,
-        ),
-        start=Decimal("0.00"),
-    ).quantize(SCORE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def calculate_project_rankings(period_end: date) -> list[ProjectRanking]:
