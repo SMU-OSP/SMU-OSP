@@ -2,7 +2,9 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from users.models import UserActivity
 from users.tasks import save_daily_activity
@@ -54,6 +56,32 @@ class UserActivityTaskTests(TestCase):
         self.assertEqual(activity.stars, 7)
         self.assertEqual(activity.commits, 3)
         self.assertEqual(activity.prs, 2)
+
+    @patch("users.tasks.requests.post")
+    def test_new_daily_activity_is_saved_with_one_write_query(self, post):
+        post.return_value.json.return_value = {
+            "data": {
+                "user": {
+                    "contributionsCollection": {
+                        "totalCommitContributions": 3,
+                        "pullRequestContributions": {"totalCount": 2},
+                        "issueContributionsByRepository": [],
+                    }
+                }
+            }
+        }
+
+        with CaptureQueriesContext(connection) as queries:
+            save_daily_activity(self.user, stars=7)
+
+        activity_writes = [
+            query["sql"]
+            for query in queries.captured_queries
+            if "users_useractivity" in query["sql"].lower()
+            and query["sql"].lstrip().upper().startswith(("INSERT", "UPDATE"))
+        ]
+        self.assertEqual(len(activity_writes), 1)
+        self.assertTrue(activity_writes[0].lstrip().upper().startswith("INSERT"))
 
     @patch("users.tasks.requests.post")
     def test_skips_existing_activity_without_calling_github(self, post):
