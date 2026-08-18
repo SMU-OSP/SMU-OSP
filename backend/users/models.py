@@ -1,8 +1,5 @@
-from datetime import timedelta
-
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.utils import timezone
 
 from common.models import CommonModel
 
@@ -55,30 +52,6 @@ class User(AbstractUser):
         default=0.0,
         null=True,
     )
-
-    def update_contributions(self):
-        one_year_ago = timezone.now() - timedelta(days=365)
-
-        stats = UserActivity.objects.filter(
-            user=self, activity_date__gte=one_year_ago.date()
-        ).aggregate(
-            total_commits=models.Sum("commits"),
-            total_prs=models.Sum("prs"),
-            total_issues=models.Sum("issues"),
-        )
-
-        self.commits = stats["total_commits"] or 0
-        self.prs = stats["total_prs"] or 0
-        self.issues = stats["total_issues"] or 0
-
-        self.save()
-
-    def update_score(self):
-
-        self.score = self.stars + self.commits + self.prs + self.issues
-
-        self.save()
-
 
 class UserActivity(CommonModel):
     """사용자의 일별 GitHub 활동과 누적 Star 스냅샷."""

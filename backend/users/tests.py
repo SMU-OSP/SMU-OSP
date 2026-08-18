@@ -9,11 +9,12 @@ from django.test.utils import CaptureQueriesContext
 from users.github_client import (
     GitHubUserClientError,
     GitHubUserContributions,
+    GitHubUserSummary,
     fetch_user_contributions,
     fetch_user_summary,
 )
 from users.models import UserActivity
-from users.services import save_daily_activity
+from users.services import initialize_user_activity, save_daily_activity
 
 
 class GitHubUserClientTests(TestCase):
@@ -198,6 +199,48 @@ class UserActivityServiceTests(TestCase):
             )
 
         self.assertFalse(UserActivity.objects.filter(user=self.user).exists())
+
+    @patch("users.services._yesterday", return_value=date(2026, 8, 17))
+    @patch("users.services.fetch_user_contributions")
+    @patch("users.services.fetch_user_summary")
+    def test_initial_collection_resumes_after_failure(
+        self,
+        fetch_summary,
+        fetch_contributions,
+        _yesterday,
+    ):
+        fetch_summary.return_value = GitHubUserSummary(
+            account_created_at=datetime(2026, 8, 15, tzinfo=UTC),
+            stars=7,
+        )
+        contribution = GitHubUserContributions(
+            commits=1,
+            pull_requests=1,
+            issues=1,
+        )
+        fetch_contributions.side_effect = [
+            contribution,
+            GitHubUserClientError("rate limited"),
+        ]
+
+        with self.assertRaises(GitHubUserClientError):
+            initialize_user_activity(self.user.username)
+
+        self.assertEqual(UserActivity.objects.filter(user=self.user).count(), 1)
+        fetch_contributions.reset_mock()
+        fetch_contributions.side_effect = None
+        fetch_contributions.return_value = contribution
+
+        initialize_user_activity(self.user.username)
+
+        self.assertEqual(UserActivity.objects.filter(user=self.user).count(), 3)
+        self.assertEqual(fetch_contributions.call_count, 2)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.stars, 7)
+        self.assertEqual(self.user.commits, 3)
+        self.assertEqual(self.user.prs, 3)
+        self.assertEqual(self.user.issues, 3)
+        self.assertEqual(self.user.score, 16)
 
     def test_stars_are_unknown_until_collected(self):
         activity = UserActivity.objects.create(user=self.user)
