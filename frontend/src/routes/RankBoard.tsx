@@ -92,7 +92,6 @@ export default function RankBoard() {
     } = useQuery<PublicUserListResponse>({
         queryKey: [
             "rankingUsers",
-            "1year",
             userPagination.pageIndex,
             userPagination.pageSize,
         ],
@@ -111,7 +110,6 @@ export default function RankBoard() {
     } = useQuery<ProjectRankingResponse>({
         queryKey: [
             "rankingProjects",
-            "1year",
             projectPagination.pageIndex,
             projectPagination.pageSize,
         ],
@@ -244,13 +242,11 @@ export default function RankBoard() {
                 <Separator mt={3} borderColor="smu.smuGray" />
 
                 {rankingSubject === "projects" ? (
-                    <>
-                        <ProjectRankingTable
-                            response={projectRankingResponse}
-                            isLoading={isProjectRankingLoading}
-                            isError={isProjectRankingError}
-                        />
-                    </>
+                    <ProjectRankingTable
+                        response={projectRankingResponse}
+                        isLoading={isProjectRankingLoading}
+                        isError={isProjectRankingError}
+                    />
                 ) : isLoading ? (
                     <Text py={16} textAlign="center" color="gray.600">
                         랭킹을 불러오는 중입니다.

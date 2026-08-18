@@ -109,7 +109,7 @@ export const getProjectLanguages = () =>
  * @param limit 반환할 최대 결과 수
  * @returns 프로젝트 랭킹 API 응답
  */
-export const getProjectRankings = (start = 0, limit = 100) =>
+export const getProjectRankings = (start: number, limit: number) =>
     instance
         .get<ProjectRankingResponse>("rankings/projects", { params: { start, limit } })
         .then((response) => response.data);
