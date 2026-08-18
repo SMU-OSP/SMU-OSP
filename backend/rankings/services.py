@@ -114,21 +114,6 @@ class ProjectRankingMetrics:
         )
 
 
-@dataclass(frozen=True)
-class ProjectRankingEntry:
-    """DB에 저장할 프로젝트 랭킹 한 행."""
-
-    rank: int
-    project_id: int
-    total_score: Decimal
-    stars: int
-    forks: int
-    commits: int
-    pull_requests: int
-    period_start: date
-    period_end: date
-
-
 def _one_year_before(target_date: date) -> date:
     try:
         return target_date.replace(year=target_date.year - 1)
@@ -155,7 +140,7 @@ def _score(
     ).quantize(SCORE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
-def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
+def calculate_project_rankings(period_end: date) -> list[ProjectRanking]:
     """최근 1년 프로젝트 랭킹을 계산한다.
 
     Args:
@@ -191,7 +176,7 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
             current_rank = position
             previous_score = item.total_score
         results.append(
-            ProjectRankingEntry(
+            ProjectRanking(
                 rank=current_rank,
                 project_id=item.project.pk,
                 total_score=item.total_score,
@@ -207,22 +192,7 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
 
 
 @transaction.atomic
-def replace_project_rankings(results: list[ProjectRankingEntry]) -> None:
+def replace_project_rankings(results: list[ProjectRanking]) -> None:
     """마지막 정상 프로젝트 랭킹을 한 번에 교체한다."""
     ProjectRanking.objects.all().delete()
-    ProjectRanking.objects.bulk_create(
-        [
-            ProjectRanking(
-                project_id=result.project_id,
-                rank=result.rank,
-                total_score=result.total_score,
-                stars=result.stars,
-                forks=result.forks,
-                commits=result.commits,
-                pull_requests=result.pull_requests,
-                period_start=result.period_start,
-                period_end=result.period_end,
-            )
-            for result in results
-        ]
-    )
+    ProjectRanking.objects.bulk_create(results)

@@ -14,11 +14,7 @@ from projects.models import (
 
 from .models import ProjectRanking
 from .selectors import list_project_ranking_targets, list_project_rankings
-from .services import (
-    ProjectRankingEntry,
-    calculate_project_rankings,
-    replace_project_rankings,
-)
+from .services import calculate_project_rankings, replace_project_rankings
 from .tasks import calculate_daily_project_rankings
 
 
@@ -272,7 +268,7 @@ class ProjectRankingApiTests(TestCase):
         )
         replace_project_rankings(
             [
-                ProjectRankingEntry(
+                ProjectRanking(
                     rank=1,
                     project_id=project.pk,
                     total_score=Decimal("12.50"),
@@ -324,7 +320,7 @@ class ProjectRankingApiTests(TestCase):
                 description="페이지네이션 테스트",
             )
             rankings.append(
-                ProjectRankingEntry(
+                ProjectRanking(
                     rank=rank,
                     project_id=project.pk,
                     total_score=Decimal("1.00"),
@@ -418,7 +414,7 @@ class ProjectRankingTaskTests(TestCase):
     )
     def test_failed_calculation_keeps_last_stored_result(self, _):
         expected = [
-            ProjectRankingEntry(
+            ProjectRanking(
                 rank=1,
                 project_id=1,
                 total_score=Decimal("1.00"),
@@ -450,7 +446,7 @@ class ProjectRankingTaskTests(TestCase):
             name="교체 실패 프로젝트",
             description="교체 실패 프로젝트 설명",
         )
-        expected = ProjectRankingEntry(
+        expected = ProjectRanking(
             rank=1,
             project_id=project.pk,
             total_score=Decimal("1.00"),
