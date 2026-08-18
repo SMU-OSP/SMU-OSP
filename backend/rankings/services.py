@@ -12,17 +12,50 @@ from .models import ProjectRanking
 from .selectors import list_project_ranking_targets
 
 SCORE_QUANTUM = Decimal("0.01")
-WEIGHT_DEFAULT = Decimal("1.00")
 
 
 @dataclass(frozen=True)
 class ProjectRankingWeights:
     """프로젝트 랭킹 계산에 적용할 지표별 가중치."""
 
-    stars: Decimal = WEIGHT_DEFAULT
-    forks: Decimal = WEIGHT_DEFAULT
-    commits: Decimal = WEIGHT_DEFAULT
-    pull_requests: Decimal = WEIGHT_DEFAULT
+    stars: Decimal
+    forks: Decimal
+    commits: Decimal
+    pull_requests: Decimal
+
+    @classmethod
+    def from_settings(cls) -> "ProjectRankingWeights":
+        """환경 설정에서 유효한 프로젝트 랭킹 가중치를 생성한다.
+
+        Returns:
+            환경 설정값으로 생성한 프로젝트 랭킹 가중치.
+
+        Raises:
+            ImproperlyConfigured: 가중치가 숫자가 아니거나 음수인 경우.
+        """
+        try:
+            weights = cls(
+                stars=Decimal(settings.PROJECT_RANKING_STARS_WEIGHT),
+                forks=Decimal(settings.PROJECT_RANKING_FORKS_WEIGHT),
+                commits=Decimal(settings.PROJECT_RANKING_COMMITS_WEIGHT),
+                pull_requests=Decimal(
+                    settings.PROJECT_RANKING_PULL_REQUESTS_WEIGHT
+                ),
+            )
+        except (InvalidOperation, TypeError) as exc:
+            raise ImproperlyConfigured(
+                "프로젝트 랭킹 가중치는 숫자여야 합니다."
+            ) from exc
+        if min(
+            weights.stars,
+            weights.forks,
+            weights.commits,
+            weights.pull_requests,
+        ) < 0:
+            raise ImproperlyConfigured(
+                "프로젝트 랭킹 가중치는 0 이상이어야 합니다."
+            )
+        return weights
 
 
 @dataclass(frozen=True)
@@ -51,32 +84,6 @@ class ProjectRankingEntry:
     pull_requests: int
     period_start: date
     period_end: date
-
-
-def _configured_weights() -> ProjectRankingWeights:
-    try:
-        weights = ProjectRankingWeights(
-            stars=Decimal(settings.PROJECT_RANKING_STARS_WEIGHT),
-            forks=Decimal(settings.PROJECT_RANKING_FORKS_WEIGHT),
-            commits=Decimal(settings.PROJECT_RANKING_COMMITS_WEIGHT),
-            pull_requests=Decimal(
-                settings.PROJECT_RANKING_PULL_REQUESTS_WEIGHT
-            ),
-        )
-    except (InvalidOperation, TypeError) as exc:
-        raise ImproperlyConfigured(
-            "프로젝트 랭킹 가중치는 숫자여야 합니다."
-        ) from exc
-    if min(
-        weights.stars,
-        weights.forks,
-        weights.commits,
-        weights.pull_requests,
-    ) < 0:
-        raise ImproperlyConfigured(
-            "프로젝트 랭킹 가중치는 0 이상이어야 합니다."
-        )
-    return weights
 
 
 def _one_year_before(target_date: date) -> date:
@@ -156,7 +163,7 @@ def calculate_project_rankings(period_end: date) -> list[ProjectRankingEntry]:
         순위와 프로젝트별 지표가 확정된 랭킹 목록.
     """
     period_start = _one_year_before(period_end)
-    weights = _configured_weights()
+    weights = ProjectRankingWeights.from_settings()
     projects = list_project_ranking_targets(period_start, period_end)
     metrics = [
         _calculate_project_metrics(
