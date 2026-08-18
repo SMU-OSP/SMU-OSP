@@ -82,7 +82,7 @@ export default function MainProjectList() {
           <Text mt={12} textAlign="center" color="smu.darkGray" fontSize="sm">
             프로젝트 랭킹을 불러오는 중입니다.
           </Text>
-        ) : isRankingError ? (
+        ) : isRankingError || !rankingResponse ? (
           <Text mt={12} textAlign="center" color="red.600" fontSize="sm">
             프로젝트 랭킹을 불러오지 못했습니다.
           </Text>

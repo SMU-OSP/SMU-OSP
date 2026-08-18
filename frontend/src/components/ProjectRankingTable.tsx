@@ -27,14 +27,14 @@ export default function ProjectRankingTable({
             </Text>
         );
     }
-    if (isError) {
+    if (isError || !response) {
         return (
             <Text py={16} textAlign="center" color="red.600">
                 프로젝트 랭킹을 불러오지 못했습니다.
             </Text>
         );
     }
-    if (!response || response.data.length === 0) {
+    if (response.data.length === 0) {
         return (
             <Text py={16} textAlign="center" color="gray.600">
                 표시할 프로젝트 랭킹이 없습니다.

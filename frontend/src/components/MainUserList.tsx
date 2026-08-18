@@ -32,10 +32,12 @@ export default function UserList() {
   });
 
   const isLoading = selected === "recent" ? isRecentLoading : isActiveLoading;
-  const isError = selected === "recent" ? isRecentError : isActiveError;
-  const recentUsers = recentUsersResponse?.data ?? [];
-  const activeUsers = activeUsersResponse?.data ?? [];
-  const users = selected === "recent" ? recentUsers : activeUsers;
+  const selectedResponse =
+    selected === "recent" ? recentUsersResponse : activeUsersResponse;
+  const isError =
+    (selected === "recent" ? isRecentError : isActiveError) ||
+    (!isLoading && !selectedResponse);
+  const users = selectedResponse?.data ?? [];
 
   return (
     <Box

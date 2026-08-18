@@ -251,7 +251,7 @@ export default function RankBoard() {
                     <Text py={16} textAlign="center" color="gray.600">
                         랭킹을 불러오는 중입니다.
                     </Text>
-                ) : isUserRankingError ? (
+                ) : isUserRankingError || !userRankingResponse ? (
                     <Text py={16} textAlign="center" color="red.600">
                         사용자 랭킹을 불러오지 못했습니다.
                     </Text>
