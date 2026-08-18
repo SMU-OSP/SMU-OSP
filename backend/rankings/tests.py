@@ -58,7 +58,7 @@ class ProjectRankingCalculationTests(TestCase):
             has_code_changed=False,
         )
 
-    def test_calculates_four_metric_deltas(self):
+    def test_calculates_cumulative_stars_and_metric_deltas(self):
         repository = self.create_repository_project(name="계산 프로젝트")
         snapshots = (
             (date(2025, 8, 13), 10, 2, 20, 3),
@@ -80,13 +80,13 @@ class ProjectRankingCalculationTests(TestCase):
         result = calculate_project_rankings(date(2026, 8, 13))[0]
 
         self.assertEqual(result.project_id, repository.project_id)
-        self.assertEqual(result.stars, 5)
+        self.assertEqual(result.stars, 15)
         self.assertEqual(result.forks, 2)
         self.assertEqual(result.commits, 15)
         self.assertEqual(result.pull_requests, 4)
-        self.assertEqual(result.total_score, Decimal("26.00"))
+        self.assertEqual(result.total_score, Decimal("36.00"))
 
-    def test_clamps_decreased_metric_deltas_to_zero(self):
+    def test_clamps_decreased_deltas_but_keeps_cumulative_stars(self):
         repository = self.create_repository_project(name="감소 지표 프로젝트")
         self.create_snapshot(
             repository,
@@ -107,11 +107,11 @@ class ProjectRankingCalculationTests(TestCase):
 
         result = calculate_project_rankings(date(2026, 8, 13))[0]
 
-        self.assertEqual(result.stars, 0)
+        self.assertEqual(result.stars, 9)
         self.assertEqual(result.forks, 0)
         self.assertEqual(result.commits, 0)
         self.assertEqual(result.pull_requests, 0)
-        self.assertEqual(result.total_score, Decimal("0.00"))
+        self.assertEqual(result.total_score, Decimal("9.00"))
 
     def test_loads_only_boundary_and_latest_snapshots(self):
         repository = self.create_repository_project(name="기간 제한 프로젝트")
@@ -161,7 +161,7 @@ class ProjectRankingCalculationTests(TestCase):
 
         result = calculate_project_rankings(date(2026, 8, 13))[0]
 
-        self.assertEqual(result.stars, 1)
+        self.assertEqual(result.stars, 11)
         self.assertEqual(result.commits, 2)
         self.assertEqual(result.pull_requests, 1)
         self.assertEqual(result.period_start, date(2026, 8, 12))

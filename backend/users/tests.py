@@ -1,7 +1,11 @@
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+
+from users.models import UserActivity
+from users.tasks import save_daily_activity
 
 
 class UserSignalTests(TestCase):
@@ -19,6 +23,84 @@ class UserSignalTests(TestCase):
 
         self.assertEqual(len(callbacks), 1)
         delay.assert_called_once_with("celery-test")
+
+
+class UserActivityTaskTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="activity-test",
+            github_email="activity-test@example.com",
+            name="활동 테스트 사용자",
+            student_id=2,
+            major="IT공학",
+        )
+
+    @patch("users.tasks.requests.post")
+    def test_saves_current_star_snapshot_with_daily_activity(self, post):
+        post.return_value.json.return_value = {
+            "data": {
+                "user": {
+                    "contributionsCollection": {
+                        "totalCommitContributions": 3,
+                        "pullRequestContributions": {"totalCount": 2},
+                        "issueContributionsByRepository": [],
+                    }
+                }
+            }
+        }
+        save_daily_activity(self.user, stars=7)
+
+        activity = UserActivity.objects.get(user=self.user)
+        self.assertEqual(activity.stars, 7)
+        self.assertEqual(activity.commits, 3)
+        self.assertEqual(activity.prs, 2)
+
+    @patch("users.tasks.requests.post")
+    def test_skips_existing_activity_without_calling_github(self, post):
+        activity_date = (datetime.now(UTC) - timedelta(days=1)).date()
+        UserActivity.objects.create(
+            user=self.user,
+            activity_date=activity_date,
+            stars=5,
+        )
+
+        save_daily_activity(self.user, stars=7)
+
+        post.assert_not_called()
+        self.assertEqual(
+            UserActivity.objects.get(user=self.user).stars,
+            5,
+        )
+
+    @patch("users.tasks.requests.post")
+    def test_fills_unknown_stars_without_calling_github(self, post):
+        activity_date = (datetime.now(UTC) - timedelta(days=1)).date()
+        UserActivity.objects.create(
+            user=self.user,
+            activity_date=activity_date,
+            commits=3,
+        )
+
+        save_daily_activity(self.user, stars=7)
+
+        post.assert_not_called()
+        activity = UserActivity.objects.get(user=self.user)
+        self.assertEqual(activity.stars, 7)
+        self.assertEqual(activity.commits, 3)
+
+    @patch("users.tasks.requests.post")
+    def test_does_not_save_activity_when_github_returns_errors(self, post):
+        post.return_value.json.return_value = {"errors": ["rate limited"]}
+
+        with self.assertRaises(RuntimeError):
+            save_daily_activity(self.user, stars=7)
+
+        self.assertFalse(UserActivity.objects.filter(user=self.user).exists())
+
+    def test_stars_are_unknown_until_collected(self):
+        activity = UserActivity.objects.create(user=self.user)
+
+        self.assertIsNone(activity.stars)
 
 
 class UserListApiTests(TestCase):

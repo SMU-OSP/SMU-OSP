@@ -4,7 +4,11 @@ from common.models import CommonModel
 
 
 class ProjectRanking(CommonModel):
-    """프로젝트별 마지막 정상 랭킹 결과."""
+    """프로젝트별 마지막 정상 랭킹 결과.
+
+    stars는 집계 종료 시점의 누적 스냅샷이고, forks, commits,
+    pull_requests는 집계 기간 동안의 증가량이다.
+    """
 
     project = models.OneToOneField(
         "projects.Project",

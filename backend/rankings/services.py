@@ -90,7 +90,7 @@ class ProjectRankingMetrics:
             ),
             first_snapshot,
         )
-        stars = max(end_snapshot.stars - baseline.stars, 0)
+        stars = end_snapshot.stars
         forks = max(end_snapshot.forks - baseline.forks, 0)
         commits = max(end_snapshot.commits - baseline.commits, 0)
         pull_requests = max(
