@@ -147,19 +147,26 @@ def calculate_user_rankings(
 ) -> list[UserRankingResult]:
     """지정 기간의 사용자 활동 합계와 종료일 누적 Star로 순위를 계산한다."""
     users = list_user_ranking_targets(period_start, period_end)
-    metrics = [
-        (
-            user,
-            int(user.ranking_stars),
-            int(user.ranking_commits),
-            int(user.ranking_prs),
-            int(user.ranking_issues),
+    metrics = []
+    for user in users:
+        stars = int(user.ranking_stars)
+        commits = int(user.ranking_commits)
+        pull_requests = int(user.ranking_prs)
+        issues = int(user.ranking_issues)
+        total_score = stars + commits + pull_requests + issues
+        metrics.append(
+            (
+                user,
+                total_score,
+                stars,
+                commits,
+                pull_requests,
+                issues,
+            )
         )
-        for user in users
-    ]
     metrics.sort(
         key=lambda item: (
-            -sum(item[1:]),
+            -item[1],
             item[0].username,
         )
     )
@@ -167,7 +174,7 @@ def calculate_user_rankings(
         UserRankingResult(
             user=user,
             rank=rank,
-            total_score=stars + commits + pull_requests + issues,
+            total_score=total_score,
             stars=stars,
             commits=commits,
             pull_requests=pull_requests,
@@ -175,6 +182,7 @@ def calculate_user_rankings(
         )
         for rank, (
             user,
+            total_score,
             stars,
             commits,
             pull_requests,
