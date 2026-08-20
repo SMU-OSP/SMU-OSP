@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.conf import settings
@@ -183,25 +183,25 @@ def calculate_user_rankings(
     ]
 
 
-def calculate_project_rankings_for_period(
-    period_start: date,
+def _calculate_project_rankings_from_baseline(
+    baseline_date: date,
     period_end: date,
 ) -> list[ProjectRanking]:
-    """지정 기간의 프로젝트 랭킹을 계산한다.
+    """기준일 스냅샷과 종료일 스냅샷으로 프로젝트 랭킹을 계산한다.
 
     Args:
-        period_start: 랭킹 집계 시작일.
+        baseline_date: 증가량 차감에 사용할 기준일.
         period_end: 랭킹 집계 종료일.
 
     Returns:
         순위와 프로젝트별 지표가 확정된 랭킹 목록.
     """
     weights = ProjectRankingWeights.from_settings()
-    projects = list_project_ranking_targets(period_start, period_end)
+    projects = list_project_ranking_targets(baseline_date, period_end)
     metrics = [
         ProjectRankingMetrics.from_project(
             project,
-            period_start=period_start,
+            period_start=baseline_date,
             weights=weights,
         )
         for project in projects
@@ -237,9 +237,20 @@ def calculate_project_rankings_for_period(
     return results
 
 
+def calculate_project_rankings_for_period(
+    period_start: date,
+    period_end: date,
+) -> list[ProjectRanking]:
+    """시작일을 포함한 지정 기간의 프로젝트 랭킹을 계산한다."""
+    return _calculate_project_rankings_from_baseline(
+        period_start - timedelta(days=1),
+        period_end,
+    )
+
+
 def calculate_project_rankings(period_end: date) -> list[ProjectRanking]:
     """최근 1년 프로젝트 랭킹을 계산한다."""
-    return calculate_project_rankings_for_period(
+    return _calculate_project_rankings_from_baseline(
         _one_year_before(period_end),
         period_end,
     )

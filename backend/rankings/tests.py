@@ -8,7 +8,6 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from projects.models import (
-    Member,
     Project,
     Repository,
     RepositorySnapshot,
@@ -115,8 +114,8 @@ class ProjectRankingCalculationTests(TestCase):
             date(2026, 8, 20),
         )[0]
 
-        self.assertEqual(result.commits, 5)
-        self.assertEqual(result.period_start, date(2026, 8, 10))
+        self.assertEqual(result.commits, 7)
+        self.assertEqual(result.period_start, date(2026, 7, 31))
         self.assertEqual(result.period_end, date(2026, 8, 20))
         with self.assertNumQueries(0):
             self.assertEqual(result.project.name, "기간 선택 프로젝트")
@@ -529,7 +528,7 @@ class RankingAdminReportTests(TestCase):
             major="컴퓨터과학",
         )
         self.ranked_user = User.objects.create_user(
-            username="ranked-user",
+            username="@ranked-user",
             password="password",
             github_email="ranked@example.com",
             name="=랭킹 사용자",
@@ -586,15 +585,12 @@ class RankingAdminReportTests(TestCase):
             {**query, "output": "csv"},
         )
 
-        self.assertContains(response, "ranked-user")
+        self.assertContains(response, "@ranked-user")
         self.assertContains(response, "13")
         self.assertEqual(csv_response.status_code, 200)
         self.assertTrue(csv_response.content.startswith(b"\xef\xbb\xbf"))
         decoded_csv = csv_response.content.decode("utf-8-sig")
-        self.assertIn("ranked-user", decoded_csv)
-        self.assertIn("'=랭킹 사용자", decoded_csv)
-        self.assertIn("ranked@example.com", decoded_csv)
-        self.assertIn("활성", decoded_csv)
+        self.assertIn("'@ranked-user", decoded_csv)
         self.assertEqual(ProjectRanking.objects.count(), 0)
 
     def test_admin_rejects_reversed_period(self):
@@ -627,11 +623,14 @@ class RankingAdminReportTests(TestCase):
             full_name="example/ranking-report",
             html_url="https://github.com/example/ranking-report",
         )
-        Member.objects.create(
-            project=project,
-            user=self.ranked_user,
-            is_leader=True,
-            status=Member.Status.JOINED,
+        RepositorySnapshot.objects.create(
+            repository=repository,
+            date=date(2026, 8, 9),
+            stars=2,
+            forks=0,
+            commits=1,
+            pull_requests=0,
+            has_code_changed=False,
         )
         RepositorySnapshot.objects.create(
             repository=repository,
@@ -660,13 +659,22 @@ class RankingAdminReportTests(TestCase):
                 "period_end": "2026-08-20",
             },
         )
+        csv_response = self.client.get(
+            self.url,
+            {
+                "ranking_type": "projects",
+                "period_start": "2026-08-10",
+                "period_end": "2026-08-20",
+                "output": "csv",
+            },
+        )
 
         self.assertContains(response, "관리자 조회 프로젝트")
-        self.assertContains(response, "example/ranking-report")
-        self.assertContains(response, "참여자 정보 보기")
-        self.assertContains(response, "20260001")
-        self.assertContains(response, "ranked@example.com")
-        self.assertContains(response, "11.00")
+        self.assertContains(response, "13.00")
+        decoded_csv = csv_response.content.decode("utf-8-sig")
+        self.assertIn("순위,프로젝트,총점,Star,Fork,Commit,PR", decoded_csv)
+        self.assertIn("관리자 조회 프로젝트", decoded_csv)
+        self.assertIn("13.00", decoded_csv)
         self.assertEqual(ProjectRanking.objects.count(), 0)
 
     def test_admin_requires_login(self):

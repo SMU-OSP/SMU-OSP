@@ -8,11 +8,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 
-from projects.models import Member
-
 from .forms import RankingReportForm
 from .models import ProjectRanking
-from .selectors import list_project_award_details
 from .services import (
     calculate_project_rankings_for_period,
     calculate_user_rankings,
@@ -20,12 +17,7 @@ from .services import (
 
 USER_COLUMNS = (
     "순위",
-    "사용자명",
-    "이름",
-    "학번",
-    "전공",
-    "GitHub 이메일",
-    "계정 상태",
+    "사용자",
     "총점",
     "Star",
     "Commit",
@@ -35,17 +27,12 @@ USER_COLUMNS = (
 )
 PROJECT_COLUMNS = (
     "순위",
-    "프로젝트 ID",
     "프로젝트",
-    "상태",
-    "Repository",
-    "Repository URL",
     "총점",
     "Star",
     "Fork",
     "Commit",
     "PR",
-    "프로젝트 참여자",
 )
 
 
@@ -60,11 +47,6 @@ def _ranking_report_rows(
             [
                 result.rank,
                 result.user.username,
-                result.user.name,
-                result.user.student_id,
-                result.user.major,
-                result.user.github_email,
-                "활성" if result.user.is_active else "비활성",
                 result.total_score,
                 result.stars,
                 result.commits,
@@ -79,49 +61,18 @@ def _ranking_report_rows(
         period_start,
         period_end,
     )
-    projects = {
-        project.pk: project
-        for project in list_project_award_details(
-            [result.project_id for result in results]
-        )
-    }
-    rows = []
-    for result in results:
-        project = projects[result.project_id]
-        recipients = "\n".join(
-            _award_member_label(member)
-            for member in project.award_members
-        ) or "참여자 없음"
-        rows.append(
-            [
-                result.rank,
-                project.pk,
-                project.name,
-                project.status,
-                project.repository.full_name,
-                project.repository.html_url,
-                result.total_score,
-                result.stars,
-                result.forks,
-                result.commits,
-                result.pull_requests,
-                recipients,
-            ]
-        )
-    return PROJECT_COLUMNS, rows
-
-
-def _award_member_label(member: Member) -> str:
-    """시상 대상 멤버의 역할과 식별 정보를 한 셀로 표현한다."""
-    if member.user is None:
-        return "팀장: 탈퇴 사용자" if member.is_leader else "팀원: 탈퇴 사용자"
-    role = "팀장" if member.is_leader else "팀원"
-    status = "활성" if member.user.is_active else "비활성"
-    return (
-        f"{role}: {member.user.name} / {member.user.student_id} / "
-        f"{member.user.major} / {member.user.username} / "
-        f"{member.user.github_email} / {status}"
-    )
+    return PROJECT_COLUMNS, [
+        [
+            result.rank,
+            result.project.name,
+            result.total_score,
+            result.stars,
+            result.forks,
+            result.commits,
+            result.pull_requests,
+        ]
+        for result in results
+    ]
 
 
 def _csv_safe(value: Any) -> Any:
@@ -184,11 +135,9 @@ class ProjectRankingAdmin(admin.ModelAdmin):
         columns = None
         rows = None
         export_query = ""
-        ranking_type = ""
         if form.is_valid():
-            ranking_type = form.cleaned_data["ranking_type"]
             columns, rows = _ranking_report_rows(
-                ranking_type,
+                form.cleaned_data["ranking_type"],
                 form.cleaned_data["period_start"],
                 form.cleaned_data["period_end"],
             )
@@ -215,7 +164,6 @@ class ProjectRankingAdmin(admin.ModelAdmin):
             "columns": columns,
             "rows": rows,
             "has_report": rows is not None,
-            "ranking_type": ranking_type,
             "export_query": export_query,
             **(extra_context or {}),
         }
