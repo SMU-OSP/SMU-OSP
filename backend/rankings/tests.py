@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from projects.models import (
+    Member,
     Project,
     Repository,
     RepositorySnapshot,
@@ -592,6 +593,8 @@ class RankingAdminReportTests(TestCase):
         decoded_csv = csv_response.content.decode("utf-8-sig")
         self.assertIn("ranked-user", decoded_csv)
         self.assertIn("'=랭킹 사용자", decoded_csv)
+        self.assertIn("ranked@example.com", decoded_csv)
+        self.assertIn("활성", decoded_csv)
         self.assertEqual(ProjectRanking.objects.count(), 0)
 
     def test_admin_rejects_reversed_period(self):
@@ -624,6 +627,12 @@ class RankingAdminReportTests(TestCase):
             full_name="example/ranking-report",
             html_url="https://github.com/example/ranking-report",
         )
+        Member.objects.create(
+            project=project,
+            user=self.ranked_user,
+            is_leader=True,
+            status=Member.Status.JOINED,
+        )
         RepositorySnapshot.objects.create(
             repository=repository,
             date=date(2026, 8, 10),
@@ -653,6 +662,9 @@ class RankingAdminReportTests(TestCase):
         )
 
         self.assertContains(response, "관리자 조회 프로젝트")
+        self.assertContains(response, "example/ranking-report")
+        self.assertContains(response, "20260001")
+        self.assertContains(response, "ranked@example.com")
         self.assertContains(response, "11.00")
         self.assertEqual(ProjectRanking.objects.count(), 0)
 

@@ -8,8 +8,11 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 
+from projects.models import Member
+
 from .forms import RankingReportForm
 from .models import ProjectRanking
+from .selectors import list_project_award_details
 from .services import (
     calculate_project_rankings_for_period,
     calculate_user_rankings,
@@ -21,6 +24,8 @@ USER_COLUMNS = (
     "이름",
     "학번",
     "전공",
+    "GitHub 이메일",
+    "계정 상태",
     "총점",
     "Star",
     "Commit",
@@ -30,12 +35,17 @@ USER_COLUMNS = (
 )
 PROJECT_COLUMNS = (
     "순위",
+    "프로젝트 ID",
     "프로젝트",
+    "상태",
+    "Repository",
+    "Repository URL",
     "총점",
     "Star",
     "Fork",
     "Commit",
     "PR",
+    "시상 대상",
 )
 
 
@@ -53,6 +63,8 @@ def _ranking_report_rows(
                 result.user.name,
                 result.user.student_id,
                 result.user.major,
+                result.user.github_email,
+                "활성" if result.user.is_active else "비활성",
                 result.total_score,
                 result.stars,
                 result.commits,
@@ -67,18 +79,49 @@ def _ranking_report_rows(
         period_start,
         period_end,
     )
-    return PROJECT_COLUMNS, [
-        [
-            result.rank,
-            result.project.name,
-            result.total_score,
-            result.stars,
-            result.forks,
-            result.commits,
-            result.pull_requests,
-        ]
-        for result in results
-    ]
+    projects = {
+        project.pk: project
+        for project in list_project_award_details(
+            [result.project_id for result in results]
+        )
+    }
+    rows = []
+    for result in results:
+        project = projects[result.project_id]
+        recipients = "; ".join(
+            _award_member_label(member)
+            for member in project.award_members
+        )
+        rows.append(
+            [
+                result.rank,
+                project.pk,
+                project.name,
+                project.status,
+                project.repository.full_name,
+                project.repository.html_url,
+                result.total_score,
+                result.stars,
+                result.forks,
+                result.commits,
+                result.pull_requests,
+                recipients,
+            ]
+        )
+    return PROJECT_COLUMNS, rows
+
+
+def _award_member_label(member: Member) -> str:
+    """시상 대상 멤버의 역할과 식별 정보를 한 셀로 표현한다."""
+    if member.user is None:
+        return "팀장: 탈퇴 사용자" if member.is_leader else "팀원: 탈퇴 사용자"
+    role = "팀장" if member.is_leader else "팀원"
+    status = "활성" if member.user.is_active else "비활성"
+    return (
+        f"{role}: {member.user.name} / {member.user.student_id} / "
+        f"{member.user.major} / {member.user.username} / "
+        f"{member.user.github_email} / {status}"
+    )
 
 
 def _csv_safe(value: Any) -> Any:

@@ -14,7 +14,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 
-from projects.models import Project, RepositorySnapshot
+from projects.models import Member, Project, RepositorySnapshot
 from users.models import User, UserActivity
 
 from .models import ProjectRanking
@@ -49,6 +49,8 @@ def list_user_ranking_targets(
             "name",
             "student_id",
             "major",
+            "github_email",
+            "is_active",
             "date_joined",
         )
         .annotate(
@@ -70,6 +72,46 @@ def list_user_ranking_targets(
             ),
         )
         .order_by("username")
+    )
+
+
+def list_project_award_details(project_ids: list[int]) -> list[Project]:
+    """시상 확인에 필요한 Repository와 현재 참여 멤버를 조회한다."""
+    award_members = (
+        Member.objects.filter(status=Member.Status.JOINED)
+        .select_related("user")
+        .only(
+            "id",
+            "project_id",
+            "is_leader",
+            "user_id",
+            "user__username",
+            "user__name",
+            "user__student_id",
+            "user__major",
+            "user__github_email",
+            "user__is_active",
+        )
+        .order_by("-is_leader", "user__username", "pk")
+    )
+    return list(
+        Project.objects.filter(pk__in=project_ids)
+        .select_related("repository")
+        .only(
+            "id",
+            "name",
+            "status",
+            "repository__id",
+            "repository__full_name",
+            "repository__html_url",
+        )
+        .prefetch_related(
+            Prefetch(
+                "members",
+                queryset=award_members,
+                to_attr="award_members",
+            )
+        )
     )
 
 
