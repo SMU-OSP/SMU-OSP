@@ -38,3 +38,35 @@ class ProjectRankingQueryForm(forms.Form):
             start=self.cleaned_data["start"] or 0,
             limit=self.cleaned_data["limit"] or 100,
         )
+
+
+class RankingReportForm(forms.Form):
+    """관리자 랭킹 조회 기간과 유형을 검증한다."""
+
+    ranking_type = forms.ChoiceField(
+        label="유형",
+        choices=(
+            ("users", "사용자"),
+            ("projects", "프로젝트"),
+        ),
+    )
+    period_start = forms.DateField(
+        label="시작일",
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    period_end = forms.DateField(
+        label="종료일",
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+
+    def clean(self):
+        """집계 시작일이 종료일보다 늦지 않은지 확인한다."""
+        cleaned_data = super().clean()
+        period_start = cleaned_data.get("period_start")
+        period_end = cleaned_data.get("period_end")
+        if period_start and period_end and period_start > period_end:
+            self.add_error(
+                "period_end",
+                "종료일은 시작일과 같거나 이후여야 합니다.",
+            )
+        return cleaned_data

@@ -1,0 +1,72 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .ranking-report-form {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 16px;
+  }
+  .ranking-report-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .ranking-report-field ul.errorlist {
+    margin-left: 0;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <form method="get" class="module ranking-report-form">
+    {% for field in form %}
+      <div class="ranking-report-field">
+        {{ field.errors }}
+        {{ field.label_tag }}
+        {{ field }}
+      </div>
+    {% endfor %}
+    <input type="submit" value="조회" class="default">
+  </form>
+
+  {% if has_report %}
+    <ul class="object-tools">
+      <li><a href="?{{ export_query }}">CSV 내보내기</a></li>
+    </ul>
+    {% if rows %}
+      <div class="results">
+        <table id="result_list">
+          <thead>
+            <tr>
+              {% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr class="{% cycle 'row1' 'row2' %}">
+                {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>조회된 랭킹이 없습니다.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

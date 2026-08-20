@@ -1,20 +1,27 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from projects.models import (
     Project,
     Repository,
     RepositorySnapshot,
 )
+from users.models import User, UserActivity
 
 from .models import ProjectRanking
 from .selectors import list_project_ranking_targets, list_project_rankings
-from .services import calculate_project_rankings, replace_project_rankings
+from .services import (
+    calculate_project_rankings,
+    calculate_project_rankings_for_period,
+    calculate_user_rankings,
+    replace_project_rankings,
+)
 from .tasks import calculate_daily_project_rankings
 
 
@@ -85,6 +92,33 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.commits, 15)
         self.assertEqual(result.pull_requests, 4)
         self.assertEqual(result.total_score, Decimal("36.00"))
+
+    def test_calculates_project_ranking_for_selected_period(self):
+        repository = self.create_repository_project(name="기간 선택 프로젝트")
+        for snapshot_date, commits in (
+            (date(2026, 7, 31), 5),
+            (date(2026, 8, 10), 7),
+            (date(2026, 8, 20), 12),
+        ):
+            self.create_snapshot(
+                repository,
+                snapshot_date,
+                stars=3,
+                forks=0,
+                commits=commits,
+                pull_requests=0,
+            )
+
+        result = calculate_project_rankings_for_period(
+            date(2026, 8, 10),
+            date(2026, 8, 20),
+        )[0]
+
+        self.assertEqual(result.commits, 5)
+        self.assertEqual(result.period_start, date(2026, 8, 10))
+        self.assertEqual(result.period_end, date(2026, 8, 20))
+        with self.assertNumQueries(0):
+            self.assertEqual(result.project.name, "기간 선택 프로젝트")
 
     def test_clamps_decreased_deltas_but_keeps_cumulative_stars(self):
         repository = self.create_repository_project(name="감소 지표 프로젝트")
@@ -480,3 +514,150 @@ class ProjectRankingTaskTests(TestCase):
         )
         self.assertEqual(ranking["schedule"].minute, {0})
         self.assertEqual(ranking["schedule"].hour, {6})
+
+
+class RankingAdminReportTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username="ranking-admin",
+            email="admin@example.com",
+            password="password",
+            github_email="admin@example.com",
+            name="관리자",
+            student_id=1,
+            major="컴퓨터과학",
+        )
+        self.ranked_user = User.objects.create_user(
+            username="ranked-user",
+            password="password",
+            github_email="ranked@example.com",
+            name="=랭킹 사용자",
+            student_id=20260001,
+            major="컴퓨터과학",
+        )
+        User.objects.filter(pk=self.ranked_user.pk).update(
+            date_joined=datetime(2026, 1, 1, tzinfo=UTC)
+        )
+        self.ranked_user.refresh_from_db()
+        UserActivity.objects.create(
+            user=self.ranked_user,
+            activity_date=date(2026, 8, 10),
+            stars=3,
+            commits=2,
+            prs=1,
+            issues=0,
+        )
+        UserActivity.objects.create(
+            user=self.ranked_user,
+            activity_date=date(2026, 8, 20),
+            stars=5,
+            commits=4,
+            prs=0,
+            issues=1,
+        )
+        self.url = reverse("admin:rankings_projectranking_changelist")
+
+    def test_calculates_user_ranking_for_selected_period(self):
+        result = calculate_user_rankings(
+            date(2026, 8, 10),
+            date(2026, 8, 20),
+        )[0]
+
+        self.assertEqual(result.user, self.ranked_user)
+        self.assertEqual(result.rank, 1)
+        self.assertEqual(result.stars, 5)
+        self.assertEqual(result.commits, 6)
+        self.assertEqual(result.pull_requests, 1)
+        self.assertEqual(result.issues, 1)
+        self.assertEqual(result.total_score, 13)
+
+    def test_admin_displays_and_exports_same_user_ranking(self):
+        self.client.force_login(self.admin_user)
+        query = {
+            "ranking_type": "users",
+            "period_start": "2026-08-10",
+            "period_end": "2026-08-20",
+        }
+
+        response = self.client.get(self.url, query)
+        csv_response = self.client.get(
+            self.url,
+            {**query, "output": "csv"},
+        )
+
+        self.assertContains(response, "ranked-user")
+        self.assertContains(response, "13")
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertTrue(csv_response.content.startswith(b"\xef\xbb\xbf"))
+        decoded_csv = csv_response.content.decode("utf-8-sig")
+        self.assertIn("ranked-user", decoded_csv)
+        self.assertIn("'=랭킹 사용자", decoded_csv)
+        self.assertEqual(ProjectRanking.objects.count(), 0)
+
+    def test_admin_rejects_reversed_period(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(
+            self.url,
+            {
+                "ranking_type": "users",
+                "period_start": "2026-08-20",
+                "period_end": "2026-08-10",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "종료일은 시작일과 같거나 이후여야 합니다.",
+        )
+
+    def test_admin_displays_project_ranking_without_saving_it(self):
+        self.client.force_login(self.admin_user)
+        project = Project.objects.create(
+            name="관리자 조회 프로젝트",
+            description="관리자 조회 프로젝트 설명",
+        )
+        repository = Repository.objects.create(
+            project=project,
+            github_id=100,
+            name="ranking-report",
+            full_name="example/ranking-report",
+            html_url="https://github.com/example/ranking-report",
+        )
+        RepositorySnapshot.objects.create(
+            repository=repository,
+            date=date(2026, 8, 10),
+            stars=2,
+            forks=0,
+            commits=3,
+            pull_requests=0,
+            has_code_changed=False,
+        )
+        RepositorySnapshot.objects.create(
+            repository=repository,
+            date=date(2026, 8, 20),
+            stars=3,
+            forks=1,
+            commits=8,
+            pull_requests=2,
+            has_code_changed=False,
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "ranking_type": "projects",
+                "period_start": "2026-08-10",
+                "period_end": "2026-08-20",
+            },
+        )
+
+        self.assertContains(response, "관리자 조회 프로젝트")
+        self.assertContains(response, "11.00")
+        self.assertEqual(ProjectRanking.objects.count(), 0)
+
+    def test_admin_requires_login(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("admin:login"), response.url)
