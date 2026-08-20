@@ -20,6 +20,41 @@
   .ranking-report-field ul.errorlist {
     margin-left: 0;
   }
+  .ranking-report-results {
+    clear: both;
+    overflow-x: auto;
+  }
+  .ranking-report-table {
+    min-width: 960px;
+    width: 100%;
+  }
+  .ranking-report-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .ranking-report-table td {
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  .project-ranking-report td:nth-child(6) {
+    max-width: 260px;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .ranking-participants {
+    min-width: 180px;
+    white-space: normal !important;
+  }
+  .ranking-participants summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .ranking-participants div {
+    line-height: 1.7;
+    margin-top: 8px;
+    min-width: 360px;
+  }
 </style>
 {% endblock %}
 
@@ -48,8 +83,11 @@
       <li><a href="?{{ export_query }}">CSV 내보내기</a></li>
     </ul>
     {% if rows %}
-      <div class="results">
-        <table id="result_list">
+      <div class="results ranking-report-results">
+        <table
+          id="result_list"
+          class="ranking-report-table{% if ranking_type == 'projects' %} project-ranking-report{% endif %}"
+        >
           <thead>
             <tr>
               {% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}
@@ -58,7 +96,18 @@
           <tbody>
             {% for row in rows %}
               <tr class="{% cycle 'row1' 'row2' %}">
-                {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+                {% for cell in row %}
+                  {% if ranking_type == "projects" and forloop.last %}
+                    <td class="ranking-participants">
+                      <details>
+                        <summary>참여자 정보 보기</summary>
+                        <div>{{ cell|linebreaksbr }}</div>
+                      </details>
+                    </td>
+                  {% else %}
+                    <td>{{ cell }}</td>
+                  {% endif %}
+                {% endfor %}
               </tr>
             {% endfor %}
           </tbody>

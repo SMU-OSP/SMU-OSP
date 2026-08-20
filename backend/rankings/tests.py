@@ -663,6 +663,7 @@ class RankingAdminReportTests(TestCase):
 
         self.assertContains(response, "관리자 조회 프로젝트")
         self.assertContains(response, "example/ranking-report")
+        self.assertContains(response, "참여자 정보 보기")
         self.assertContains(response, "20260001")
         self.assertContains(response, "ranked@example.com")
         self.assertContains(response, "11.00")

@@ -45,7 +45,7 @@ PROJECT_COLUMNS = (
     "Fork",
     "Commit",
     "PR",
-    "시상 대상",
+    "프로젝트 참여자",
 )
 
 
@@ -88,10 +88,10 @@ def _ranking_report_rows(
     rows = []
     for result in results:
         project = projects[result.project_id]
-        recipients = "; ".join(
+        recipients = "\n".join(
             _award_member_label(member)
             for member in project.award_members
-        )
+        ) or "참여자 없음"
         rows.append(
             [
                 result.rank,
@@ -184,9 +184,11 @@ class ProjectRankingAdmin(admin.ModelAdmin):
         columns = None
         rows = None
         export_query = ""
+        ranking_type = ""
         if form.is_valid():
+            ranking_type = form.cleaned_data["ranking_type"]
             columns, rows = _ranking_report_rows(
-                form.cleaned_data["ranking_type"],
+                ranking_type,
                 form.cleaned_data["period_start"],
                 form.cleaned_data["period_end"],
             )
@@ -213,6 +215,7 @@ class ProjectRankingAdmin(admin.ModelAdmin):
             "columns": columns,
             "rows": rows,
             "has_report": rows is not None,
+            "ranking_type": ranking_type,
             "export_query": export_query,
             **(extra_context or {}),
         }
