@@ -11,7 +11,7 @@ from django.template.response import TemplateResponse
 from .forms import RankingReportForm
 from .models import ProjectRanking
 from .services import (
-    calculate_project_rankings_for_period,
+    calculate_project_rankings,
     calculate_user_rankings,
 )
 
@@ -57,7 +57,7 @@ def _ranking_report_rows(
             for result in results
         ]
 
-    results = calculate_project_rankings_for_period(
+    results = calculate_project_rankings(
         period_start,
         period_end,
     )
