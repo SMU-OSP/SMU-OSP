@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load admin_urls i18n %}
 
 {% block extrastyle %}
 {{ block.super }}
@@ -62,7 +62,13 @@
 
   {% if has_report %}
     <ul class="object-tools">
-      <li><a href="?{{ export_query }}">CSV 내보내기</a></li>
+      {% if has_export_permission %}
+        <li>
+          <a href="{% url opts|admin_urlname:'export' %}?{{ export_query }}">
+            내보내기
+          </a>
+        </li>
+      {% endif %}
     </ul>
     {% if rows %}
       <div class="results ranking-report-results">

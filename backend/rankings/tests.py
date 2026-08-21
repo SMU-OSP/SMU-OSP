@@ -1,6 +1,7 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -596,6 +597,32 @@ class RankingAdminReportTests(TestCase):
             issues=1,
         )
         self.url = reverse("admin:rankings_projectranking_changelist")
+        self.export_url = reverse("admin:rankings_projectranking_export")
+
+    def export_ranking(self, query: dict[str, str], format_name: str = "csv"):
+        export_page = self.client.get(self.export_url, query)
+        form = export_page.context["form"]
+        format_value = next(
+            value
+            for value, label in form.fields["format"].choices
+            if str(label) == format_name
+        )
+        data = {
+            "format": format_value,
+            "resource": "0",
+        }
+        data.update(
+            {
+                field_name: True
+                for field_name, field in form.fields.items()
+                if getattr(field, "is_selectable_field", False)
+            }
+        )
+        response = self.client.post(
+            f"{self.export_url}?{urlencode(query)}",
+            data,
+        )
+        return export_page, response
 
     def test_calculates_user_ranking_for_selected_period(self):
         result = calculate_user_rankings(
@@ -620,13 +647,22 @@ class RankingAdminReportTests(TestCase):
         }
 
         response = self.client.get(self.url, query)
-        csv_response = self.client.get(
-            self.url,
-            {**query, "output": "csv"},
-        )
+        export_page, csv_response = self.export_ranking(query)
 
         self.assertContains(response, "@ranked-user")
         self.assertContains(response, "13")
+        available_formats = {
+            str(label)
+            for _, label in export_page.context["form"].fields[
+                "format"
+            ].choices
+        }
+        self.assertTrue(
+            {"csv", "tsv", "json", "yaml", "html"}.issubset(
+                available_formats
+            )
+        )
+        self.assertNotIn("xlsx", available_formats)
         self.assertEqual(csv_response.status_code, 200)
         self.assertTrue(csv_response.content.startswith(b"\xef\xbb\xbf"))
         decoded_csv = csv_response.content.decode("utf-8-sig")
@@ -649,6 +685,30 @@ class RankingAdminReportTests(TestCase):
             response,
             "종료일은 시작일과 같거나 이후여야 합니다.",
         )
+
+    def test_admin_exports_every_supported_format(self):
+        self.client.force_login(self.admin_user)
+        query = {
+            "ranking_type": "users",
+            "period_start": "2026-08-10",
+            "period_end": "2026-08-20",
+        }
+
+        responses = {}
+        for format_name in ("csv", "tsv", "json", "yaml", "html"):
+            with self.subTest(format_name=format_name):
+                _, response = self.export_ranking(query, format_name)
+                responses[format_name] = response
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(
+                    f".{format_name}",
+                    response["Content-Disposition"],
+                )
+
+        json_content = responses["json"].content.decode("utf-8-sig")
+        self.assertIn('"@ranked-user"', json_content)
+        self.assertNotIn('"\'@ranked-user"', json_content)
 
     def test_admin_displays_project_ranking_without_saving_it(self):
         self.client.force_login(self.admin_user)
@@ -699,14 +759,12 @@ class RankingAdminReportTests(TestCase):
                 "period_end": "2026-08-20",
             },
         )
-        csv_response = self.client.get(
-            self.url,
+        _, csv_response = self.export_ranking(
             {
                 "ranking_type": "projects",
                 "period_start": "2026-08-10",
                 "period_end": "2026-08-20",
-                "output": "csv",
-            },
+            }
         )
 
         self.assertContains(response, "관리자 조회 프로젝트")
