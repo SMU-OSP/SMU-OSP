@@ -114,7 +114,7 @@ def list_project_ranking_targets(
         period_end: 랭킹 집계 종료일.
 
     Returns:
-        Repository와 기간 내 스냅샷이 미리 조회된 ACTIVE 프로젝트 목록.
+        Repository와 기간 내 스냅샷이 미리 조회된 프로젝트 목록.
     """
     baseline_snapshot = (
         RepositorySnapshot.objects.filter(
@@ -165,8 +165,7 @@ def list_project_ranking_targets(
         .order_by("date", "pk")
     )
     return list(
-        Project.objects.filter(status=Project.Status.ACTIVE)
-        .alias(
+        Project.objects.alias(
             has_ranking_snapshot=Exists(available_snapshot),
         )
         .filter(has_ranking_snapshot=True)

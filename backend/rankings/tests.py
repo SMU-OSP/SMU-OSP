@@ -208,27 +208,38 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.pull_requests, 1)
         self.assertEqual(result.period_start, date(2026, 8, 12))
 
-    def test_excludes_projects_outside_ranking_scope(self):
-        inactive = self.create_repository_project(
-            name="비활성 프로젝트",
-            status=Project.Status.INACTIVE,
-        )
+    def test_includes_projects_with_snapshots_regardless_of_status(self):
+        repositories = [
+            self.create_repository_project(
+                name=f"{status} 프로젝트",
+                status=status,
+            )
+            for status in (
+                Project.Status.INACTIVE,
+                Project.Status.FINISHED,
+                Project.Status.DELETED,
+            )
+        ]
         self.create_repository_project(name="수집 전 프로젝트")
-        self.create_snapshot(
-            inactive,
-            date(2026, 8, 13),
-            stars=1,
-            forks=1,
-            commits=1,
-            pull_requests=1,
-        )
+        for repository in repositories:
+            self.create_snapshot(
+                repository,
+                date(2026, 8, 13),
+                stars=1,
+                forks=1,
+                commits=1,
+                pull_requests=1,
+            )
 
         results = calculate_project_rankings(
             date(2025, 8, 13),
             date(2026, 8, 13),
         )
 
-        self.assertEqual(results, [])
+        self.assertEqual(
+            {result.project_id for result in results},
+            {repository.project_id for repository in repositories},
+        )
 
     def test_assigns_competition_ranks_and_name_order(self):
         project_ids = {}
