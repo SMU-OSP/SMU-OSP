@@ -18,7 +18,6 @@ from .models import ProjectRanking
 from .selectors import list_project_ranking_targets, list_project_rankings
 from .services import (
     calculate_project_rankings,
-    calculate_project_rankings_for_period,
     calculate_user_rankings,
     replace_project_rankings,
 )
@@ -84,7 +83,10 @@ class ProjectRankingCalculationTests(TestCase):
                 pull_requests=snapshot[4],
             )
 
-        result = calculate_project_rankings(date(2026, 8, 13))[0]
+        result = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )[0]
 
         self.assertEqual(result.project_id, repository.project_id)
         self.assertEqual(result.stars, 15)
@@ -109,13 +111,13 @@ class ProjectRankingCalculationTests(TestCase):
                 pull_requests=0,
             )
 
-        result = calculate_project_rankings_for_period(
+        result = calculate_project_rankings(
             date(2026, 8, 10),
             date(2026, 8, 20),
         )[0]
 
-        self.assertEqual(result.commits, 7)
-        self.assertEqual(result.period_start, date(2026, 7, 31))
+        self.assertEqual(result.commits, 5)
+        self.assertEqual(result.period_start, date(2026, 8, 10))
         self.assertEqual(result.period_end, date(2026, 8, 20))
         with self.assertNumQueries(0):
             self.assertEqual(result.project.name, "기간 선택 프로젝트")
@@ -139,7 +141,10 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=4,
         )
 
-        result = calculate_project_rankings(date(2026, 8, 13))[0]
+        result = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )[0]
 
         self.assertEqual(result.stars, 9)
         self.assertEqual(result.forks, 0)
@@ -193,7 +198,10 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=2,
         )
 
-        result = calculate_project_rankings(date(2026, 8, 13))[0]
+        result = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )[0]
 
         self.assertEqual(result.stars, 11)
         self.assertEqual(result.commits, 2)
@@ -215,7 +223,10 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=1,
         )
 
-        results = calculate_project_rankings(date(2026, 8, 13))
+        results = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )
 
         self.assertEqual(results, [])
 
@@ -245,7 +256,10 @@ class ProjectRankingCalculationTests(TestCase):
                 pull_requests=0,
             )
 
-        results = calculate_project_rankings(date(2026, 8, 13))
+        results = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )
 
         self.assertEqual(
             [(result.rank, result.project_id) for result in results],
@@ -279,19 +293,28 @@ class ProjectRankingCalculationTests(TestCase):
             pull_requests=0,
         )
 
-        result = calculate_project_rankings(date(2026, 8, 13))[0]
+        result = calculate_project_rankings(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )[0]
 
         self.assertEqual(result.total_score, Decimal("3.00"))
 
     @override_settings(PROJECT_RANKING_STARS_WEIGHT="-0.01")
     def test_rejects_negative_environment_weight(self):
         with self.assertRaises(ImproperlyConfigured):
-            calculate_project_rankings(date(2026, 8, 13))
+            calculate_project_rankings(
+                date(2025, 8, 13),
+                date(2026, 8, 13),
+            )
 
     @override_settings(PROJECT_RANKING_STARS_WEIGHT="not-a-number")
     def test_rejects_non_numeric_environment_weight(self):
         with self.assertRaises(ImproperlyConfigured):
-            calculate_project_rankings(date(2026, 8, 13))
+            calculate_project_rankings(
+                date(2025, 8, 13),
+                date(2026, 8, 13),
+            )
 
 
 class ProjectRankingApiTests(TestCase):
@@ -420,7 +443,10 @@ class ProjectRankingTaskTests(TestCase):
         )
 
         self.assertEqual(result_count, 2)
-        calculate_rankings.assert_called_once_with(date(2026, 8, 13))
+        calculate_rankings.assert_called_once_with(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )
         replace_rankings.assert_called_once_with(
             calculate_rankings.return_value
         )
@@ -439,7 +465,10 @@ class ProjectRankingTaskTests(TestCase):
 
         calculate_daily_project_rankings.run()
 
-        calculate_rankings.assert_called_once_with(date(2026, 8, 13))
+        calculate_rankings.assert_called_once_with(
+            date(2025, 8, 13),
+            date(2026, 8, 13),
+        )
         replace_rankings.assert_called_once_with([])
 
     @patch(
@@ -670,11 +699,11 @@ class RankingAdminReportTests(TestCase):
         )
 
         self.assertContains(response, "관리자 조회 프로젝트")
-        self.assertContains(response, "13.00")
+        self.assertContains(response, "11.00")
         decoded_csv = csv_response.content.decode("utf-8-sig")
         self.assertIn("순위,프로젝트,총점,Star,Fork,Commit,PR", decoded_csv)
         self.assertIn("관리자 조회 프로젝트", decoded_csv)
-        self.assertIn("13.00", decoded_csv)
+        self.assertIn("11.00", decoded_csv)
         self.assertEqual(ProjectRanking.objects.count(), 0)
 
     def test_admin_requires_login(self):

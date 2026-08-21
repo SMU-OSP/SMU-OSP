@@ -7,6 +7,13 @@ from django.conf import settings
 from .services import calculate_project_rankings, replace_project_rankings
 
 
+def _one_year_before(target_date: date) -> date:
+    try:
+        return target_date.replace(year=target_date.year - 1)
+    except ValueError:
+        return target_date.replace(year=target_date.year - 1, day=28)
+
+
 @shared_task
 def calculate_daily_project_rankings(
     period_end: str | None = None,
@@ -25,6 +32,9 @@ def calculate_daily_project_rankings(
         else datetime.now(ZoneInfo(settings.CELERY_TIMEZONE)).date()
         - timedelta(days=1)
     )
-    results = calculate_project_rankings(target_date)
+    results = calculate_project_rankings(
+        _one_year_before(target_date),
+        target_date,
+    )
     replace_project_rankings(results)
     return len(results)
