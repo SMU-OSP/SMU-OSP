@@ -12,9 +12,10 @@ from common.responses import fail, success
 
 from .forms import UserListQueryForm
 from .models import User
-from .selectors import list_public_users
+from .selectors import get_public_user_profile, list_public_users
 from .serializers import (
     PrivateUserSerializer,
+    PublicUserProfileSerializer,
     PublicUserSerializer,
 )
 
@@ -106,10 +107,10 @@ class PublicUser(APIView):
 
     def get(self, request, username):
         try:
-            user = User.objects.get(username=username)
+            user = get_public_user_profile(username=username)
         except User.DoesNotExist:
-            raise NotFound
-        serializer = PublicUserSerializer(user)
+            raise NotFound from None
+        serializer = PublicUserProfileSerializer(user)
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,

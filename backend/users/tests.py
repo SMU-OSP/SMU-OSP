@@ -526,3 +526,68 @@ class UserListApiTests(TestCase):
             response.json()["status"],
             "INVALID_PAGINATION_PARAMETER",
         )
+
+
+class PublicUserProfileApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="profile-user",
+            github_email="profile@example.com",
+            name="프로필 사용자",
+            student_id=20260001,
+            major="소프트웨어학부",
+            score=999,
+            commits=998,
+            stars=997,
+            prs=996,
+            issues=995,
+        )
+
+    def test_returns_six_month_ranking_metrics(self):
+        SixMonthUserRanking.objects.create(
+            user=self.user,
+            total_score=50,
+            stars=40,
+            commits=30,
+            pull_requests=20,
+            issues=10,
+            period_start=date(2026, 2, 27),
+            period_end=date(2026, 8, 25),
+        )
+
+        with self.assertNumQueries(1):
+            response = self.client.get("/api/v1/users/@profile-user")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {
+                key: response.json()[key]
+                for key in ("score", "stars", "commits", "prs", "issues")
+            },
+            {
+                "score": 50,
+                "stars": 40,
+                "commits": 30,
+                "prs": 20,
+                "issues": 10,
+            },
+        )
+
+    def test_returns_zero_metrics_without_six_month_cache(self):
+        with self.assertNumQueries(1):
+            response = self.client.get("/api/v1/users/@profile-user")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {
+                key: response.json()[key]
+                for key in ("score", "stars", "commits", "prs", "issues")
+            },
+            {
+                "score": 0,
+                "stars": 0,
+                "commits": 0,
+                "prs": 0,
+                "issues": 0,
+            },
+        )

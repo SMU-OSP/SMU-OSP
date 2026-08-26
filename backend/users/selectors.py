@@ -63,6 +63,13 @@ def list_public_users(
     return results, User.objects.filter(is_superuser=False).count()
 
 
+def get_public_user_profile(*, username: str) -> User:
+    """6개월 랭킹 지표와 함께 공개 사용자 프로필을 조회한다."""
+    return User.objects.select_related("six_month_ranking").get(
+        username=username,
+    )
+
+
 def _user_ranking_targets(
     period_start: date,
     period_end: date,
