@@ -44,22 +44,36 @@ export default function ProjectRankingTable({
 
     return (
         <Box overflowX="auto">
-            <Table.Root minW="760px">
+            <Table.Root minW="760px" tableLayout="fixed">
                 <Table.Header>
                     <Table.Row>
-                        <Table.ColumnHeader>순위</Table.ColumnHeader>
+                        <Table.ColumnHeader width="64px" textAlign="center">
+                            순위
+                        </Table.ColumnHeader>
                         <Table.ColumnHeader>프로젝트</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">총점</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">Star</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">Fork</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">Commit</Table.ColumnHeader>
-                        <Table.ColumnHeader textAlign="right">PR</Table.ColumnHeader>
+                        <Table.ColumnHeader width="90px" textAlign="center">
+                            총점
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader width="90px" textAlign="center">
+                            Star
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader width="90px" textAlign="center">
+                            Fork
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader width="90px" textAlign="center">
+                            Commit
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader width="90px" textAlign="center">
+                            PR
+                        </Table.ColumnHeader>
                     </Table.Row>
                 </Table.Header>
                 <Table.Body>
                     {response.data.map((result) => (
                         <Table.Row key={result.projectId}>
-                            <Table.Cell fontWeight="bold">{result.rank}</Table.Cell>
+                            <Table.Cell textAlign="center" fontWeight="bold">
+                                {result.rank}
+                            </Table.Cell>
                             <Table.Cell>
                                 <Text
                                     asChild
@@ -72,13 +86,13 @@ export default function ProjectRankingTable({
                                     </RouterLink>
                                 </Text>
                             </Table.Cell>
-                            <Table.Cell textAlign="right" fontWeight="bold">
-                                {result.totalScore}
+                            <Table.Cell textAlign="center" fontWeight="bold">
+                                {Number(result.totalScore)}
                             </Table.Cell>
-                            <Table.Cell textAlign="right">{result.stars}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.forks}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.commits}</Table.Cell>
-                            <Table.Cell textAlign="right">{result.pullRequests}</Table.Cell>
+                            <Table.Cell textAlign="center">{result.stars}</Table.Cell>
+                            <Table.Cell textAlign="center">{result.forks}</Table.Cell>
+                            <Table.Cell textAlign="center">{result.commits}</Table.Cell>
+                            <Table.Cell textAlign="center">{result.pullRequests}</Table.Cell>
                         </Table.Row>
                     ))}
                 </Table.Body>

@@ -117,7 +117,7 @@ export default function MainProjectList() {
                                     color="smu.blue"
                                     fontWeight="bold"
                                 >
-                                    {ranking.totalScore}점
+                                    {Number(ranking.totalScore)}점
                                 </Text>
                             </HStack>
                         ))}

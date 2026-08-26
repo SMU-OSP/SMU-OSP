@@ -284,27 +284,36 @@ export default function RankBoard() {
                     </Text>
                 ) : (
                     <Box overflowX="auto">
-                        <Table.Root minW="760px">
+                        <Table.Root minW="760px" tableLayout="fixed">
                             <Table.Header>
                                 <Table.Row>
-                                    <Table.ColumnHeader>순위</Table.ColumnHeader>
+                                    <Table.ColumnHeader width="64px" textAlign="center">
+                                        순위
+                                    </Table.ColumnHeader>
                                     <Table.ColumnHeader>사용자</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">총점</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">Star</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">
+                                    <Table.ColumnHeader width="90px" textAlign="center">
+                                        총점
+                                    </Table.ColumnHeader>
+                                    <Table.ColumnHeader width="90px" textAlign="center">
+                                        Star
+                                    </Table.ColumnHeader>
+                                    <Table.ColumnHeader width="90px" textAlign="center">
                                         Commit
                                     </Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">PR</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">Issue</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="right">
-                                        가입일
+                                    <Table.ColumnHeader width="90px" textAlign="center">
+                                        PR
+                                    </Table.ColumnHeader>
+                                    <Table.ColumnHeader width="90px" textAlign="center">
+                                        Issue
                                     </Table.ColumnHeader>
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {users.map((user) => (
                                     <Table.Row key={user.username}>
-                                        <Table.Cell fontWeight="bold">{user.rank}</Table.Cell>
+                                        <Table.Cell textAlign="center" fontWeight="bold">
+                                            {user.rank}
+                                        </Table.Cell>
                                         <Table.Cell>
                                             <Text
                                                 asChild
@@ -317,21 +326,20 @@ export default function RankBoard() {
                                                 </RouterLink>
                                             </Text>
                                         </Table.Cell>
-                                        <Table.Cell textAlign="right" fontWeight="bold">
+                                        <Table.Cell textAlign="center" fontWeight="bold">
                                             {user.totalScore}
                                         </Table.Cell>
-                                        <Table.Cell textAlign="right">{user.stars ?? 0}</Table.Cell>
-                                        <Table.Cell textAlign="right">
+                                        <Table.Cell textAlign="center">
+                                            {user.stars ?? 0}
+                                        </Table.Cell>
+                                        <Table.Cell textAlign="center">
                                             {user.commits ?? 0}
                                         </Table.Cell>
-                                        <Table.Cell textAlign="right">
+                                        <Table.Cell textAlign="center">
                                             {user.pullRequests}
                                         </Table.Cell>
-                                        <Table.Cell textAlign="right">
+                                        <Table.Cell textAlign="center">
                                             {user.issues ?? 0}
-                                        </Table.Cell>
-                                        <Table.Cell textAlign="right">
-                                            {user.dateJoined.substring(0, 10)}
                                         </Table.Cell>
                                     </Table.Row>
                                 ))}
