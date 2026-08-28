@@ -254,14 +254,22 @@ class Member(CommonModel):
     description = models.CharField(max_length=255, null=True, blank=True)
     joined_at = models.DateTimeField(null=True, blank=True)
 
-    def transition_to(
+    def assert_transition_structure(
         self,
-        next_status=None,
-        *,
-        description=None,
-        update_description=False,
-        require_description=False,
-    ):
+        next_status: str | None = None,
+    ) -> str:
+        """그래프·팀장·정원 제약만 확인하고 적용할 상태를 반환한다.
+
+        Args:
+            next_status: 목표 상태. None이면 PENDING→CANCELED,
+                JOINED→LEFT로 해석한다.
+
+        Returns:
+            적용할 다음 상태 값.
+
+        Raises:
+            ValidationError: 전이 불가, 팀장 보호, 정원 초과.
+        """
         allowed_transitions = {
             self.Status.PENDING: {
                 self.Status.CANCELED,
@@ -285,11 +293,6 @@ class Member(CommonModel):
                 "프로젝트 팀장은 탈퇴하거나 내보낼 수 없습니다.",
                 code="leader_protected",
             )
-        if require_description and not (description or "").strip():
-            raise ValidationError(
-                "멤버를 내보내려면 사유를 입력해주세요.",
-                code="member_description_required",
-            )
         if (
             next_status == self.Status.JOINED
             and not self.project.has_available_member_slot()
@@ -298,7 +301,47 @@ class Member(CommonModel):
                 "프로젝트 정원이 가득 차 신청을 승인할 수 없습니다.",
                 code="project_capacity_reached",
             )
+        return next_status
 
+    def remove_from_project(self, *, description: str | None) -> None:
+        """팀장 조치로 멤버를 내보내고 사유를 기록한다.
+
+        Args:
+            description: 필수 내보내기 사유.
+
+        Raises:
+            ValidationError: 사유가 없거나 LEFT 전이가 불가능한 경우.
+        """
+        description = (description or "").strip()
+        if not description:
+            raise ValidationError(
+                "멤버를 내보내려면 사유를 입력해주세요.",
+                code="member_description_required",
+            )
+        self.transition_to(
+            self.Status.LEFT,
+            description=description,
+            update_description=True,
+        )
+
+    def transition_to(
+        self,
+        next_status: str | None = None,
+        *,
+        description: str | None = None,
+        update_description: bool = False,
+    ) -> None:
+        """멤버 상태를 전이한다. 저장은 호출측에서 수행한다.
+
+        Args:
+            next_status: 목표 상태. None이면 기본 전이를 사용한다.
+            description: 전이 사유.
+            update_description: 참이면 description 필드를 갱신한다.
+
+        Raises:
+            ValidationError: 상태 전이 규칙을 만족하지 않는 경우.
+        """
+        next_status = self.assert_transition_structure(next_status)
         self.status = next_status
         if next_status == self.Status.JOINED:
             self.joined_at = timezone.now()
