@@ -8,6 +8,18 @@ import tablib
 
 
 class UserResource(resources.ModelResource):
+    def dehydrate_github_email(self, obj):
+        return obj.github_email
+
+    def dehydrate_name(self, obj):
+        return obj.name
+
+    def dehydrate_student_id(self, obj):
+        return obj.student_id
+
+    def dehydrate_major(self, obj):
+        return obj.major
+
     class Meta:
         model = User
         fields = (
