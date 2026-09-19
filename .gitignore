@@ -174,3 +174,9 @@ cython_debug/
 dist/
 static/
 
+
+# 운영 런타임 산출물 (서버에서 생성되므로 추적하지 않는다)
+# backend/images/ 하위의 기존 홍보물 5개는 이미 추적 중이라 그대로 유지된다.
+backend/images/
+backend/celerybeat-schedule*
+frontend/.vite/
