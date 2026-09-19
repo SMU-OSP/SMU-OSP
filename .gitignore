@@ -174,3 +174,7 @@ cython_debug/
 dist/
 static/
 
+backend/images/
+backend/celerybeat-schedule*
+frontend/.vite/
+backend/logs/*.log
