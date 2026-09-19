@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Youngmin Joo <ymjoo827@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -27,6 +28,7 @@ beautifulsoup4 = "^4.13.3"
 celery = "^5.4.0"
 redis = "^5.2.1"
 django-import-export = "^4.3.7"
+django-encrypted-model-fields = "^0.6.5"
 
 
 [tool.poetry.group.dev.dependencies]

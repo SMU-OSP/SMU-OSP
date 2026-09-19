@@ -176,3 +176,8 @@ static/
 
 # Linter / formatter
 .ruff_cache/
+
+backend/images/
+backend/celerybeat-schedule*
+frontend/.vite/
+backend/logs/*.log

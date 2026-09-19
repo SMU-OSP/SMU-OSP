@@ -3,26 +3,32 @@ from django.db import models
 
 from common.models import CommonModel
 
+from encrypted_model_fields.fields import (
+    EncryptedCharField,
+    EncryptedPositiveIntegerField,
+    EncryptedEmailField,
+)
+
 
 class User(AbstractUser):
 
-    github_email = models.EmailField(
+    github_email = EncryptedEmailField(
         null=False,
         blank=False,
     )
 
-    name = models.CharField(
+    name = EncryptedCharField(
         max_length=100,
         null=False,
         blank=False,
     )
 
-    student_id = models.PositiveIntegerField(
+    student_id = EncryptedPositiveIntegerField(
         null=False,
         blank=False,
     )
 
-    major = models.CharField(
+    major = EncryptedCharField(
         max_length=100,
         null=False,
         blank=False,

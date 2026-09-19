@@ -44,6 +44,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "corsheaders",
     "import_export",
+    "encrypted_model_fields",
 ]
 
 CUSTOM_APPS = [
@@ -241,3 +242,5 @@ CELERY_BEAT_SCHEDULE = {
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # CSRF_COOKIE_SECURE = True
 # SESSION_COOKIE_SECURE = True
+
+FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY").encode()
