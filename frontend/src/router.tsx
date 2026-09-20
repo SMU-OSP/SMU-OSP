@@ -8,6 +8,10 @@ import PrivateRoute from "./routes/PrivateRoute";
 import GithubConfirm from "./routes/GithubConfirm";
 import PostBoard from "./routes/PostBoard";
 import RankBoard from "./routes/RankBoard";
+import ProjectListPage from "./routes/ProjectListPage";
+import ProjectDetailPage from "./routes/ProjectDetailPage";
+import ProjectCreatePage from "./routes/ProjectCreatePage";
+import ProjectEditPage from "./routes/ProjectEditPage";
 
 const router = createBrowserRouter([
   {
@@ -42,6 +46,22 @@ const router = createBrowserRouter([
       {
         path: "rank",
         element: <RankBoard />,
+      },
+      {
+        path: "projects",
+        element: <ProjectListPage />,
+      },
+      {
+        path: "projects/new",
+        element: <ProjectCreatePage />,
+      },
+      {
+        path: "projects/:id",
+        element: <ProjectDetailPage />,
+      },
+      {
+        path: "projects/:id/edit",
+        element: <ProjectEditPage />,
       },
     ],
   },

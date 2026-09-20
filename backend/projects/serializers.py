@@ -1,0 +1,499 @@
+import re
+from urllib.parse import urlparse
+
+from rest_framework import serializers
+
+from .models import Member, Project, ProjectLanguage, Repository
+
+ALLOWED_URL_SCHEMES = {"http", "https"}
+HTML_TAG_PATTERN = re.compile(r"</?[a-zA-Z][^>]*>")
+MAX_DESCRIPTION_LENGTH = 2000
+MAX_URL_LENGTH = 500
+MAX_LIST_ITEMS = 20
+MAX_LIST_ITEM_LENGTH = 100
+
+
+class RepositorySerializer(serializers.ModelSerializer):
+    fullName = serializers.CharField(source="full_name")
+    htmlUrl = serializers.URLField(source="html_url")
+    description = serializers.SerializerMethodField()
+    stars = serializers.SerializerMethodField()
+    forks = serializers.SerializerMethodField()
+    languages = serializers.SerializerMethodField()
+    fetchedAt = serializers.SerializerMethodField()
+
+    def _status(self, repository):
+        return getattr(repository, "serialized_status", None)
+
+    def _latest_snapshot(self, repository):
+        snapshots = getattr(repository, "serialized_snapshots", [])
+        return snapshots[0] if snapshots else None
+
+    def get_description(self, repository):
+        status = self._status(repository)
+        return status.description if status else None
+
+    def get_stars(self, repository):
+        snapshot = self._latest_snapshot(repository)
+        return snapshot.stars if snapshot else 0
+
+    def get_forks(self, repository):
+        snapshot = self._latest_snapshot(repository)
+        return snapshot.forks if snapshot else 0
+
+    def get_languages(self, repository):
+        return [
+            language.language
+            for language in getattr(repository, "serialized_languages", [])
+        ]
+
+    def get_fetchedAt(self, repository):
+        status = self._status(repository)
+        return status.fetched_at if status else None
+
+    class Meta:
+        model = Repository
+        fields = (
+            "fullName",
+            "description",
+            "stars",
+            "forks",
+            "languages",
+            "htmlUrl",
+            "fetchedAt",
+        )
+
+
+class ProjectListRepositorySerializer(RepositorySerializer):
+    """프로젝트 목록에 필요한 Repository 정보만 변환한다."""
+
+    class Meta(RepositorySerializer.Meta):
+        fields = (
+            "fullName",
+            "stars",
+            "forks",
+            "languages",
+            "htmlUrl",
+            "fetchedAt",
+        )
+
+
+class BlankableURLField(serializers.URLField):
+    default_error_messages = {
+        **serializers.URLField.default_error_messages,
+        "invalid": "올바른 URL 형식으로 입력해주세요.",
+    }
+
+    def run_validation(self, data=serializers.empty):
+        if data == "":
+            return None
+        return super().run_validation(data)
+
+    def to_internal_value(self, data):
+        if data == "":
+            return None
+        return super().to_internal_value(data)
+
+
+class ProjectCreateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(
+        max_length=100,
+        validators=[],
+        error_messages={
+            "blank": "프로젝트명을 입력해주세요.",
+            "required": "프로젝트명을 입력해주세요.",
+            "max_length": "프로젝트명은 100자 이하로 입력해주세요.",
+        },
+    )
+    description = serializers.CharField(
+        max_length=MAX_DESCRIPTION_LENGTH,
+        error_messages={
+            "blank": "프로젝트 설명을 입력해주세요.",
+            "required": "프로젝트 설명을 입력해주세요.",
+            "max_length": "프로젝트 설명은 2000자 이하로 입력해주세요.",
+        },
+    )
+    repositoryUrl = BlankableURLField(
+        source="repository_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
+    )
+    demoUrl = BlankableURLField(
+        source="demo_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
+    )
+    presentationUrl = BlankableURLField(
+        source="presentation_url",
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        max_length=MAX_URL_LENGTH,
+        error_messages={"max_length": "URL은 500자 이하로 입력해주세요."},
+    )
+    techStack = serializers.ListField(
+        source="languages",
+        child=serializers.CharField(
+            allow_blank=True,
+            max_length=MAX_LIST_ITEM_LENGTH,
+            trim_whitespace=True,
+            error_messages={
+                "max_length": "각 항목은 100자 이하로 입력해주세요.",
+            },
+        ),
+        required=False,
+        max_length=MAX_LIST_ITEMS,
+        error_messages={
+            "not_a_list": "목록 형식으로 입력해주세요.",
+            "max_length": "최대 20개까지 입력할 수 있습니다.",
+        },
+    )
+    class Meta:
+        model = Project
+        fields = (
+            "name",
+            "description",
+            "repositoryUrl",
+            "demoUrl",
+            "presentationUrl",
+            "techStack",
+        )
+
+    def validate(self, attrs):
+        name = self._strip_required(
+            attrs.get("name"),
+            "프로젝트명을 입력해주세요.",
+        )
+        name = self._validate_plain_text(
+            "name",
+            name,
+            "프로젝트명",
+            allow_newlines=False,
+        )
+        projects_with_same_name = Project.objects.filter(name=name)
+        exclude_project_id = self.context.get("project_id")
+        if exclude_project_id is not None:
+            projects_with_same_name = projects_with_same_name.exclude(
+                pk=exclude_project_id
+            )
+        if projects_with_same_name.exists():
+            raise serializers.ValidationError(
+                {"name": "이미 등록된 프로젝트명입니다."}
+            )
+
+        attrs["name"] = name
+        attrs["description"] = self._validate_plain_text(
+            "description",
+            self._strip_required(
+                attrs.get("description"),
+                "프로젝트 설명을 입력해주세요.",
+            ),
+            "프로젝트 설명",
+            allow_newlines=True,
+        )
+
+        for field in ("repository_url", "demo_url", "presentation_url"):
+            attrs[field] = self._strip_optional_url(attrs.get(field))
+
+        attrs["languages"] = self._resolve_languages(
+            self._normalize_string_list(attrs.get("languages", []))
+        )
+        return attrs
+
+    def _resolve_languages(self, names):
+        unique_names = {}
+        for name in names:
+            unique_names.setdefault(name.casefold(), name)
+        languages = {
+            language.name.casefold(): language
+            for language in ProjectLanguage.objects.all()
+        }
+        missing = [
+            name
+            for key, name in unique_names.items()
+            if key not in languages
+        ]
+        if missing:
+            raise serializers.ValidationError(
+                {
+                    "techStack": (
+                        "등록 가능한 프로그래밍 언어를 선택해주세요: "
+                        + ", ".join(missing)
+                    )
+                }
+            )
+        return [languages[key] for key in unique_names]
+
+    def _strip_required(self, value, message):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError(message)
+        return value
+
+    def _strip_optional(self, value):
+        value = (value or "").strip()
+        return value or None
+
+    def _strip_optional_url(self, value):
+        value = self._strip_optional(value)
+        if not value:
+            return None
+
+        if urlparse(value).scheme.lower() not in ALLOWED_URL_SCHEMES:
+            raise serializers.ValidationError(
+                "URL은 http 또는 https 형식으로 입력해주세요."
+            )
+        return value
+
+    def _normalize_string_list(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("목록 형식으로 입력해주세요.")
+
+        return [
+            self._validate_plain_text(
+                "listItem",
+                item.strip(),
+                "목록 항목",
+                allow_newlines=False,
+            )
+            for item in value
+            if item and item.strip()
+        ]
+
+    def _validate_plain_text(self, field, value, label, allow_newlines):
+        allowed_controls = {"\t"}
+        if allow_newlines:
+            allowed_controls.update({"\n", "\r"})
+
+        has_control_character = any(
+            (ord(char) < 32 or ord(char) == 127) and char not in allowed_controls
+            for char in value
+        )
+        if has_control_character:
+            raise serializers.ValidationError(
+                {field: f"{label}에는 제어 문자를 입력할 수 없습니다."}
+            )
+
+        if HTML_TAG_PATTERN.search(value):
+            raise serializers.ValidationError(
+                {field: f"{label}에는 HTML 태그를 입력할 수 없습니다."}
+            )
+
+        return value
+
+
+class ProjectUpdateSerializer(ProjectCreateSerializer):
+    status = serializers.ChoiceField(
+        choices=(Project.Status.ACTIVE, Project.Status.FINISHED),
+        error_messages={"invalid_choice": "프로젝트 상태를 확인해주세요."},
+    )
+
+    class Meta(ProjectCreateSerializer.Meta):
+        fields = ProjectCreateSerializer.Meta.fields + ("status",)
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    demoUrl = serializers.URLField(source="demo_url", allow_null=True)
+    presentationUrl = serializers.URLField(
+        source="presentation_url",
+        allow_null=True,
+    )
+    techStack = serializers.SlugRelatedField(
+        source="languages",
+        many=True,
+        read_only=True,
+        slug_field="name",
+    )
+    maxMembers = serializers.IntegerField(source="max_members")
+    repository = RepositorySerializer(read_only=True, allow_null=True)
+    membershipRole = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source="created_at")
+    updatedAt = serializers.DateTimeField(source="updated_at")
+
+    def get_membershipRole(self, project):
+        memberships = getattr(project, "request_user_memberships", None)
+        if not memberships:
+            return None
+        if any(membership.is_leader for membership in memberships):
+            return "OWNER"
+        return "MEMBER"
+
+    class Meta:
+        model = Project
+        fields = (
+            "id",
+            "name",
+            "description",
+            "demoUrl",
+            "presentationUrl",
+            "techStack",
+            "status",
+            "maxMembers",
+            "repository",
+            "membershipRole",
+            "createdAt",
+            "updatedAt",
+        )
+
+
+class ProjectListSerializer(ProjectSerializer):
+    """프로젝트 목록 화면에 필요한 정보만 변환한다."""
+
+    repository = ProjectListRepositorySerializer(
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta(ProjectSerializer.Meta):
+        fields = (
+            "id",
+            "name",
+            "description",
+            "techStack",
+            "status",
+            "repository",
+            "membershipRole",
+            "createdAt",
+            "updatedAt",
+        )
+
+
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", allow_null=True)
+    name = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    joinedAt = serializers.DateTimeField(source="joined_at", allow_null=True)
+
+    class Meta:
+        model = Member
+        fields = (
+            "id",
+            "username",
+            "name",
+            "role",
+            "joinedAt",
+        )
+
+    def get_name(self, obj):
+        if not obj.user:
+            return "탈퇴한 사용자"
+        return obj.user.name or obj.user.username
+
+    def get_role(self, obj):
+        return "LEADER" if obj.is_leader else "MEMBER"
+
+
+class ProjectMemberManagementSerializer(ProjectMemberSerializer):
+    createdAt = serializers.DateTimeField(source="created_at")
+
+    class Meta(ProjectMemberSerializer.Meta):
+        fields = (
+            "id",
+            "name",
+            "status",
+            "description",
+            "createdAt",
+        )
+
+
+class ProjectMemberUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=(
+            Member.Status.DECLINED,
+            Member.Status.JOINED,
+            Member.Status.LEFT,
+        )
+    )
+    description = serializers.CharField(
+        max_length=255,
+        allow_blank=True,
+        allow_null=True,
+        required=False,
+    )
+
+
+class ProjectMemberDescriptionSerializer(serializers.Serializer):
+    description = serializers.CharField(
+        max_length=255,
+        allow_blank=True,
+        allow_null=True,
+        required=False,
+    )
+
+
+class ProjectMembershipHistorySerializer(serializers.ModelSerializer):
+    projectId = serializers.IntegerField(source="project_id")
+    projectName = serializers.CharField(source="project.name")
+    projectStatus = serializers.CharField(source="project.status")
+    createdAt = serializers.DateTimeField(source="created_at")
+    updatedAt = serializers.DateTimeField(source="updated_at")
+
+    class Meta:
+        model = Member
+        fields = (
+            "projectId",
+            "projectName",
+            "projectStatus",
+            "id",
+            "status",
+            "description",
+            "createdAt",
+            "updatedAt",
+        )
+
+
+class ProjectDetailSerializer(ProjectSerializer):
+    memberCount = serializers.SerializerMethodField()
+    canViewMembers = serializers.SerializerMethodField()
+    canEdit = serializers.SerializerMethodField()
+    canApply = serializers.SerializerMethodField()
+    applicationStatus = serializers.SerializerMethodField()
+    pendingMemberCount = serializers.SerializerMethodField()
+    members = serializers.SerializerMethodField()
+
+    class Meta(ProjectSerializer.Meta):
+        fields = (
+            *ProjectSerializer.Meta.fields,
+            "memberCount",
+            "canViewMembers",
+            "canEdit",
+            "canApply",
+            "applicationStatus",
+            "pendingMemberCount",
+            "members",
+        )
+
+    def get_memberCount(self, obj):
+        return len(self._joined_members(obj))
+
+    def get_canViewMembers(self, obj):
+        return bool(self.context.get("can_view_members", False))
+
+    def get_canEdit(self, obj):
+        return bool(self.context.get("can_edit", False))
+
+    def get_canApply(self, obj):
+        return bool(self.context.get("can_apply", False))
+
+    def get_applicationStatus(self, obj):
+        memberships = getattr(obj, "request_user_application_history", [])
+        return memberships[0].status if memberships else None
+
+    def get_pendingMemberCount(self, obj):
+        if not self.get_canEdit(obj):
+            return 0
+        return obj.pending_member_count
+
+    def get_members(self, obj):
+        if not self.get_canViewMembers(obj):
+            return None
+        return ProjectMemberSerializer(self._joined_members(obj), many=True).data
+
+    def _joined_members(self, obj):
+        return getattr(obj, "joined_members", [])

@@ -1,0 +1,388 @@
+import {
+  Box,
+  HStack,
+  Input,
+  SimpleGrid,
+  Spinner,
+  Text,
+  Textarea,
+  VStack,
+} from "@chakra-ui/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import LogInButton from "../components/LogInButton";
+import ProjectLanguageSelect from "../components/ProjectLanguageSelect";
+import ProjectNotFoundPanel from "../components/ProjectNotFoundPanel";
+import StatusMessagePanel from "../components/StatusMessagePanel";
+import { Button } from "../components/ui/button";
+import useUser from "../lib/useUser";
+import { getProject, updateProject } from "../services/projectService";
+import { type ProjectUpdateInput } from "../types/project";
+
+const MAX_PROJECT_NAME_LENGTH = 100;
+const MAX_PROJECT_DESCRIPTION_LENGTH = 2000;
+const MAX_PROJECT_URL_LENGTH = 500;
+
+type FieldErrors = {
+  name?: string;
+  description?: string;
+  repositoryUrl?: string;
+};
+
+function optionalUrl(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function Field({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Text fontSize={"xs"} color={"smu.darkGray"} mb={1}>
+        {label}
+        {required ? " *" : ""}
+      </Text>
+      {children}
+      {error ? (
+        <Text mt={1} fontSize={"xs"} color={"smu.orange"} fontWeight={"bold"}>
+          {error}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
+export default function ProjectEditPage() {
+  const { id = "" } = useParams<{ id: string }>();
+  const location = useLocation();
+  const retryState = location.state as
+    | {
+        repositoryUrl?: string;
+        repositoryError?: string;
+      }
+    | null;
+  const retryRepositoryUrl = retryState?.repositoryUrl;
+  const retryRepositoryError = retryState?.repositoryError;
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { userLoading, isLoggedIn } = useUser();
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [demoUrl, setDemoUrl] = useState("");
+  const [presentationUrl, setPresentationUrl] = useState("");
+  const [techStack, setTechStack] = useState<string[]>([]);
+  const [initializedProjectId, setInitializedProjectId] = useState<number>();
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState("");
+
+  const projectQuery = useQuery({
+    queryKey: ["project", id],
+    queryFn: () => getProject(id),
+    enabled: !!id && isLoggedIn,
+  });
+  const projectResponse = projectQuery.data;
+
+  useEffect(() => {
+    if (
+      projectResponse?.status !== "SUCCESS" ||
+      projectResponse.data.id === initializedProjectId
+    ) {
+      return;
+    }
+
+    const project = projectResponse.data;
+    setName(project.name);
+    setDescription(project.description);
+    setRepositoryUrl(
+      project.repository?.htmlUrl || retryRepositoryUrl || ""
+    );
+    setDemoUrl(project.demoUrl || "");
+    setPresentationUrl(project.presentationUrl || "");
+    setTechStack(project.techStack);
+    if (!project.repository && retryRepositoryError) {
+      setFieldErrors({ repositoryUrl: retryRepositoryError });
+      setFormError("");
+    }
+    setInitializedProjectId(project.id);
+  }, [
+    initializedProjectId,
+    projectResponse,
+    retryRepositoryError,
+    retryRepositoryUrl,
+  ]);
+
+  const mutation = useMutation({
+    mutationFn: (input: ProjectUpdateInput) => updateProject(id, input),
+    onSuccess: (response) => {
+      if (response.status !== "SUCCESS") {
+        const message = response.detail.message;
+        if (
+          response.status === "INVALID_GITHUB_URL" ||
+          response.status === "GITHUB_REPOSITORY_NOT_FOUND" ||
+          response.status === "PRIVATE_REPOSITORY" ||
+          response.status === "GITHUB_API_FAILED" ||
+          response.status === "GITHUB_RATE_LIMIT_EXCEEDED"
+        ) {
+          setFieldErrors({ repositoryUrl: message });
+          setFormError("");
+          return;
+        }
+        setFieldErrors({});
+        setFormError(message);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      navigate(`/projects/${id}`);
+    },
+  });
+
+  if (userLoading || (isLoggedIn && projectQuery.isLoading)) {
+    return (
+      <Box display={"flex"} justifyContent={"center"} p={10}>
+        <Spinner />
+      </Box>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <StatusMessagePanel
+        page
+        title="로그인이 필요합니다."
+        description="프로젝트를 수정하려면 GitHub 로그인이 필요합니다."
+      >
+        <HStack>
+          <Button
+            variant={"outline"}
+            onClick={() => navigate(`/projects/${id}`)}
+          >
+            돌아가기
+          </Button>
+          <LogInButton bg={"smu.blue"} label="GitHub 로그인" />
+        </HStack>
+      </StatusMessagePanel>
+    );
+  }
+
+  if (projectResponse?.status === "PROJECT_NOT_FOUND") {
+    return <ProjectNotFoundPanel />;
+  }
+
+  if (!projectResponse || projectResponse.status !== "SUCCESS") {
+    return (
+      <StatusMessagePanel
+        page
+        title="프로젝트를 불러올 수 없습니다."
+        description={
+          projectResponse?.detail.message || "잠시 후 다시 시도해주세요."
+        }
+      />
+    );
+  }
+
+  const project = projectResponse.data;
+  if (!project.canEdit) {
+    return (
+      <StatusMessagePanel
+        page
+        title="수정 권한이 없습니다."
+        description="프로젝트 팀장만 프로젝트 정보를 수정할 수 있습니다."
+      >
+        <Button
+          variant={"outline"}
+          onClick={() => navigate(`/projects/${id}`)}
+        >
+          돌아가기
+        </Button>
+      </StatusMessagePanel>
+    );
+  }
+  const hasRepository = !!project.repository;
+
+  const handleSubmit = () => {
+    if (mutation.isPending) return;
+
+    const nextFieldErrors: FieldErrors = {};
+    if (!name.trim()) {
+      nextFieldErrors.name = "프로젝트명을 입력해주세요.";
+    }
+    if (!description.trim()) {
+      nextFieldErrors.description = "프로젝트 설명을 입력해주세요.";
+    }
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setFormError("");
+      return;
+    }
+
+    setFieldErrors({});
+    setFormError("");
+    mutation.mutate({
+      name: name.trim(),
+      description: description.trim(),
+      repositoryUrl: optionalUrl(repositoryUrl),
+      demoUrl: optionalUrl(demoUrl),
+      presentationUrl: optionalUrl(presentationUrl),
+      techStack,
+      status: "ACTIVE",
+    });
+  };
+
+  return (
+    <Box px={{ base: 4, md: 10 }} py={6} maxW={"1000px"} mx={"auto"}>
+      <VStack alignItems={"stretch"} gap={5}>
+        <HStack justifyContent={"space-between"} alignItems={"center"}>
+          <Box>
+            <Text fontSize={"2xl"} fontWeight={"bold"} color={"smu.blue"}>
+              프로젝트 수정
+            </Text>
+            <Text fontSize={"sm"} color={"smu.darkGray"}>
+              프로젝트 정보와 결과물 링크를 수정합니다.
+            </Text>
+          </Box>
+          <Button
+            variant={"outline"}
+            onClick={() => navigate(`/projects/${id}`)}
+          >
+            돌아가기
+          </Button>
+        </HStack>
+
+        <Box
+          p={5}
+          borderWidth={1}
+          borderColor={"smu.gray"}
+          borderRadius={"lg"}
+          bg={"white"}
+        >
+          <VStack alignItems={"stretch"} gap={5}>
+            <Field label="프로젝트명" required error={fieldErrors.name}>
+              <Input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (fieldErrors.name) {
+                    setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                  }
+                }}
+                maxLength={MAX_PROJECT_NAME_LENGTH}
+                disabled={mutation.isPending}
+                aria-invalid={Boolean(fieldErrors.name)}
+              />
+            </Field>
+
+            <Field
+              label="프로젝트 설명"
+              required
+              error={fieldErrors.description}
+            >
+              <Textarea
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (fieldErrors.description) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      description: undefined,
+                    }));
+                  }
+                }}
+                minH={"120px"}
+                maxLength={MAX_PROJECT_DESCRIPTION_LENGTH}
+                disabled={mutation.isPending}
+                aria-invalid={Boolean(fieldErrors.description)}
+              />
+            </Field>
+
+            <Field
+              label="GitHub Repository URL"
+              error={fieldErrors.repositoryUrl}
+            >
+              <Input
+                value={repositoryUrl}
+                onChange={(e) => {
+                  setRepositoryUrl(e.target.value);
+                  if (fieldErrors.repositoryUrl) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      repositoryUrl: undefined,
+                    }));
+                  }
+                }}
+                placeholder="https://github.com/owner/repository"
+                maxLength={MAX_PROJECT_URL_LENGTH}
+                disabled={mutation.isPending || hasRepository}
+                aria-invalid={Boolean(fieldErrors.repositoryUrl)}
+              />
+              {hasRepository && (
+                <Text mt={1} fontSize={"xs"} color={"smu.darkGray"}>
+                  등록된 Repository는 변경하거나 연결 해제할 수 없습니다.
+                </Text>
+              )}
+            </Field>
+
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+              <Field label="데모 URL">
+                <Input
+                  value={demoUrl}
+                  onChange={(e) => setDemoUrl(e.target.value)}
+                  maxLength={MAX_PROJECT_URL_LENGTH}
+                  disabled={mutation.isPending}
+                />
+              </Field>
+              <Field label="발표자료 URL">
+                <Input
+                  value={presentationUrl}
+                  onChange={(e) => setPresentationUrl(e.target.value)}
+                  maxLength={MAX_PROJECT_URL_LENGTH}
+                  disabled={mutation.isPending}
+                />
+              </Field>
+            </SimpleGrid>
+
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+              <Field label="사용 언어">
+                <ProjectLanguageSelect
+                  value={techStack}
+                  onChange={setTechStack}
+                  disabled={mutation.isPending}
+                />
+              </Field>
+            </SimpleGrid>
+
+            {formError && (
+              <StatusMessagePanel
+                title="요청을 처리하지 못했습니다."
+                description={formError}
+              />
+            )}
+
+            <HStack justifyContent={"flex-end"}>
+              <Button
+                bg={"smu.blue"}
+                loading={mutation.isPending}
+                onClick={handleSubmit}
+              >
+                저장
+              </Button>
+            </HStack>
+          </VStack>
+        </Box>
+      </VStack>
+    </Box>
+  );
+}

@@ -1,5 +1,5 @@
 import { Box, Heading, Input, Spinner, VStack } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { githubRegister, githubLogIn, checkUserExist } from "../api";
@@ -47,7 +47,7 @@ export default function GithubConfirm() {
     mutation.mutate(data);
   };
 
-  const confirmLogIn = async () => {
+  const confirmLogIn = useCallback(async () => {
     const code = new URLSearchParams(search).get("code");
     if (code) {
       const user = await checkUserExist(code);
@@ -62,7 +62,7 @@ export default function GithubConfirm() {
         }
       }
     }
-  };
+  }, [navigate, queryClient, search]);
 
   // const onSubmit = async (data: IRegisterForm) => {
   //   await githubRegister(accessToken, data.name, data.studentId, data.major);
@@ -71,7 +71,7 @@ export default function GithubConfirm() {
 
   useEffect(() => {
     confirmLogIn();
-  }, []);
+  }, [confirmLogIn]);
 
   if (isUserNotFound) {
     return (
