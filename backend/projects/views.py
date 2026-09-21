@@ -47,8 +47,11 @@ from .serializers import (
 from .services import (
     ProjectCreationError,
     RepositoryRegistrationError,
+    cancel_or_leave_membership,
     change_project_member_status,
+    create_membership_application,
     create_project,
+    get_membership_cancel_target,
     prepare_project_repository_update,
     update_project_repository,
 )
@@ -466,7 +469,10 @@ class ProjectMembers(APIView):
     @api_login_required
     def post(self, request, pk):
         try:
-            project = Project.objects.get(pk=pk)
+            create_membership_application(
+                actor=request.user,
+                project_id=pk,
+            )
         except Project.DoesNotExist:
             return Response(
                 fail(
@@ -476,15 +482,6 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_404_NOT_FOUND,
             )
-
-        memberships = list(
-            Member.objects.filter(
-                project=project,
-                user=request.user,
-            ).order_by("-created_at", "-pk")
-        )
-        try:
-            project.validate_membership_application(memberships)
         except ValidationError as error:
             return Response(
                 fail(
@@ -495,11 +492,6 @@ class ProjectMembers(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        Member.objects.create(
-            project=project,
-            user=request.user,
-            status=Member.Status.PENDING,
-        )
         return Response(
             success(None),
             status=status.HTTP_201_CREATED,
@@ -507,7 +499,20 @@ class ProjectMembers(APIView):
 
     @api_login_required
     def delete(self, request, pk):
-        if not Project.objects.filter(pk=pk).exists():
+        try:
+            get_membership_cancel_target(
+                actor=request.user,
+                project_id=pk,
+            )
+            serializer = ProjectMemberDescriptionSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            cancel_or_leave_membership(
+                actor=request.user,
+                project_id=pk,
+                description=serializer.validated_data.get("description"),
+                update_description="description" in serializer.validated_data,
+            )
+        except Project.DoesNotExist:
             return Response(
                 fail(
                     "PROJECT_NOT_FOUND",
@@ -516,61 +521,38 @@ class ProjectMembers(APIView):
                 ),
                 status=status.HTTP_404_NOT_FOUND,
             )
-
-        serializer = ProjectMemberDescriptionSerializer(data=request.data)
-        if not serializer.is_valid():
+        except Member.DoesNotExist:
+            return Response(
+                fail(
+                    "MEMBERSHIP_NOT_FOUND",
+                    "해당 프로젝트의 참여 또는 신청 내역을 찾을 수 없습니다.",
+                    status.HTTP_404_NOT_FOUND,
+                ),
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except DRFValidationError as error:
             return Response(
                 fail(
                     "INVALID_MEMBER_INPUT",
-                    first_serializer_error(serializer.errors),
+                    first_serializer_error(error.detail),
                     status.HTTP_400_BAD_REQUEST,
                 ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        with transaction.atomic():
-            membership = (
-                Member.objects.select_for_update()
-                .filter(project_id=pk, user=request.user)
-                .order_by("-is_leader", "-created_at", "-pk")
-                .first()
+        except ValidationError as error:
+            response_status = (
+                "PERMISSION_DENIED"
+                if error.code == "leader_protected"
+                else "INVALID_MEMBER_STATUS"
             )
-
-            if membership is None:
-                return Response(
-                    fail(
-                        "MEMBERSHIP_NOT_FOUND",
-                        "해당 프로젝트의 참여 또는 신청 내역을 찾을 수 없습니다.",
-                        status.HTTP_404_NOT_FOUND,
-                    ),
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            try:
-                membership.transition_to(
-                    description=serializer.validated_data.get("description"),
-                    update_description="description" in serializer.validated_data,
-                )
-            except ValidationError as error:
-                response_status = (
-                    "PERMISSION_DENIED"
-                    if error.code == "leader_protected"
-                    else "INVALID_MEMBER_STATUS"
-                )
-                return Response(
-                    fail(
-                        response_status,
-                        error.message,
-                        status.HTTP_403_FORBIDDEN
-                        if response_status == "PERMISSION_DENIED"
-                        else status.HTTP_400_BAD_REQUEST,
-                    ),
-                    status=status.HTTP_403_FORBIDDEN
-                    if response_status == "PERMISSION_DENIED"
-                    else status.HTTP_400_BAD_REQUEST,
-                )
-            membership.save(
-                update_fields=("status", "description", "joined_at", "updated_at")
+            http_status = (
+                status.HTTP_403_FORBIDDEN
+                if response_status == "PERMISSION_DENIED"
+                else status.HTTP_400_BAD_REQUEST
+            )
+            return Response(
+                fail(response_status, error.message, http_status),
+                status=http_status,
             )
 
         return Response(success(None), status=status.HTTP_200_OK)
@@ -579,17 +561,6 @@ class ProjectMembers(APIView):
 class ProjectMemberDetail(APIView):
     @api_login_required
     def put(self, request, pk, member_id):
-        serializer = ProjectMemberUpdateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                fail(
-                    "INVALID_MEMBER_INPUT",
-                    first_serializer_error(serializer.errors),
-                    status.HTTP_400_BAD_REQUEST,
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
             if not Project.objects.filter(pk=pk).exists():
                 raise Project.DoesNotExist
@@ -598,6 +569,8 @@ class ProjectMemberDetail(APIView):
                 user_id=request.user.pk,
             )
 
+            serializer = ProjectMemberUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
             change_project_member_status(
                 project_id=pk,
                 member_id=member_id,
@@ -625,6 +598,15 @@ class ProjectMemberDetail(APIView):
             )
         except ProjectPermissionDenied as error:
             return _project_permission_denied_response(error)
+        except DRFValidationError as error:
+            return Response(
+                fail(
+                    "INVALID_MEMBER_INPUT",
+                    first_serializer_error(error.detail),
+                    status.HTTP_400_BAD_REQUEST,
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValidationError as error:
             response_status = {
                 "project_capacity_reached": "PROJECT_CAPACITY_REACHED",
@@ -642,7 +624,15 @@ class ProjectMemberDetail(APIView):
         return Response(success(None), status=status.HTTP_200_OK)
 
 
-def first_serializer_error(errors):
+def first_serializer_error(errors: object) -> str:
+    """중첩된 Serializer 오류에서 첫 사용자 메시지를 반환한다.
+
+    Args:
+        errors: Serializer가 반환한 오류 상세 구조.
+
+    Returns:
+        첫 번째 오류 문자열 또는 기본 입력 오류 메시지.
+    """
     if isinstance(errors, dict):
         first_value = next(iter(errors.values()), None)
         if isinstance(first_value, list) and first_value:
