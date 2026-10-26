@@ -58,7 +58,7 @@ export default function Header() {
                   truncate
                   maxW={{ sm: "22ch", md: "none" }}
                 >
-                  SMU Open-Source Platform
+                  SMWU Open-Source Platform
                 </Text>
               </HStack>
             </Link>
