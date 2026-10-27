@@ -4,7 +4,6 @@ from django.db.models import (
     Count,
     IntegerField,
     OuterRef,
-    Q,
     Subquery,
     Sum,
     Value,
@@ -70,18 +69,37 @@ def get_public_user_profile(*, username: str) -> User:
     )
 
 
+def _activity_total(
+    activities: QuerySet[UserActivity],
+    field: str,
+) -> Coalesce:
+    """사용자별 활동 필드 합계를 상관 서브쿼리로 구성한다."""
+    total = (
+        activities.values("user_id").annotate(total=Sum(field)).values("total")
+    )
+    return Coalesce(
+        Subquery(total, output_field=IntegerField()),
+        Value(0),
+    )
+
+
 def _user_ranking_targets(
     period_start: date,
     period_end: date,
 ) -> QuerySet[User]:
-    """집계 기간의 사용자 활동 지표를 포함한 QuerySet을 구성한다."""
-    activity_in_period = Q(
-        activities__activity_date__gte=period_start,
-        activities__activity_date__lte=period_end,
+    """집계 기간의 사용자 활동 지표를 포함한 QuerySet을 구성한다.
+
+    활동 테이블을 조인해 GROUP BY 하면 MySQL이 Star 서브쿼리를 사용자가
+    아니라 조인된 활동 행마다 실행하므로, 모든 지표를 사용자별 상관
+    서브쿼리로 계산한다.
+    """
+    user_activities = UserActivity.objects.filter(user_id=OuterRef("pk"))
+    period_activities = user_activities.filter(
+        activity_date__gte=period_start,
+        activity_date__lte=period_end,
     )
     latest_stars = (
-        UserActivity.objects.filter(
-            user_id=OuterRef("pk"),
+        user_activities.filter(
             activity_date__lte=period_end,
             stars__isnull=False,
         )
@@ -100,18 +118,9 @@ def _user_ranking_targets(
                 Subquery(latest_stars, output_field=IntegerField()),
                 Value(0),
             ),
-            ranking_commits=Coalesce(
-                Sum("activities__commits", filter=activity_in_period),
-                Value(0),
-            ),
-            ranking_prs=Coalesce(
-                Sum("activities__prs", filter=activity_in_period),
-                Value(0),
-            ),
-            ranking_issues=Coalesce(
-                Sum("activities__issues", filter=activity_in_period),
-                Value(0),
-            ),
+            ranking_commits=_activity_total(period_activities, "commits"),
+            ranking_prs=_activity_total(period_activities, "prs"),
+            ranking_issues=_activity_total(period_activities, "issues"),
         )
         .order_by("username")
     )
