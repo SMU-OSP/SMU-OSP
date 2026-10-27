@@ -1,24 +1,14 @@
-import { FaGithub } from "react-icons/fa";
-
 import { Link } from "react-router-dom";
 
-import { useState } from "react";
 import { Box, HStack, Image, MenuTrigger, Text } from "@chakra-ui/react";
-import { Button } from "./ui/button";
-import LogInDialog from "./LogInDialog";
 import useUser from "../lib/useUser";
 import { MenuContent, MenuItem, MenuRoot } from "./ui/menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { logOut } from "../api";
+import LogInButton from "./LogInButton";
 
 export default function Header() {
   const { userLoading, isLoggedIn, user } = useUser();
-
-  const [logInOpen, setLogInOpen] = useState(false);
-
-  // const toggleLogInDialog = () => {
-  //   setLogInOpen(!logInOpen);
-  // };
 
   const queryClient = useQueryClient();
 
@@ -43,40 +33,70 @@ export default function Header() {
       <Box bg={"smu.gray"}>
         <HStack
           justifyContent={"space-between"}
-          py={3}
-          px={10}
+          alignItems={"center"}
+          flexWrap={"wrap"}
+          gap={3}
+          py={{ base: 2, md: 3 }}
+          px={{ base: 3, sm: 4, md: 10 }}
           borderBottomWidth={1}
           borderBottomColor={"smu.darkGray"}
         >
-          <Link to={"/"}>
-            <HStack spaceX={1}>
-              <Image
-                src="../../public/images/symbol.png"
-                objectFit={"contain"}
-                h={"50px"}
-              />
-              <Text fontWeight={"bold"} fontSize={"2xl"} color={"smu.blue"}>
-                SMU Open-Source Platform
-              </Text>
+          <HStack spaceX={{ base: 3, md: 6 }} minW={0} flex={1}>
+            <Link to={"/"}>
+              <HStack spaceX={1} minW={0}>
+                <Image
+                  src="../../public/images/symbol.png"
+                  objectFit={"contain"}
+                  h={{ base: "36px", md: "50px" }}
+                  flexShrink={0}
+                />
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={{ base: "md", md: "2xl" }}
+                  color={"smu.blue"}
+                  display={{ base: "none", sm: "block" }}
+                  truncate
+                  maxW={{ sm: "22ch", md: "none" }}
+                >
+                  SMWU Open-Source Platform
+                </Text>
+              </HStack>
+            </Link>
+            <HStack spaceX={1} flexShrink={0}>
+              <Link to={"/projects"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={"md"}
+                  color={"smu.blue"}
+                  px={2}
+                  py={1}
+                  borderRadius={"md"}
+                  whiteSpace={"nowrap"}
+                  _hover={{ bg: "smu.blue", color: "white" }}
+                >
+                  프로젝트
+                </Text>
+              </Link>
+              <Link to={"/rank"}>
+                <Text
+                  fontWeight={"bold"}
+                  fontSize={"md"}
+                  color={"smu.blue"}
+                  px={2}
+                  py={1}
+                  borderRadius={"md"}
+                  whiteSpace={"nowrap"}
+                  _hover={{ bg: "smu.blue", color: "white" }}
+                >
+                  랭킹
+                </Text>
+              </Link>
             </HStack>
-          </Link>
+          </HStack>
           {!userLoading ? (
             !isLoggedIn ? (
-              <Box>
-                <Link to="https://github.com/login/oauth/authorize?client_id=Ov23likSPS5G8fmL918k&scope=read:user,user:email">
-                  <Button>
-                    <FaGithub /> 로그인
-                  </Button>
-                </Link>
-                {/* <Button
-                  borderColor={"smu.blue"}
-                  bgColor={"white"}
-                  onClick={toggleLogInDialog}
-                >
-                  <Text color={"smu.blue"} fontWeight={"bold"}>
-                    로그인
-                  </Text>
-                </Button> */}
+              <Box flexShrink={0}>
+                <LogInButton />
               </Box>
             ) : (
               <MenuRoot>
@@ -88,6 +108,7 @@ export default function Header() {
                     padding={"2"}
                     borderRadius={"lg"}
                     cursor={"pointer"}
+                    flexShrink={0}
                   >
                     <Text
                       fontWeight={"bold"}
@@ -125,8 +146,6 @@ export default function Header() {
           ) : null}
         </HStack>
       </Box>
-
-      <LogInDialog open={logInOpen} setOpen={setLogInOpen} />
     </Box>
   );
 }

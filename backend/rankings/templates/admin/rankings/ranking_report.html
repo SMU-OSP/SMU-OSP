@@ -1,0 +1,95 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .ranking-report-form {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 16px;
+  }
+  .ranking-report-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .ranking-report-field ul.errorlist {
+    margin-left: 0;
+  }
+  .ranking-report-results {
+    clear: both;
+    overflow-x: auto;
+  }
+  .ranking-report-table {
+    min-width: 760px;
+    width: 100%;
+  }
+  .ranking-report-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .ranking-report-table td {
+    vertical-align: top;
+    white-space: nowrap;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <form method="get" class="module ranking-report-form">
+    {% for field in form %}
+      <div class="ranking-report-field">
+        {{ field.errors }}
+        {{ field.label_tag }}
+        {{ field }}
+      </div>
+    {% endfor %}
+    <input type="submit" value="조회" class="default">
+  </form>
+
+  {% if has_report %}
+    <ul class="object-tools">
+      {% if has_export_permission %}
+        <li>
+          <a href="{% url opts|admin_urlname:'export' %}?{{ export_query }}">
+            내보내기
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+    {% if rows %}
+      <div class="results ranking-report-results">
+        <table id="result_list" class="ranking-report-table">
+          <thead>
+            <tr>
+              {% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr class="{% cycle 'row1' 'row2' %}">
+                {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>조회된 랭킹이 없습니다.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -11,10 +11,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
-from datetime import timedelta
 
 import environ
-
 import pymysql
 from celery.schedules import crontab
 
@@ -53,6 +51,10 @@ CUSTOM_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
     "posts.apps.PostsConfig",
+    "teams.apps.TeamsConfig",
+    "projects.apps.ProjectsConfig",
+    "rankings.apps.RankingsConfig",
+    "trending.apps.TrendingConfig",
 ]
 
 SYSTEM_APPS = [
@@ -110,6 +112,7 @@ DATABASES = {
         "PASSWORD": env("DB_PASSWORD"),
         "HOST": env("DB_HOST"),
         "PORT": env("DB_PORT"),
+        "OPTIONS": {"charset": "utf8mb4"},
     }
 }
 
@@ -154,6 +157,7 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+PROJECT_DEFAULT_MAX_MEMBERS = env.int("PROJECT_DEFAULT_MAX_MEMBERS", default=5)
 
 # Auth
 
@@ -185,16 +189,52 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static/"
 
 
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/0")
 CELERY_TIMEZONE = "Asia/Seoul"
+PROJECT_RANKING_STARS_WEIGHT = env(
+    "PROJECT_RANKING_STARS_WEIGHT",
+    default="1.00",
+)
+PROJECT_RANKING_FORKS_WEIGHT = env(
+    "PROJECT_RANKING_FORKS_WEIGHT",
+    default="1.00",
+)
+PROJECT_RANKING_COMMITS_WEIGHT = env(
+    "PROJECT_RANKING_COMMITS_WEIGHT",
+    default="1.00",
+)
+PROJECT_RANKING_PULL_REQUESTS_WEIGHT = env(
+    "PROJECT_RANKING_PULL_REQUESTS_WEIGHT",
+    default="1.00",
+)
+REPOSITORY_REFRESH_TASK_RATE_LIMIT = env(
+    "REPOSITORY_REFRESH_TASK_RATE_LIMIT",
+    default="10/m",
+)
+TRENDING_EXCLUDED_LANGUAGES = env.list(
+    "TRENDING_EXCLUDED_LANGUAGES",
+    default=["HTML", "CSS", "Markdown", "Shell"],
+)
 
 CELERY_BEAT_SCHEDULE = {
     "daily-update": {
         "task": "users.tasks.daily_update",
-        "schedule": crontab(minute="0", hour="0,6,12,18"),
+        "schedule": crontab(minute="0", hour="0,12,18"),
+    },
+    "repository-refresh": {
+        "task": "projects.tasks.enqueue_daily_repository_refreshes",
+        "schedule": crontab(minute="10", hour="0,1,2"),
+    },
+    "project-ranking": {
+        "task": "rankings.tasks.refresh_users_and_calculate_rankings",
+        "schedule": crontab(minute="0", hour="6"),
+    },
+    "trending-repositories": {
+        "task": "trending.tasks.collect_daily_trending_repositories",
+        "schedule": crontab(minute="0", hour="0"),
     },
 }
 

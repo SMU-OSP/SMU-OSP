@@ -1,8 +1,5 @@
-from datetime import timedelta
-
-from django.db import models
-from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 from common.models import CommonModel
 
@@ -62,33 +59,12 @@ class User(AbstractUser):
         null=True,
     )
 
-    def update_contributions(self):
-        one_year_ago = timezone.now() - timedelta(days=365)
-
-        stats = UserActivity.objects.filter(
-            user=self, activity_date__gte=one_year_ago.date()
-        ).aggregate(
-            total_commits=models.Sum("commits"),
-            total_prs=models.Sum("prs"),
-            total_issues=models.Sum("issues"),
-        )
-
-        self.commits = stats["total_commits"] or 0
-        self.prs = stats["total_prs"] or 0
-        self.issues = stats["total_issues"] or 0
-
-        self.save()
-
-    def update_score(self):
-
-        self.score = self.stars + self.commits + self.prs + self.issues
-
-        self.save()
-
-
 class UserActivity(CommonModel):
+    """사용자의 일별 GitHub 활동과 누적 Star 스냅샷."""
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activities")
     activity_date = models.DateField(null=True)
+    stars = models.PositiveIntegerField(null=True)
     commits = models.IntegerField(default=0)
     prs = models.IntegerField(default=0)
     issues = models.IntegerField(default=0)
@@ -99,3 +75,21 @@ class UserActivity(CommonModel):
 
     def __str__(self):
         return f"{self.user} - {self.activity_date}"
+
+
+class SixMonthUserRanking(CommonModel):
+    """사용자별 마지막 정상 6개월 랭킹 지표 캐시."""
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="six_month_ranking",
+    )
+    total_score = models.PositiveBigIntegerField(default=0)
+    stars = models.PositiveIntegerField(default=0)
+    commits = models.PositiveIntegerField(default=0)
+    pull_requests = models.PositiveIntegerField(default=0)
+    issues = models.PositiveIntegerField(default=0)
+    period_start = models.DateField()
+    period_end = models.DateField()

@@ -1,0 +1,47 @@
+default_install_hook_types: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+      - id: check-toml
+      # tsconfig와 .vscode는 주석을 허용하는 JSONC라 표준 JSON 파서로 읽지 못한다.
+      - id: check-json
+        exclude: |
+          (?x)^(
+            frontend/tsconfig.*\.json|
+            (.*/)?\.vscode/.*\.json
+          )$
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # frontend/node_modules를 그대로 쓴다. 먼저 `npm --prefix frontend install` 필요.
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (frontend)
+        language: system
+        entry: node frontend/node_modules/prettier/bin/prettier.cjs --write --ignore-unknown --ignore-path frontend/.prettierignore
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|json|css|md)$
+        exclude: ^frontend/package-lock\.json$
+
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: npm --prefix frontend run lint
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false

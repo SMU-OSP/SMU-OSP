@@ -1,11 +1,12 @@
-import requests
-from datetime import datetime, timedelta, UTC
+import logging
+from datetime import UTC, date, datetime, timedelta
 
-from django.conf import settings
+import requests
 from celery import shared_task
+from django.conf import settings
 
 from users.models import User, UserActivity
-
+from users.services import refresh_user_ranking_caches
 
 GITHUB_API_URL = "https://api.github.com/graphql"
 
@@ -13,33 +14,61 @@ HEADERS = {
     "Authorization": f"Bearer {settings.GH_PAT}",
     "Content-Type": "application/json",
 }
+logger = logging.getLogger(__name__)
 
 
 @shared_task
-def daily_update():
+def daily_update(period_end: str | None = None) -> None:
+    """UTC 집계일의 사용자 활동과 1년·6개월 캐시를 갱신한다.
+
+    사용자 한 명의 수집 또는 저장이 실패해도 기존 캐시를 유지하고 다음
+    사용자를 계속 처리한다.
+
+    Args:
+        period_end: ISO 8601 형식의 집계 종료일. 없으면 UTC 기준 전날.
+    """
     users = User.objects.all().filter(is_superuser=False)
+    target_date = (
+        date.fromisoformat(period_end)
+        if period_end
+        else datetime.now(UTC).date() - timedelta(days=1)
+    )
 
     for user in users:
         print(f"Start User {user.username} updated")
 
-        data = get_initial_info(user.username)
+        try:
+            data = get_initial_info(user.username)
+            if data is None:
+                logger.error(
+                    "GitHub activity collection failed for user %s",
+                    user.username,
+                )
+                continue
+            stars = sum(
+                repo["stargazerCount"]
+                for repo in data["data"]["user"]["repositories"]["nodes"]
+            )
+            save_yesterday_contributions(
+                user,
+                stars,
+                activity_date=target_date,
+            )
+            refresh_user_ranking_caches(
+                user_id=user.pk,
+                period_end=target_date,
+            )
+        except Exception:
+            logger.exception(
+                "User activity and ranking refresh failed for user %s",
+                user.username,
+            )
+            continue
 
         print(data)
-
-        stars = sum(
-            repo["stargazerCount"]
-            for repo in data["data"]["user"]["repositories"]["nodes"]
-        )
-        user.stars = stars
-        user.save()
-
-        save_yesterday_contributions(user)
-
-        user.update_contributions()
-        user.update_score()
         print(f"User {user.username} updated")
 
-    print(f"All users updated")
+    print("All users updated")
 
 
 @shared_task
@@ -63,10 +92,16 @@ def initial_process(username):
 
     save_previous_contributions(user, github_account_created_at)
 
-    user.stars = stars
-    user.save()
-    user.update_contributions()
-    user.update_score()
+    period_end = (datetime.now(UTC) - timedelta(days=1)).date()
+    UserActivity.objects.update_or_create(
+        user=user,
+        activity_date=period_end,
+        defaults={"stars": stars},
+    )
+    refresh_user_ranking_caches(
+        user_id=user.pk,
+        period_end=period_end,
+    )
 
 
 def get_initial_info(username):
@@ -153,12 +188,12 @@ def save_previous_contributions(user, created_at):
             print(f"from: {from_date} to: {to_date}, request {requests_number} times")
 
             print("Saving data start")
-            userActivity = UserActivity.objects.create(user=user)
-            userActivity.activity_date = current_date
-            userActivity.commits = commits
-            userActivity.prs = prs
-            userActivity.issues = issues
-            userActivity.save()
+            user_activity = UserActivity.objects.create(user=user)
+            user_activity.activity_date = current_date
+            user_activity.commits = commits
+            user_activity.prs = prs
+            user_activity.issues = issues
+            user_activity.save()
             print("Done")
 
             requests_number += 1
@@ -173,26 +208,33 @@ def save_previous_contributions(user, created_at):
         print(f"An error occurred: {e}")
 
 
-def save_yesterday_contributions(user):
-    try:
-        print("Start gathering yesterday contribution data")
+def save_yesterday_contributions(
+    user: User,
+    stars: int,
+    *,
+    activity_date: date,
+) -> None:
+    """지정한 UTC 날짜의 사용자 활동과 누적 Star를 저장한다.
 
-        yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
+    Args:
+        user: 활동을 수집할 사용자.
+        stars: 집계 시점에 사용자가 보유한 누적 Star 수.
+        activity_date: 활동을 수집하고 저장할 UTC 날짜.
 
-        current_date = yesterday
+    Raises:
+        requests.RequestException: GitHub 요청 또는 응답 처리에 실패한 경우.
+        ValueError: GitHub GraphQL 응답에 오류가 포함된 경우.
+    """
+    print("Start gathering yesterday contribution data")
 
-        print(f"yesterday: {yesterday}")
+    print(f"yesterday: {activity_date}")
 
-        from_date = datetime.combine(current_date, datetime.min.time()).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
-        to_date = datetime.combine(current_date, datetime.max.time()).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
+    from_date = f"{activity_date}T00:00:00Z"
+    to_date = f"{activity_date}T23:59:59Z"
 
-        print(f"from: {from_date} to: {to_date}, request start")
+    print(f"from: {from_date} to: {to_date}, request start")
 
-        query = f"""
+    query = f"""
         {{
             user(login: "{user.username}") {{
                 contributionsCollection(from: "{from_date}", to: "{to_date}") {{
@@ -210,31 +252,33 @@ def save_yesterday_contributions(user):
         }}
         """
 
-        json_data = {"query": query}
+    json_data = {"query": query}
 
-        response = requests.post(GITHUB_API_URL, json=json_data, headers=HEADERS)
-        response_data = response.json()
+    response = requests.post(GITHUB_API_URL, json=json_data, headers=HEADERS)
+    response.raise_for_status()
+    response_data = response.json()
 
-        if "errors" in response_data:
-            print(f"GitHub GraphQL API Failed: {response_data['errors']}")
-        else:
-            print(response_data)
-            commits, prs, issues = calculate_contributions(response_data)
-            print(f"Commits: {commits}, PRs: {prs}, Issues: {issues}")
-
-        print("Saving data start")
-        userActivity = UserActivity.objects.create(
-            user=user, activity_date=current_date
+    if "errors" in response_data:
+        raise ValueError(
+            f"GitHub GraphQL API Failed: {response_data['errors']}"
         )
-        # userActivity.activity_date = current_date
-        userActivity.commits = commits
-        userActivity.prs = prs
-        userActivity.issues = issues
-        userActivity.save()
-        print(f"{yesterday} contribution saved")
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    print(response_data)
+    commits, prs, issues = calculate_contributions(response_data)
+    print(f"Commits: {commits}, PRs: {prs}, Issues: {issues}")
+
+    print("Saving data start")
+    UserActivity.objects.update_or_create(
+        user=user,
+        activity_date=activity_date,
+        defaults={
+            "stars": stars,
+            "commits": commits,
+            "prs": prs,
+            "issues": issues,
+        },
+    )
+    print(f"{activity_date} contribution saved")
 
 
 def calculate_contributions(response):

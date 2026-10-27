@@ -31,6 +31,110 @@ django-import-export = "^4.3.7"
 django-encrypted-model-fields = "^0.6.5"
 
 
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.16.1"
+pre-commit = "^4.6.1"
+
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py312"
+
+src = ["backend"]
+
+extend-exclude = ["**/migrations/**"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle: 오류
+  "W",   # pycodestyle: 경고
+  "F",   # Pyflakes: 미사용 import, 미정의 이름 등
+  "I",   # isort: import 순서
+  "D",   # pydocstyle: docstring
+  "N",   # pep8-naming: 이름 규칙
+  "UP",  # pyupgrade: 구버전 문법
+  "B",   # flake8-bugbear: 실수하기 쉬운 패턴
+  "C4",  # flake8-comprehensions
+  "DJ",  # flake8-django
+  "SIM", # flake8-simplify
+  "RUF", # Ruff 고유 규칙
+]
+
+ignore = [
+  # -- Google 스타일이 요구하지 않는 docstring --
+  # Google 스타일은 모든 모듈/패키지에 docstring을 요구하지 않는다.
+  "D100", # 모듈 docstring 누락
+  "D104", # 패키지(__init__.py) docstring 누락
+  # "명백한 경우 docstring을 생략할 수 있다"에 해당한다.
+  "D105", # magic method(__str__ 등) docstring 누락
+  # 생성자 인자는 클래스 docstring의 Args 절에 기술하는 것을 택한다.
+  "D107", # __init__ docstring 누락
+
+  # -- Django/DRF 관용구와 충돌하는 규칙 --
+  # 중첩 public 클래스는 사실상 전부 DRF/Django의 `Meta`다.
+  "D106", # 중첩 public 클래스 docstring 누락
+  # Meta의 `fields = [...]` 같은 선언마다 ClassVar 주석을 강제한다.
+  "RUF012", # mutable-class-default
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 100
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "config", "posts", "projects", "teams", "users"]
+
+[tool.ruff.lint.per-file-ignores]
+# =========================================================================
+# 영구 예외 — 프레임워크 보일러플레이트
+# =========================================================================
+"backend/*/admin.py" = ["D101", "D102"]
+"backend/*/apps.py" = ["D101", "D102"]
+"backend/*/signals.py" = ["D103"]
+"backend/*/tests.py" = ["D101", "D102", "D103"]
+"backend/manage.py" = ["D103"]
+"backend/config/settings.py" = ["E501", "F403", "F405"]
+
+# forms/serializers의 필드명은 프론트엔드와 주고받는 JSON 키를 그대로
+# 반영해야 하므로 camelCase를 유지.
+# DRF의 `get_<필드명>` 메서드도 필드명을 그대로 따라야 하므로 N802를 함께
+# 예외로 설정
+"backend/*/forms.py" = ["N815"]
+"backend/*/serializers.py" = ["N802", "N815"]
+
+# =========================================================================
+# 베이스라인 — 기존 코드에만 적용되는 한시적 예외
+#
+# 새로 만드는 파일에는 예외가 없다. 아래 파일을 수정할 일이 생기면 해당
+# 파일의 public 인터페이스에 docstring을 채우고 이 목록에서 줄을 지운다.
+# 목록이 비면 이 블록 전체를 삭제한다.
+# =========================================================================
+"backend/projects/serializers.py" = ["N815", "D101", "D102"]
+"backend/users/views.py" = ["D101", "D102"]
+"backend/projects/views.py" = ["D101", "D102"]
+"backend/projects/forms.py" = ["N815", "D101", "D102", "D103"]
+"backend/projects/models.py" = [
+  "D101",
+  "D102",
+  # 아래 두 규칙은 모델 정의를 바꿔야 하고 마이그레이션이 따라와야 하므로
+  # 스타일 정리와 분리해 별도 작업으로 처리한다.
+  "DJ001", # null=True를 쓴 문자열 필드 4곳
+  "DJ008", # __str__이 없는 모델 3곳
+]
+"backend/projects/github_client.py" = ["D101", "D103"]
+"backend/posts/views.py" = ["D101", "D102"]
+"backend/users/tasks.py" = ["D103"]
+"backend/users/models.py" = ["D101", "D102"]
