@@ -106,6 +106,9 @@ def list_project_ranking_targets(
 ) -> list[Project]:
     """집계 기간과 시작 경계 스냅샷이 있는 랭킹 대상을 조회한다.
 
+    삭제는 되돌릴 수 없으므로 삭제된 프로젝트만 제외하고, 나머지는
+    조회 시점과 무관하게 같은 결과가 나오도록 상태와 관계없이 포함한다.
+
     Args:
         period_start: 랭킹 집계 시작일.
         period_end: 랭킹 집계 종료일.
@@ -148,8 +151,7 @@ def list_project_ranking_targets(
     )
     snapshots = (
         RepositorySnapshot.objects.filter(
-            Q(pk=starting_snapshot)
-            | Q(pk=Subquery(latest_snapshot))
+            Q(pk=starting_snapshot) | Q(pk=Subquery(latest_snapshot))
         )
         .only(
             "repository_id",
@@ -166,6 +168,7 @@ def list_project_ranking_targets(
             has_ranking_snapshot=Exists(available_snapshot),
         )
         .filter(has_ranking_snapshot=True)
+        .exclude(status=Project.Status.DELETED)
         .select_related("repository")
         .only("id", "name", "repository__id")
         .prefetch_related(

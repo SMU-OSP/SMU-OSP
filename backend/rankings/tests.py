@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import call, patch
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -183,7 +184,10 @@ class ProjectRankingCalculationTests(TestCase):
         )[0]
 
         self.assertEqual(
-            [snapshot.date for snapshot in project.repository.ranking_snapshots],
+            [
+                snapshot.date
+                for snapshot in project.repository.ranking_snapshots
+            ],
             [date(2025, 8, 12), date(2026, 8, 13)],
         )
 
@@ -216,7 +220,7 @@ class ProjectRankingCalculationTests(TestCase):
         self.assertEqual(result.pull_requests, 1)
         self.assertEqual(result.period_start, date(2026, 8, 12))
 
-    def test_includes_projects_with_snapshots_regardless_of_status(self):
+    def test_includes_projects_with_snapshots_except_deleted(self):
         repositories = [
             self.create_repository_project(
                 name=f"{status} 프로젝트",
@@ -225,11 +229,14 @@ class ProjectRankingCalculationTests(TestCase):
             for status in (
                 Project.Status.INACTIVE,
                 Project.Status.FINISHED,
-                Project.Status.DELETED,
             )
         ]
+        deleted_repository = self.create_repository_project(
+            name="삭제 프로젝트",
+            status=Project.Status.DELETED,
+        )
         self.create_repository_project(name="수집 전 프로젝트")
-        for repository in repositories:
+        for repository in (*repositories, deleted_repository):
             self.create_snapshot(
                 repository,
                 date(2026, 8, 13),
@@ -689,13 +696,15 @@ class ProjectRankingTaskTests(TestCase):
     @patch("rankings.tasks.replace_daily_project_rankings")
     @patch("rankings.tasks.calculate_project_rankings")
     @patch("rankings.tasks.datetime")
-    def test_default_period_excludes_current_day(
+    def test_default_period_uses_previous_service_date_at_beat_time(
         self,
         task_datetime,
         calculate_projects,
         replace_rankings,
     ):
-        task_datetime.now.return_value = datetime(2026, 8, 14, 3, 10)
+        task_datetime.now.return_value = datetime(
+            2026, 8, 14, 6, tzinfo=ZoneInfo(settings.CELERY_TIMEZONE)
+        ).astimezone(UTC)
         calculate_projects.return_value = []
 
         calculate_daily_project_rankings.run()
@@ -832,19 +841,17 @@ class ProjectRankingTaskTests(TestCase):
         task_chain,
         task_datetime,
     ):
-        task_datetime.now.return_value = datetime(2026, 8, 26, 3, 10)
+        task_datetime.now.return_value = datetime(
+            2026, 8, 26, 6, tzinfo=ZoneInfo(settings.CELERY_TIMEZONE)
+        ).astimezone(UTC)
         user_update_signature.return_value = "user-update"
         ranking_signature.return_value = "ranking-update"
 
         refresh_users_and_calculate_rankings.run()
 
         task_datetime.now.assert_called_once_with(UTC)
-        user_update_signature.assert_called_once_with(
-            period_end="2026-08-25"
-        )
-        ranking_signature.assert_called_once_with(
-            period_end="2026-08-25"
-        )
+        user_update_signature.assert_called_once_with(period_end="2026-08-24")
+        ranking_signature.assert_called_once_with(period_end="2026-08-25")
         task_chain.assert_called_once_with(
             "user-update",
             "ranking-update",
@@ -961,14 +968,10 @@ class RankingAdminReportTests(TestCase):
         self.assertContains(response, "13")
         available_formats = {
             str(label)
-            for _, label in export_page.context["form"].fields[
-                "format"
-            ].choices
+            for _, label in export_page.context["form"].fields["format"].choices
         }
         self.assertTrue(
-            {"csv", "tsv", "json", "yaml", "html"}.issubset(
-                available_formats
-            )
+            {"csv", "tsv", "json", "yaml", "html"}.issubset(available_formats)
         )
         self.assertNotIn("xlsx", available_formats)
         self.assertEqual(csv_response.status_code, 200)
@@ -1082,6 +1085,52 @@ class RankingAdminReportTests(TestCase):
         self.assertIn("관리자 조회 프로젝트", decoded_csv)
         self.assertIn("11.00", decoded_csv)
         self.assertEqual(ProjectRanking.objects.count(), 0)
+
+    def test_admin_project_ranking_matches_public_ranking(self):
+        self.client.force_login(self.admin_user)
+        for name, status in (
+            ("공개 프로젝트", Project.Status.ACTIVE),
+            ("삭제 프로젝트", Project.Status.DELETED),
+        ):
+            project = Project.objects.create(
+                name=name,
+                description=f"{name} 설명",
+                status=status,
+            )
+            repository = Repository.objects.create(
+                project=project,
+                github_id=project.pk,
+                name=f"repository-{project.pk}",
+                full_name=f"example/repository-{project.pk}",
+                html_url=f"https://github.com/example/repository-{project.pk}",
+            )
+            RepositorySnapshot.objects.create(
+                repository=repository,
+                date=date(2026, 8, 20),
+                stars=1,
+                forks=0,
+                commits=0,
+                pull_requests=0,
+                has_code_changed=False,
+            )
+
+        calculate_daily_project_rankings.run(period_end="2026-08-20")
+        response = self.client.get(
+            self.url,
+            {
+                "ranking_type": "projects",
+                "period_start": "2025-08-20",
+                "period_end": "2026-08-20",
+            },
+        )
+
+        public_rankings, _ = list_project_rankings(start=0, limit=10)
+        public_names = [ranking.project.name for ranking in public_rankings]
+        self.assertEqual(public_names, ["공개 프로젝트"])
+        self.assertEqual(
+            [row[1] for row in response.context["rows"]],
+            public_names,
+        )
 
     def test_admin_requires_login(self):
         response = self.client.get(self.url)

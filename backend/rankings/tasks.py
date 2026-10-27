@@ -1,6 +1,8 @@
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from celery import chain, shared_task
+from django.conf import settings
 
 from common.dates import (
     ONE_YEAR_RANKING_DAYS,
@@ -15,6 +17,11 @@ from .services import (
 )
 
 
+def _previous_snapshot_date(now: datetime) -> date:
+    service_timezone = ZoneInfo(settings.CELERY_TIMEZONE)
+    return now.astimezone(service_timezone).date() - timedelta(days=1)
+
+
 @shared_task
 def calculate_daily_project_rankings(
     period_end: str | None = None,
@@ -22,7 +29,8 @@ def calculate_daily_project_rankings(
     """지정일 또는 서비스 기준 전날의 프로젝트 랭킹을 계산한다.
 
     Args:
-        period_end: ISO 8601 형식의 집계 종료일. 없으면 UTC 기준 전날.
+        period_end: ISO 8601 형식의 집계 종료일. 없으면 저장소 스냅샷
+            날짜와 같은 서비스 시간대 기준 전날.
 
     Returns:
         DB에 저장한 1년·6개월 프로젝트 랭킹 결과 수.
@@ -30,7 +38,7 @@ def calculate_daily_project_rankings(
     target_date = (
         date.fromisoformat(period_end)
         if period_end
-        else datetime.now(UTC).date() - timedelta(days=1)
+        else _previous_snapshot_date(datetime.now(UTC))
     )
     one_year_period_start = ranking_period_boundary(
         target_date, ONE_YEAR_RANKING_DAYS
@@ -57,12 +65,15 @@ def calculate_daily_project_rankings(
 def refresh_users_and_calculate_rankings() -> None:
     """사용자 활동 갱신 후 일별 랭킹 계산을 순서대로 예약한다.
 
-    한 번 정한 UTC 집계 종료일을 사용자와 프로젝트 랭킹에 동일하게 적용한다.
+    같은 실행 시각에서 각 데이터의 날짜 기준에 맞는 집계 종료일을 정한다.
+    사용자 활동은 GitHub 기여를 UTC 하루 단위로 수집하므로 UTC 기준 전날,
+    프로젝트는 저장소 스냅샷이 서비스 시간대 날짜로 쌓이므로 서비스 시간대
+    기준 전날을 쓴다.
     """
-    period_end = (
-        datetime.now(UTC).date() - timedelta(days=1)
-    ).isoformat()
+    now = datetime.now(UTC)
+    user_period_end = (now.date() - timedelta(days=1)).isoformat()
+    project_period_end = _previous_snapshot_date(now).isoformat()
     chain(
-        daily_update.si(period_end=period_end),
-        calculate_daily_project_rankings.si(period_end=period_end),
+        daily_update.si(period_end=user_period_end),
+        calculate_daily_project_rankings.si(period_end=project_period_end),
     ).apply_async()
