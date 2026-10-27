@@ -5,6 +5,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from users.models import SixMonthUserRanking, UserActivity
+from users.selectors import (
+    get_user_ranking_target,
+    list_user_ranking_targets,
+)
 from users.services import (
     calculate_user_rankings,
     refresh_user_ranking_caches,
@@ -91,9 +95,7 @@ class UserActivityStarSnapshotTests(TestCase):
                 activity_date=date(2026, 8, 25),
             )
 
-        self.assertFalse(
-            UserActivity.objects.filter(user=self.user).exists()
-        )
+        self.assertFalse(UserActivity.objects.filter(user=self.user).exists())
 
     @patch("users.tasks.save_yesterday_contributions")
     @patch("users.tasks.get_initial_info")
@@ -460,6 +462,176 @@ class UserRankingCacheTests(TestCase):
         self.assertFalse(
             SixMonthUserRanking.objects.filter(user=self.user).exists()
         )
+
+
+class UserRankingTargetTests(TestCase):
+    period_start = date(2026, 10, 1)
+    period_end = date(2026, 10, 27)
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.active_user = user_model.objects.create_user(
+            username="active-user",
+            github_email="active-user@example.com",
+            name="활동 사용자",
+            student_id=11,
+            major="IT공학",
+        )
+        self.starred_user = user_model.objects.create_user(
+            username="starred-user",
+            github_email="starred-user@example.com",
+            name="Star 사용자",
+            student_id=12,
+            major="IT공학",
+        )
+        self.inactive_user = user_model.objects.create_user(
+            username="inactive-user",
+            github_email="inactive-user@example.com",
+            name="비활동 사용자",
+            student_id=13,
+            major="IT공학",
+        )
+        self.superuser = user_model.objects.create_superuser(
+            username="ranking-superuser",
+            email="ranking-superuser@example.com",
+            password="password",
+            github_email="ranking-superuser@example.com",
+            name="관리자",
+            student_id=14,
+            major="IT공학",
+        )
+        user_model.objects.update(date_joined=datetime(2026, 1, 1, tzinfo=UTC))
+        self.create_activity(
+            self.active_user,
+            date(2026, 9, 30),
+            stars=2,
+            commits=100,
+            prs=100,
+            issues=100,
+        )
+        self.create_activity(
+            self.active_user,
+            date(2026, 10, 1),
+            stars=4,
+            commits=1,
+            prs=2,
+            issues=3,
+        )
+        self.create_activity(
+            self.active_user,
+            date(2026, 10, 27),
+            stars=None,
+            commits=10,
+            prs=20,
+            issues=30,
+        )
+        self.create_activity(
+            self.active_user,
+            date(2026, 10, 28),
+            stars=50,
+            commits=1000,
+            prs=1000,
+            issues=1000,
+        )
+        self.create_activity(
+            self.starred_user,
+            date(2026, 8, 1),
+            stars=9,
+            commits=5,
+        )
+        self.create_activity(
+            self.starred_user,
+            date(2026, 10, 15),
+            stars=None,
+            commits=7,
+            issues=1,
+        )
+        self.create_activity(
+            self.superuser,
+            date(2026, 10, 10),
+            stars=1,
+            commits=99,
+        )
+
+    def create_activity(self, user, activity_date, **metrics):
+        UserActivity.objects.create(
+            user=user,
+            activity_date=activity_date,
+            **metrics,
+        )
+
+    def ranking_metrics(self, user):
+        return (
+            int(user.ranking_stars),
+            int(user.ranking_commits),
+            int(user.ranking_prs),
+            int(user.ranking_issues),
+        )
+
+    def list_targets(self):
+        return {
+            user.username: user
+            for user in list_user_ranking_targets(
+                self.period_start,
+                self.period_end,
+            )
+        }
+
+    def test_sums_only_activities_within_period(self):
+        targets = self.list_targets()
+
+        self.assertEqual(
+            self.ranking_metrics(targets["active-user"])[1:],
+            (11, 22, 33),
+        )
+        self.assertEqual(
+            self.ranking_metrics(targets["starred-user"])[1:],
+            (7, 0, 1),
+        )
+
+    def test_uses_latest_stars_until_period_end(self):
+        targets = self.list_targets()
+
+        self.assertEqual(targets["active-user"].ranking_stars, 4)
+        self.assertEqual(targets["starred-user"].ranking_stars, 9)
+
+    def test_user_without_activity_has_zero_metrics(self):
+        targets = self.list_targets()
+
+        self.assertEqual(
+            self.ranking_metrics(targets["inactive-user"]),
+            (0, 0, 0, 0),
+        )
+
+    def test_excludes_superuser(self):
+        targets = self.list_targets()
+
+        self.assertEqual(
+            sorted(targets),
+            ["active-user", "inactive-user", "starred-user"],
+        )
+
+    def test_single_target_matches_period_list(self):
+        for username, listed in self.list_targets().items():
+            with self.subTest(username=username):
+                target = get_user_ranking_target(
+                    user_id=listed.pk,
+                    period_start=self.period_start,
+                    period_end=self.period_end,
+                )
+
+                self.assertEqual(
+                    self.ranking_metrics(target),
+                    self.ranking_metrics(listed),
+                )
+
+    def test_calculates_metrics_without_joining_activities(self):
+        # 활동 행을 조인해 GROUP BY 하면 MySQL이 Star 서브쿼리를 활동 행마다
+        # 실행해 조회 시간이 활동 누적량에 따라 급격히 늘어난다.
+        with self.assertNumQueries(1) as queries:
+            list_user_ranking_targets(self.period_start, self.period_end)
+
+        self.assertNotIn(" JOIN ", queries.captured_queries[0]["sql"])
 
 
 class UserListApiTests(TestCase):
